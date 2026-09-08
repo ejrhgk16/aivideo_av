@@ -21,7 +21,6 @@ android/build/
 android/local.properties
 ios/Pods/
 ios/build/
-front/assets/*.png
 *.jks
 *.keystore
 

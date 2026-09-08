@@ -69,7 +69,7 @@
 
 - Node.js: 24.7.0
 - npm: 11.5.1
-- `front/`: Expo 57 기반 React Native 0.86.3, React 19, TypeScript 6
+- `front/`: Expo Router가 적용된 Expo 57 기반 React Native 0.86.3, React 19, TypeScript 6
 - `back/`: NestJS 12, TypeScript 6, Vitest 4
 - 프론트엔드와 백엔드는 각각 독립된 `package.json`과 lockfile을 관리한다.
 - 비밀 값은 `.env`에 두며 저장소에 커밋하지 않는다.
@@ -81,11 +81,21 @@
 
 ## 프로젝트 구조 규칙
 
-- `front/` — Expo React Native 앱. 화면·컴포넌트·훅은 프론트엔드 영역 안에 둔다.
-- `front/App.tsx` — 앱 진입 화면. `front/index.ts` — Expo 진입점.
-- `front/assets/` — 앱 아이콘, 스플래시 등 정적 리소스.
+- `front/src/app/` — 사용자가 담당하는 Expo Router route와 네비게이터 설정.
+- `front/src/screens/`, `front/src/components/`, `front/src/theme/` — 퍼블리셔가 담당하는 화면 UI, 재사용 UI, 디자인 토큰.
+- `front/assets/` — 퍼블리셔가 담당하는 앱 아이콘, 이미지, 폰트 등 정적 리소스. 화면 이미지와 아이콘은 각각 `assets/images/`, `assets/icons/`에 둔다.
+- `front/src/features/` — 사용자가 담당하는 기능별 상태, endpoint, 타입. 기능별 API는 해당 기능 폴더에 둔다.
+- `front/src/services/` — 사용자가 담당하는 공통 HTTP client, 저장소, 환경 설정.
+- `front/src/utils/` — 사용자가 담당하는 순수 공용 함수. API 호출이나 업무 상태를 두지 않는다.
 - `back/src/` — NestJS 애플리케이션 코드. 기능별 module/controller/service를 이 영역에 둔다.
 - `back/src/**/*.spec.ts` — 백엔드 단위 테스트. `back/test/` — e2e 테스트.
 - `_docs/ARCHITECTURE.md` — 시스템 구조와 프론트-백엔드 경계 문서.
 - `_docs/plans/` — 작업 계획, 태스크 지시, 실행 상태 문서.
 - 모든 구조 변경은 `_docs/ARCHITECTURE.md`에 반영한다.
+
+## 협업 규칙
+
+- 퍼블리셔는 `front/src/screens/`, `front/src/components/`, `front/src/theme/`, `front/assets/`만 수정한다. 정적 더미 데이터와 화면 내부 UI 동작은 담당 범위에 포함된다.
+- 퍼블리셔 UI 파일에는 API 호출, 인증 토큰, 전역 상태, `features/` 또는 `services/` 의존성을 넣지 않는다.
+- 사용자는 `front/src/app/`, `front/src/features/`, `front/src/services/`, `front/src/utils/`, `back/`을 담당한다.
+- 두 작업자는 `main`에 직접 푸시한다. CODEOWNERS와 자동 검사는 사용하지 않는다.
