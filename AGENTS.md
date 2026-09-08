@@ -93,9 +93,3 @@
 - `_docs/plans/` — 작업 계획, 태스크 지시, 실행 상태 문서.
 - 모든 구조 변경은 `_docs/ARCHITECTURE.md`에 반영한다.
 
-## 협업 규칙
-
-- 퍼블리셔는 `front/src/screens/`, `front/src/components/`, `front/src/theme/`, `front/assets/`만 수정한다. 정적 더미 데이터와 화면 내부 UI 동작은 담당 범위에 포함된다.
-- 퍼블리셔 UI 파일에는 API 호출, 인증 토큰, 전역 상태, `features/` 또는 `services/` 의존성을 넣지 않는다.
-- 사용자는 `front/src/app/`, `front/src/features/`, `front/src/services/`, `front/src/utils/`, `back/`을 담당한다.
-- 두 작업자는 `main`에 직접 푸시한다. CODEOWNERS와 자동 검사는 사용하지 않는다.
