@@ -1,5 +1,5 @@
 import { HomeScreen } from '@/screens/HomeScreen';
 
-export default function IndexRoute() {
+export default function HomeRoute() {
   return <HomeScreen />;
 }
