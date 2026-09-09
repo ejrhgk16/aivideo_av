@@ -10,6 +10,8 @@
 
 ## 기획서
 
+[구글 슬라이드 기획서 (비공개, 소유자 또는 공유받은 계정으로 열기)](https://docs.google.com/presentation/d/1pYl-LSJrTFtbY1M7yuBmiHh7ZE8YLb08c1OFUkHuxMM/edit?usp=drivesdk)
+
 [AI DRAMA 기획서·구현 안내 다운로드 (PowerPoint, 18장)](_docs/AI_DRAMA_기획서_구현안내_20260909.pptx)
 
 서비스 범위, 공통 디자인, 주요 화면과 이용 흐름, 무료 회차·포인트 체험, 출시 전 연결할 기능을 정리했습니다. 기획서에도 [현재 구현된 웹앱](https://ai-drama-screen.qwerqerqwere.chatgpt.site/) 링크가 포함되어 있습니다.
