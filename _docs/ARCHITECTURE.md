@@ -41,5 +41,6 @@ front (React Native / Expo) ── HTTP API ──> back (NestJS)
 ## Documentation and Changes
 
 - 작업 계획은 `_docs/plans/`에 작성한다.
+- AI DRAMA 기획서와 구현 안내는 `_docs/AI_DRAMA_기획서_구현안내_20260909.pptx`에 보관한다. 현재 공개 웹앱의 화면·기능 범위와 체험 링크를 포함한다.
 - 디렉터리 구조나 프론트-백엔드 책임이 바뀌면 이 문서를 함께 수정한다.
 - 의존성과 환경변수는 각 앱의 `package.json`과 `.env.example`을 기준으로 관리한다.
