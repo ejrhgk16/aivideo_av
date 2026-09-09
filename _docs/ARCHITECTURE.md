@@ -28,6 +28,16 @@ front (React Native / Expo) ── HTTP API ──> back (NestJS)
 - NestJS의 module, controller, service 경계를 따른다.
 - 빌드 결과물은 `back/dist/`에 생성되며 저장소에 커밋하지 않는다.
 
+## Web Prototype
+
+- 위치: `web-prototype/`
+- 공개 체험: https://ai-drama-screen.qwerqerqwere.chatgpt.site/
+- 약 1분 길이 AI 드라마의 모바일 화면과 이용 흐름을 검토하는 독립적인 React / vinext 웹앱이다. `front/`의 Expo 앱과 `back/`의 API 서버에 연결되지 않는다.
+- 홈, 추천 숏폼 피드, 검색, 회차 선택, 보관함, 이어보기, 포인트 충전·차감 체험을 포함한다.
+- 포인트와 시청 기록은 브라우저에 저장하는 데모 데이터다. 실제 영상·광고·결제·회원 기능 및 모바일 설치 패키지는 포함하지 않는다.
+- 이 폴더 안에서 `pnpm install --frozen-lockfile`, `pnpm dev`, `pnpm build`를 사용한다. 의존성과 lockfile은 기존 앱들과 별도로 관리한다.
+- 기존 Sites 소스 커밋 `c697c3bd82edf156d5e537f4c6e65e451ae67ba0`의 추적 파일을 가져왔다. 사이트 배포 설정과 이미지·글꼴 라이선스도 함께 보관한다.
+
 ## Documentation and Changes
 
 - 작업 계획은 `_docs/plans/`에 작성한다.

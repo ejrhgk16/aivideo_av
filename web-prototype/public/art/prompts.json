@@ -1,0 +1,17 @@
+{
+  "mode": "built-in image_gen",
+  "images": [
+    {
+      "key": "signal",
+      "prompt": "Use case: photorealistic-natural. Asset type: finished cinematic portrait artwork for a fictional Korean mystery short-drama catalog, vertical 2:3. Primary request: a fictional Korean woman age 30 in a dark raincoat holding a phone on a rainy Seoul street at night. Contemporary Korean editorial film photography, photorealistic sophisticated cinematic still. Her face is in the upper middle-right of the image, foreground dramatic waist-up presence with wary, absorbed expression. Blue-teal wet night reflections, small distant red lights, fine visible rain, authentic skin and fabric texture, subtle 35mm film grain. Portrait composition designed for a premium charcoal OTT app, with the lower third relatively dark and visually subdued for a later programmatic title. No text, titles, letters, logos, UI, captions, borders or watermarks. One complete finished poster image."
+    },
+    {
+      "key": "season",
+      "prompt": "Use case: photorealistic-natural. Asset type: finished cinematic portrait artwork for a fictional Korean romance short-drama catalog, vertical 2:3. Primary request: a fictional adult Korean man and woman both in their early 30s at a quiet tense reunion on a sunlit train platform. Contemporary Korean editorial film photography with elegant long-lens compression, subtle analog film grain and natural believable faces. Waist-up subjects in the upper half, facing toward one another with a small emotionally charged distance, warm amber sunlight and cream tones, sunlit railway architecture softly out of focus. Sophisticated restrained romance poster mood. The lower part is visually subdued and shadowed for a later programmatic title. No text, titles, letters, logos, UI, captions, borders or watermarks. One complete finished poster image."
+    },
+    {
+      "key": "moon",
+      "prompt": "Use case: photorealistic-natural. Asset type: finished cinematic portrait artwork for a fictional Korean sci-fi short-drama catalog, vertical 2:3. Primary request: a lone fictional Korean woman age 30 in a near-future minimal silver jacket overlooking dense dark futuristic Seoul under an enormous moon. Photorealistic cinematic editorial film still, elegant violet-blue city with restrained warm lights, tactile realistic jacket, atmospheric city depth and enormous detailed moon. Person medium foreground in the upper-middle, seen from behind in a slight three-quarter profile, gazing at the city and moon. Restrained premium science-fiction mood, subtle film grain, sophisticated believable photography. Dark subdued lower third for a later programmatic title. No text, titles, letters, logos, UI, captions, borders or watermarks. One complete finished poster image."
+    }
+  ]
+}
