@@ -1,0 +1,3 @@
+interface:
+  display_name: "Finish Plan"
+  short_description: "Verify, commit, and push a completed plan"

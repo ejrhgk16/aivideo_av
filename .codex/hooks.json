@@ -1,0 +1,45 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .codex/hooks/harness-hook.mjs user-prompt-submit"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "^(apply_patch|Edit|Write)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .codex/hooks/harness-hook.mjs pre-file-write"
+          }
+        ]
+      },
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .codex/hooks/harness-hook.mjs pre-bash"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "^harness_worker$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .codex/hooks/harness-hook.mjs subagent-stop"
+          }
+        ]
+      }
+    ]
+  }
+}

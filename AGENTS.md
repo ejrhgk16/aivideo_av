@@ -79,17 +79,19 @@
 - `_docs/ARCHITECTURE.md` -- 시스템 아키텍처와 레이어 구조
 - `_docs/plans/` -- plan 정의, task 지시, 실행 상태
 
-## 프로젝트 구조 규칙
+## Architecture
 
-- `front/src/app/` — 사용자가 담당하는 Expo Router route와 네비게이터 설정.
-- `front/src/screens/`, `front/src/components/`, `front/src/theme/` — 퍼블리셔가 담당하는 화면 UI, 재사용 UI, 디자인 토큰.
-- `front/assets/` — 퍼블리셔가 담당하는 앱 아이콘, 이미지, 폰트 등 정적 리소스. 화면 이미지와 아이콘은 각각 `assets/images/`, `assets/icons/`에 둔다.
-- `front/src/features/` — 사용자가 담당하는 기능별 상태, endpoint, 타입. 기능별 API는 해당 기능 폴더에 둔다.
-- `front/src/services/` — 사용자가 담당하는 공통 HTTP client, 저장소, 환경 설정.
-- `front/src/utils/` — 사용자가 담당하는 순수 공용 함수. API 호출이나 업무 상태를 두지 않는다.
-- `back/src/` — NestJS 애플리케이션 코드. 기능별 module/controller/service를 이 영역에 둔다.
-- `back/src/**/*.spec.ts` — 백엔드 단위 테스트. `back/test/` — e2e 테스트.
-- `_docs/ARCHITECTURE.md` — 시스템 구조와 프론트-백엔드 경계 문서.
-- `_docs/plans/` — 작업 계획, 태스크 지시, 실행 상태 문서.
-- 모든 구조 변경은 `_docs/ARCHITECTURE.md`에 반영한다.
+프로젝트 디렉터리 책임, 프론트-백엔드 경계, 테스트 구조의 단일 기준은 `_docs/ARCHITECTURE.md`다. 구조나 파일 책임을 변경하기 전 이 문서를 읽고, 변경했다면 같은 작업에서 함께 갱신한다.
 
+## Test placement
+
+- 프론트 제품 테스트는 `front/tests/**/*.test.ts(x)`에 둔다. `front/src/`에는 새 테스트를 만들지 않는다. 검증은 `npm --prefix front run typecheck`, `npm --prefix front run test`, `npm --prefix front run export`를 사용한다.
+- 백엔드 테스트는 단위 테스트만 `back/test/unit/**/*.spec.ts`에 둔다. `back/src/`에는 새 테스트를 만들지 않는다. 검증은 `npm --prefix back run lint`, `npm --prefix back run test`, `npm --prefix back run build`를 사용한다.
+- Harness 자체 테스트만 `tools/harness/**/*.test.mjs`에 colocate하며 `node --test tools/harness/*.test.mjs`로 실행한다. 제품 테스트용 최상위 `tests/` 폴더는 만들지 않는다.
+
+## Codex Harness
+
+- `$harness-plan`, `$harness`, `$finish-plan`은 명시적으로 호출할 때만 사용한다. 작업은 `dev`에서만 수행하며 branch나 worktree를 만들지 않는다.
+- 계획 task는 정확한 `files`, `depends_on`, `checks`, `status`를 `_docs/plans/index.json`에 선언한다. `web-prototype/`은 계획·수정·검증 대상이 아니다.
+- 실행 중에는 `apply_patch`로만 파일을 수정해 hook의 task 범위와 테스트 위치 검사를 받는다. shell을 통한 파일 수정으로 hook을 우회하지 않는다.
+- 실행 중 task가 있으면 직접 `git commit`, `git push`, branch 조작을 하지 않는다. `$harness`는 commit/push하지 않으며, 완료된 plan은 `$finish-plan`의 `node tools/harness/cli.mjs finish`만 commit/push한다.

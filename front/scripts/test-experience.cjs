@@ -8,11 +8,11 @@ try {
   const build = spawnSync(process.execPath, [
     require.resolve('typescript/bin/tsc'), '--ignoreConfig', '--module', 'commonjs',
     '--target', 'es2022', '--types', 'node', '--skipLibCheck', '--esModuleInterop',
-    '--strict', '--outDir', output, 'src/features/drama/experience.test.ts',
+    '--strict', '--rootDir', '.', '--outDir', output, 'tests/unit/experience.test.ts',
   ], { cwd: resolve(__dirname, '..'), stdio: 'inherit' });
   if (build.status !== 0) process.exitCode = build.status ?? 1;
   else {
-    const test = spawnSync(process.execPath, ['--test', join(output, 'experience.test.js')], { stdio: 'inherit' });
+    const test = spawnSync(process.execPath, ['--test', join(output, 'tests', 'unit', 'experience.test.js')], { stdio: 'inherit' });
     process.exitCode = test.status ?? 1;
   }
 } finally {

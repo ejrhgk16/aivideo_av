@@ -2,7 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { getDrama } from './catalog';
+import { getDrama } from '../../src/features/drama/catalog';
 import {
   credit,
   initialExperience,
@@ -14,7 +14,7 @@ import {
   today,
   toggleSaved,
   unlock,
-} from './experience';
+} from '../../src/features/drama/experience';
 
 const day = new Date(2026, 8, 9, 12);
 const nextDay = new Date(2026, 8, 10, 12);
