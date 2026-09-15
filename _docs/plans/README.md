@@ -13,4 +13,4 @@
 
 새 제품 테스트는 `front/tests/**/*.test.ts(x)`, `back/test/unit/**/*.spec.ts`에만 둘 수 있다. Harness CLI·hook 테스트만 `tools/harness/**/*.test.mjs`에 둔다. 최상위 `tests/` 폴더는 만들지 않는다.
 
-계획은 `$harness-plan`의 두 단계 승인 후 생성한다. `$harness`는 worker를 최대 3개까지 실행하지만 commit/push하지 않는다. 전체 완료 후에만 `$finish-plan`이 `node tools/harness/cli.mjs finish`로 검증·단일 commit·`origin/dev` push를 수행한다.
+계획은 `$harness-plan`의 두 단계 승인 후 생성한다. `$harness`는 worker를 최대 3개까지 실행하지만 commit/push하지 않는다. 전체 완료 후에만 `$finish-plan`이 `node tools/harness/cli.mjs finish`로 검증·단일 commit·`origin/dev` push를 수행한다. `--message`를 생략하면 현재 완료하는 plan의 `id`를 사용해 `chore(harness): finish <plan-id>` 커밋명을 만든다.
