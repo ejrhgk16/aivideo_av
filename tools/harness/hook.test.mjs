@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { afterEach, test } from 'node:test';
-import { readIndex, startTask } from './cli.mjs';
+import { readIndex, resetTask, startTask } from './cli.mjs';
 
 const directories = [];
 const hook = join(process.cwd(), '.codex', 'hooks', 'harness-hook.mjs');
@@ -71,4 +71,24 @@ test('worker hook records structured completion and failure, and holds malformed
   assert.equal(readIndex(second).plans[0].tasks[0].status, 'error');
   assert.equal(invoke('subagent-stop', { cwd: second, stop_hook_active: false, last_assistant_message: 'not json' }).decision, 'block');
   assert.match(invoke('subagent-stop', { cwd: second, stop_hook_active: true, last_assistant_message: 'not json' }).systemMessage, /malformed/);
+});
+
+test('worker hook blocks a task after three consecutive test failures and reports the problem to the parent', () => {
+  const repo = fixture();
+  startTask(repo, 'plan-1-hook', 'task-1');
+  const failure = JSON.stringify({
+    status: 'error', plan: 'plan-1-hook', task: 'task-1', failure_type: 'test', error: 'npm test failed',
+  });
+
+  assert.match(invoke('subagent-stop', { cwd: repo, last_assistant_message: failure }).systemMessage, /recorded error/);
+  resetTask(repo, 'plan-1-hook', 'task-1');
+  startTask(repo, 'plan-1-hook', 'task-1');
+  assert.match(invoke('subagent-stop', { cwd: repo, last_assistant_message: failure }).systemMessage, /recorded error/);
+  resetTask(repo, 'plan-1-hook', 'task-1');
+  startTask(repo, 'plan-1-hook', 'task-1');
+
+  const final = invoke('subagent-stop', { cwd: repo, last_assistant_message: failure });
+  assert.match(final.systemMessage, /stopped .* after 3 consecutive test failures/);
+  assert.equal(readIndex(repo).plans[0].tasks[0].status, 'blocked');
+  assert.equal(readIndex(repo).plans[0].status, 'blocked');
 });

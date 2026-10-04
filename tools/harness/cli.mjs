@@ -10,8 +10,8 @@ const ALLOWED_TEST_FILE = [
   /^back\/test\/unit\/.+\.spec\.ts$/,
   /^tools\/harness\/.+\.test\.mjs$/,
 ];
-const TASK_STATUS = new Set(['pending', 'in_progress', 'completed', 'error']);
-const PLAN_STATUS = new Set(['draft', 'active', 'completed', 'error']);
+const TASK_STATUS = new Set(['pending', 'in_progress', 'completed', 'error', 'blocked']);
+const PLAN_STATUS = new Set(['draft', 'active', 'completed', 'error', 'blocked']);
 
 function error(message) {
   throw new Error(message);
@@ -169,6 +169,7 @@ function selectTask(plan, taskId) {
 }
 
 export function nextForPlan(plan) {
+  if (plan.tasks.some((task) => task.status === 'blocked')) return { state: 'blocked' };
   if (plan.tasks.some((task) => task.status === 'error')) return { state: 'error' };
   const ready = plan.tasks.find((task) => task.status === 'pending' && task.depends_on.every((id) => plan.tasks.find((item) => item.id === id).status === 'completed'));
   if (ready) return { state: 'delegate', task: ready };
@@ -177,7 +178,8 @@ export function nextForPlan(plan) {
 }
 
 function refreshPlanStatus(plan) {
-  if (plan.tasks.some((task) => task.status === 'error')) plan.status = 'error';
+  if (plan.tasks.some((task) => task.status === 'blocked')) plan.status = 'blocked';
+  else if (plan.tasks.some((task) => task.status === 'error')) plan.status = 'error';
   else if (plan.tasks.every((task) => task.status === 'completed')) plan.status = 'completed';
   else plan.status = 'active';
 }
@@ -195,7 +197,7 @@ function mutatePlan(repoRoot, planId, action) {
 
 export function startTask(repoRoot, planId, taskId) {
   const { plan, result: task } = mutatePlan(repoRoot, planId, (plan) => {
-    if (nextForPlan(plan).state === 'error') error(`Plan ${plan.id} has a failed task; reset it before dispatching more work`);
+    if (['error', 'blocked'].includes(nextForPlan(plan).state)) error(`Plan ${plan.id} has a failed task; reset it before dispatching more work`);
     const task = selectTask(plan, taskId);
     if (task.status !== 'pending') error(`Task ${plan.id}/${task.id} is not pending`);
     if (!task.depends_on.every((id) => selectTask(plan, id).status === 'completed')) error(`Task ${plan.id}/${task.id} is not ready`);
@@ -216,21 +218,32 @@ export function completeTask(repoRoot, planId, taskId, summary) {
     task.summary = asString(summary, 'Completion summary');
     task.completed_at = new Date().toISOString();
     delete task.error;
+    delete task.test_failure_count;
     return task;
   });
   return { plan: plan.id, task: task.id, status: task.status };
 }
 
-export function failTask(repoRoot, planId, taskId, failure) {
+export function failTask(repoRoot, planId, taskId, failure, options = {}) {
   const { plan, result: task } = mutatePlan(repoRoot, planId, (plan) => {
     const task = selectTask(plan, taskId);
     if (task.status !== 'in_progress') error(`Task ${plan.id}/${task.id} is not in progress`);
-    task.status = 'error';
-    task.error = asString(failure, 'Failure summary');
+    const summary = asString(failure, 'Failure summary');
+    if (options.failureType === 'test') {
+      task.test_failure_count = (task.test_failure_count ?? 0) + 1;
+      task.status = task.test_failure_count >= 3 ? 'blocked' : 'error';
+      task.error = task.status === 'blocked'
+        ? `Test failed ${task.test_failure_count} consecutive times: ${summary}`
+        : summary;
+    } else {
+      task.status = 'error';
+      task.error = summary;
+      delete task.test_failure_count;
+    }
     task.completed_at = new Date().toISOString();
     return task;
   });
-  return { plan: plan.id, task: task.id, status: task.status };
+  return { plan: plan.id, task: task.id, status: task.status, testFailureCount: task.test_failure_count ?? 0 };
 }
 
 export function resetTask(repoRoot, planId, taskId) {
@@ -239,11 +252,13 @@ export function resetTask(repoRoot, planId, taskId) {
     if (task.status === 'pending') error(`Task ${plan.id}/${task.id} is already pending`);
     const progressedDependent = plan.tasks.find((candidate) => candidate.depends_on.includes(task.id) && candidate.status !== 'pending');
     if (progressedDependent) error(`Reset ${progressedDependent.id} before resetting its dependency ${task.id}`);
+    const wasBlocked = task.status === 'blocked';
     task.status = 'pending';
     delete task.started_at;
     delete task.completed_at;
     delete task.summary;
     delete task.error;
+    if (wasBlocked) delete task.test_failure_count;
     return task;
   });
   return { plan: plan.id, task: task.id, status: task.status };

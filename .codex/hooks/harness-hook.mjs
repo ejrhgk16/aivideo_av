@@ -135,7 +135,8 @@ function parseWorkerResult(message) {
     const result = JSON.parse(message.trim());
     if (!['completed', 'error'].includes(result.status) || typeof result.plan !== 'string' || typeof result.task !== 'string') return undefined;
     if (result.status === 'completed' && typeof result.summary === 'string' && result.summary) return result;
-    if (result.status === 'error' && typeof result.error === 'string' && result.error) return result;
+    if (result.status === 'error' && typeof result.error === 'string' && result.error
+      && (result.failure_type === undefined || result.failure_type === 'test' || result.failure_type === 'other')) return result;
   } catch {
     return undefined;
   }
@@ -151,7 +152,12 @@ function subagentStop(input) {
   try {
     const repoRoot = repositoryRoot(input);
     if (result.status === 'completed') completeTask(repoRoot, result.plan, result.task, result.summary);
-    else failTask(repoRoot, result.plan, result.task, result.error);
+    else {
+      const failure = failTask(repoRoot, result.plan, result.task, result.error, { failureType: result.failure_type });
+      if (failure.status === 'blocked') {
+        return { systemMessage: `Harness stopped ${result.plan}/${result.task} after ${failure.testFailureCount} consecutive test failures. Parent must investigate and reset the task before dispatching another worker. Last failure: ${result.error}` };
+      }
+    }
     return { systemMessage: `Harness recorded ${result.status} for ${result.plan}/${result.task}.` };
   } catch (cause) {
     return { systemMessage: `Harness could not record worker result: ${cause.message}` };
