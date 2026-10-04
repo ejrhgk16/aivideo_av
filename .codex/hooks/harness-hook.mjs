@@ -155,10 +155,11 @@ function subagentStop(input) {
     else {
       const failure = failTask(repoRoot, result.plan, result.task, result.error, { failureType: result.failure_type });
       if (failure.status === 'blocked') {
-        return { systemMessage: `Harness stopped ${result.plan}/${result.task} after ${failure.testFailureCount} consecutive test failures. Parent must investigate and reset the task before dispatching another worker. Last failure: ${result.error}` };
+        return { systemMessage: `Harness blocked ${result.plan}/${result.task} after ${failure.failureCount} consecutive failures. Parent must investigate before resetting the task. Last failure: ${result.error}` };
       }
+      return { systemMessage: `Harness recorded an error for ${result.plan}/${result.task} (${failure.failureCount}/3). Parent should run \`node tools/harness/cli.mjs retry --plan ${result.plan} --task ${result.task}\` and redispatch the same task with this failure context: ${result.error}` };
     }
-    return { systemMessage: `Harness recorded ${result.status} for ${result.plan}/${result.task}.` };
+    return { systemMessage: `Harness recorded completed for ${result.plan}/${result.task}.` };
   } catch (cause) {
     return { systemMessage: `Harness could not record worker result: ${cause.message}` };
   }

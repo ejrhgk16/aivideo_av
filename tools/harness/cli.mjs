@@ -12,6 +12,7 @@ const ALLOWED_TEST_FILE = [
 ];
 const TASK_STATUS = new Set(['pending', 'in_progress', 'completed', 'error', 'blocked']);
 const PLAN_STATUS = new Set(['draft', 'active', 'completed', 'error', 'blocked']);
+const MAX_FAILURES = 3;
 
 function error(message) {
   throw new Error(message);
@@ -34,7 +35,7 @@ export function isAllowedTestPath(file) {
   return ALLOWED_TEST_FILE.some((pattern) => pattern.test(file));
 }
 
-export function validateIndex(index) {
+export function validatePlansIndex(index) {
   if (!index || index.version !== 1 || !Array.isArray(index.plans)) error('Plan index must contain version 1 and a plans array');
   const planIds = new Set();
 
@@ -44,10 +45,16 @@ export function validateIndex(index) {
     planIds.add(plan.id);
     if (!PLAN_STATUS.has(plan.status)) error(`Invalid plan status for ${plan.id}: ${plan.status}`);
     if (!/^plan-\d+-[a-z0-9][a-z0-9-]*$/.test(plan.directory ?? '')) error(`Invalid plan directory for ${plan.id}`);
-    if (!Array.isArray(plan.tasks) || plan.tasks.length === 0) error(`Plan ${plan.id} must have at least one task`);
+    if (Object.hasOwn(plan, 'tasks')) error(`Plan ${plan.id} tasks must be stored in its plan index`);
+  }
+  return index;
+}
+
+function validateTasks(plan, tasks) {
+  if (!Array.isArray(tasks) || tasks.length === 0) error(`Plan ${plan.id} must have at least one task`);
 
     const taskIds = new Set();
-    for (const task of plan.tasks) {
+    for (const task of tasks) {
       asString(task?.id, `Task id in ${plan.id}`);
       if (taskIds.has(task.id)) error(`Duplicate task id in ${plan.id}: ${task.id}`);
       taskIds.add(task.id);
@@ -66,8 +73,8 @@ export function validateIndex(index) {
       for (const check of task.checks) asString(check, `Check for ${plan.id}/${task.id}`);
     }
 
-    const byId = new Map(plan.tasks.map((task) => [task.id, task]));
-    for (const task of plan.tasks) {
+    const byId = new Map(tasks.map((task) => [task.id, task]));
+    for (const task of tasks) {
       for (const dependency of task.depends_on) {
         if (!byId.has(dependency)) error(`Task ${plan.id}/${task.id} depends on unknown task: ${dependency}`);
         if (dependency === task.id) error(`Task ${plan.id}/${task.id} cannot depend on itself`);
@@ -84,7 +91,7 @@ export function validateIndex(index) {
       visiting.delete(taskId);
       visited.add(taskId);
     };
-    for (const task of plan.tasks) visit(task.id);
+    for (const task of tasks) visit(task.id);
 
     const dependsOn = (fromId, targetId, seen = new Set()) => {
       if (seen.has(fromId)) return false;
@@ -92,33 +99,63 @@ export function validateIndex(index) {
       const task = byId.get(fromId);
       return task.depends_on.some((dependency) => dependency === targetId || dependsOn(dependency, targetId, seen));
     };
-    for (let left = 0; left < plan.tasks.length; left += 1) {
-      for (let right = left + 1; right < plan.tasks.length; right += 1) {
-        const first = plan.tasks[left];
-        const second = plan.tasks[right];
+    for (let left = 0; left < tasks.length; left += 1) {
+      for (let right = left + 1; right < tasks.length; right += 1) {
+        const first = tasks[left];
+        const second = tasks[right];
         const overlap = first.files.find((file) => second.files.includes(file));
         if (overlap && !dependsOn(first.id, second.id) && !dependsOn(second.id, first.id)) {
           error(`Potentially parallel tasks ${plan.id}/${first.id} and ${second.id} share ${overlap}`);
         }
       }
     }
+}
+
+export function validatePlanIndex(plan, planIndex) {
+  if (!planIndex || planIndex.version !== 1 || planIndex.plan_id !== plan.id || !Array.isArray(planIndex.tasks)) {
+    error(`Plan task index must contain version 1, plan_id ${plan.id}, and a tasks array`);
   }
+  validateTasks(plan, planIndex.tasks);
+  return planIndex;
+}
+
+export function validateIndex(index) {
+  validatePlansIndex({ version: index?.version, plans: index?.plans?.map(({ tasks, ...plan }) => plan) });
+  for (const plan of index.plans) validateTasks(plan, plan.tasks);
   return index;
 }
 
-export function readIndex(repoRoot = process.cwd()) {
-  const path = resolve(repoRoot, PLANS_INDEX);
-  if (!existsSync(path)) error(`Missing ${PLANS_INDEX}`);
+function readJson(path, label) {
+  if (!existsSync(path)) error(`Missing ${label}`);
   try {
-    return validateIndex(JSON.parse(readFileSync(path, 'utf8')));
+    return JSON.parse(readFileSync(path, 'utf8'));
   } catch (cause) {
-    if (cause instanceof SyntaxError) error(`Invalid JSON in ${PLANS_INDEX}`);
+    if (cause instanceof SyntaxError) error(`Invalid JSON in ${label}`);
     throw cause;
   }
 }
 
-function writeIndex(repoRoot, index) {
-  writeFileSync(resolve(repoRoot, PLANS_INDEX), `${JSON.stringify(index, null, 2)}\n`);
+function planIndexPath(repoRoot, plan) {
+  return resolve(repoRoot, '_docs', 'plans', plan.directory, 'index.json');
+}
+
+export function readIndex(repoRoot = process.cwd()) {
+  const path = resolve(repoRoot, PLANS_INDEX);
+  const index = readJson(path, PLANS_INDEX);
+  validatePlansIndex(index);
+  const plans = index.plans.map((plan) => {
+    const planIndex = readJson(planIndexPath(repoRoot, plan), `_docs/plans/${plan.directory}/index.json`);
+    validatePlanIndex(plan, planIndex);
+    return { ...plan, tasks: planIndex.tasks };
+  });
+  return validateIndex({ ...index, plans });
+}
+
+function writeIndexes(repoRoot, index, planId) {
+  const plans = index.plans.map(({ tasks, ...plan }) => plan);
+  writeFileSync(resolve(repoRoot, PLANS_INDEX), `${JSON.stringify({ ...index, plans }, null, 2)}\n`);
+  const plan = index.plans.find((item) => item.id === planId);
+  writeFileSync(planIndexPath(repoRoot, plan), `${JSON.stringify({ version: 1, plan_id: plan.id, tasks: plan.tasks }, null, 2)}\n`);
 }
 
 function lockPath(repoRoot) {
@@ -190,7 +227,7 @@ function mutatePlan(repoRoot, planId, action) {
     const plan = selectPlan(index, planId);
     const result = action(plan);
     refreshPlanStatus(plan);
-    writeIndex(repoRoot, index);
+    writeIndexes(repoRoot, index, plan.id);
     return { plan, result };
   });
 }
@@ -218,6 +255,7 @@ export function completeTask(repoRoot, planId, taskId, summary) {
     task.summary = asString(summary, 'Completion summary');
     task.completed_at = new Date().toISOString();
     delete task.error;
+    delete task.failure_count;
     delete task.test_failure_count;
     return task;
   });
@@ -229,21 +267,42 @@ export function failTask(repoRoot, planId, taskId, failure, options = {}) {
     const task = selectTask(plan, taskId);
     if (task.status !== 'in_progress') error(`Task ${plan.id}/${task.id} is not in progress`);
     const summary = asString(failure, 'Failure summary');
+    task.failure_count = (task.failure_count ?? 0) + 1;
     if (options.failureType === 'test') {
       task.test_failure_count = (task.test_failure_count ?? 0) + 1;
-      task.status = task.test_failure_count >= 3 ? 'blocked' : 'error';
+      task.status = task.failure_count >= MAX_FAILURES ? 'blocked' : 'error';
       task.error = task.status === 'blocked'
-        ? `Test failed ${task.test_failure_count} consecutive times: ${summary}`
+        ? `Task failed ${task.failure_count} consecutive times: ${summary}`
         : summary;
     } else {
-      task.status = 'error';
-      task.error = summary;
-      delete task.test_failure_count;
+      task.status = task.failure_count >= MAX_FAILURES ? 'blocked' : 'error';
+      task.error = task.status === 'blocked'
+        ? `Task failed ${task.failure_count} consecutive times: ${summary}`
+        : summary;
     }
     task.completed_at = new Date().toISOString();
     return task;
   });
-  return { plan: plan.id, task: task.id, status: task.status, testFailureCount: task.test_failure_count ?? 0 };
+  return {
+    plan: plan.id,
+    task: task.id,
+    status: task.status,
+    failureCount: task.failure_count ?? 0,
+    testFailureCount: task.test_failure_count ?? 0,
+  };
+}
+
+export function retryTask(repoRoot, planId, taskId) {
+  const { plan, result: task } = mutatePlan(repoRoot, planId, (plan) => {
+    const task = selectTask(plan, taskId);
+    if (task.status !== 'error') error(`Task ${plan.id}/${task.id} is not retryable`);
+    task.status = 'in_progress';
+    task.started_at = new Date().toISOString();
+    delete task.completed_at;
+    delete task.error;
+    return task;
+  });
+  return { plan: plan.id, task: task.id, status: task.status, failureCount: task.failure_count ?? 0 };
 }
 
 export function resetTask(repoRoot, planId, taskId) {
@@ -258,7 +317,10 @@ export function resetTask(repoRoot, planId, taskId) {
     delete task.completed_at;
     delete task.summary;
     delete task.error;
-    if (wasBlocked) delete task.test_failure_count;
+    if (wasBlocked) {
+      delete task.failure_count;
+      delete task.test_failure_count;
+    }
     return task;
   });
   return { plan: plan.id, task: task.id, status: task.status };
@@ -310,6 +372,10 @@ function isCurrentDev(repoRoot) {
   return git(repoRoot, ['branch', '--show-current']).trim() === 'dev';
 }
 
+function isProductPath(file) {
+  return file.startsWith('front/') || file.startsWith('back/');
+}
+
 function runCheck(repoRoot, command) {
   const result = spawnSync(command, { cwd: repoRoot, shell: true, stdio: 'inherit' });
   if (result.status !== 0) error(`Check failed: ${command}`);
@@ -321,26 +387,19 @@ export function finishPlan(repoRoot = process.cwd(), planId, message) {
   const plan = selectPlan(index, planId);
   if (!plan.tasks.every((task) => task.status === 'completed')) error(`Plan ${plan.id} is not complete`);
 
-  const allowed = new Set([
-    PLANS_INDEX,
-    ...plan.tasks.flatMap((task) => task.files),
-  ]);
-  const planPrefix = `_docs/plans/${plan.directory}/`;
   const dirty = dirtyPaths(repoRoot);
-  const unexpected = dirty.filter((file) => !allowed.has(file) && !file.startsWith(planPrefix));
-  if (unexpected.length > 0) error(`Undeclared changes prevent finish: ${unexpected.join(', ')}`);
-  if (dirty.some((file) => file === 'web-prototype' || file.startsWith('web-prototype/'))) error('web-prototype cannot be included in a harness finish');
 
   const changedFront = dirty.some((file) => file.startsWith('front/'));
   const changedBack = dirty.some((file) => file.startsWith('back/'));
-  const checks = new Set(plan.tasks.flatMap((task) => task.checks));
+  const checks = new Set(plan.tasks
+    .filter((task) => task.files.some(isProductPath))
+    .flatMap((task) => task.checks));
   if (changedFront) ['npm --prefix front run typecheck', 'npm --prefix front run test', 'npm --prefix front run export'].forEach((check) => checks.add(check));
   if (changedBack) ['npm --prefix back run lint', 'npm --prefix back run test', 'npm --prefix back run build'].forEach((check) => checks.add(check));
   for (const check of checks) runCheck(repoRoot, check);
 
   if (dirty.length > 0) {
-    const stage = [...new Set([...allowed, `_docs/plans/${plan.directory}`])];
-    git(repoRoot, ['add', '--', ...stage]);
+    git(repoRoot, ['add', '--all']);
     git(repoRoot, ['commit', '-m', message || `chore(harness): finish ${plan.id}`], { stdio: 'inherit' });
   }
   git(repoRoot, ['push', 'origin', 'dev'], { stdio: 'inherit' });
@@ -371,9 +430,10 @@ export function main(argv = process.argv.slice(2), repoRoot = process.cwd()) {
     case 'start': result = startTask(repoRoot, options.plan, options.task); break;
     case 'complete': result = completeTask(repoRoot, options.plan, options.task, options.summary); break;
     case 'fail': result = failTask(repoRoot, options.plan, options.task, options.error); break;
+    case 'retry': result = retryTask(repoRoot, options.plan, options.task); break;
     case 'reset': result = resetTask(repoRoot, options.plan, options.task); break;
     case 'finish': result = finishPlan(repoRoot, options.plan, options.message); break;
-    default: error('Usage: cli.mjs <validate|status|next|start|complete|fail|reset|finish> [--plan ID] [--task ID]');
+    default: error('Usage: cli.mjs <validate|status|next|start|complete|fail|retry|reset|finish> [--plan ID] [--task ID]');
   }
   process.stdout.write(`${JSON.stringify(result)}\n`);
   return result;

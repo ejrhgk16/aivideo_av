@@ -29,6 +29,9 @@ NestJS API server. Own `package.json` and lockfile.
 | Path | Responsibility |
 |---|---|
 | `src/` | NestJS modules, controllers, and services. |
+| `src/{domain}/entities/` | Domain-specific Entity classes and persistence metadata. |
+| `src/shared/entities/` | Shared persistence base entities and metadata. |
+| `src/shared/database/` | Pure Entity registry exports for ORM configuration; no database connections, migrations, or services. |
 | `test/unit/` | Backend unit tests. |
 
 ## Web prototype — `web-prototype/`
@@ -39,7 +42,9 @@ Preserved standalone web prototype. It is not imported or run by `front/`, and i
 
 | Path | Responsibility |
 |---|---|
-| `_docs/plans/` | Harness plan documents and `index.json` execution state. |
+| `_docs/plans/index.json` | Harness plan catalog and plan-level status only. |
+| `_docs/plans/plan-N-name/index.json` | Task definitions and execution state for one plan. |
+| `_docs/plans/plan-N-name/plan.md` | Human-readable plan scope, task details, and verification results. |
 | `.agents/skills/` | Project-local Codex skills. |
 | `.codex/agents/` | Codex worker definitions. |
 | `.codex/hooks.json` | Codex hook registration. |

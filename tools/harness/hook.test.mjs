@@ -15,12 +15,15 @@ function fixture() {
   mkdirSync(join(repo, '_docs', 'plans', 'plan-1-hook'), { recursive: true });
   writeFileSync(join(repo, '_docs', 'plans', 'index.json'), `${JSON.stringify({
     version: 1,
-    plans: [{
-      id: 'plan-1-hook', directory: 'plan-1-hook', title: 'Hook', status: 'draft', tasks: [{
+    plans: [{ id: 'plan-1-hook', directory: 'plan-1-hook', title: 'Hook', status: 'draft' }],
+  }, null, 2)}\n`);
+  writeFileSync(join(repo, '_docs', 'plans', 'plan-1-hook', 'index.json'), `${JSON.stringify({
+    version: 1,
+    plan_id: 'plan-1-hook',
+    tasks: [{
         id: 'task-1', name: 'Hook task', status: 'pending', depends_on: [],
         files: ['front/tests/unit/allowed.test.ts'], checks: [],
       }],
-    }],
   }, null, 2)}\n`);
   return repo;
 }
@@ -67,28 +70,27 @@ test('worker hook records structured completion and failure, and holds malformed
 
   const second = fixture();
   startTask(second, 'plan-1-hook', 'task-1');
-  assert.equal(invoke('subagent-stop', { cwd: second, last_assistant_message: '{"status":"error","plan":"plan-1-hook","task":"task-1","error":"failed"}' }).systemMessage.includes('error'), true);
+  const failure = invoke('subagent-stop', { cwd: second, last_assistant_message: '{"status":"error","plan":"plan-1-hook","task":"task-1","error":"failed"}' });
+  assert.match(failure.systemMessage, /retry/);
   assert.equal(readIndex(second).plans[0].tasks[0].status, 'error');
   assert.equal(invoke('subagent-stop', { cwd: second, stop_hook_active: false, last_assistant_message: 'not json' }).decision, 'block');
   assert.match(invoke('subagent-stop', { cwd: second, stop_hook_active: true, last_assistant_message: 'not json' }).systemMessage, /malformed/);
 });
 
-test('worker hook blocks a task after three consecutive test failures and reports the problem to the parent', () => {
+test('worker hook blocks a task after three consecutive failures and reports the problem to the parent', () => {
   const repo = fixture();
   startTask(repo, 'plan-1-hook', 'task-1');
-  const failure = JSON.stringify({
-    status: 'error', plan: 'plan-1-hook', task: 'task-1', failure_type: 'test', error: 'npm test failed',
-  });
+  const failure = JSON.stringify({ status: 'error', plan: 'plan-1-hook', task: 'task-1', error: 'check failed' });
 
-  assert.match(invoke('subagent-stop', { cwd: repo, last_assistant_message: failure }).systemMessage, /recorded error/);
+  assert.match(invoke('subagent-stop', { cwd: repo, last_assistant_message: failure }).systemMessage, /recorded an error/);
   resetTask(repo, 'plan-1-hook', 'task-1');
   startTask(repo, 'plan-1-hook', 'task-1');
-  assert.match(invoke('subagent-stop', { cwd: repo, last_assistant_message: failure }).systemMessage, /recorded error/);
+  assert.match(invoke('subagent-stop', { cwd: repo, last_assistant_message: failure }).systemMessage, /recorded an error/);
   resetTask(repo, 'plan-1-hook', 'task-1');
   startTask(repo, 'plan-1-hook', 'task-1');
 
   const final = invoke('subagent-stop', { cwd: repo, last_assistant_message: failure });
-  assert.match(final.systemMessage, /stopped .* after 3 consecutive test failures/);
+  assert.match(final.systemMessage, /blocked .* after 3 consecutive failures/);
   assert.equal(readIndex(repo).plans[0].tasks[0].status, 'blocked');
   assert.equal(readIndex(repo).plans[0].status, 'blocked');
 });

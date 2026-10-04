@@ -10,7 +10,7 @@ Use this skill only after the user explicitly writes `$harness-plan`. It creates
 1. Read the root `AGENTS.md`, `_docs/ARCHITECTURE.md`, `_docs/plans/README.md`, and applicable nested `AGENTS.md` files. Do not read or plan work under `web-prototype/`.
 2. State the intended scope, non-goals, affected layers, assumptions, and verification commands. Ask for scope approval. Do not create a plan yet.
 3. After approval, propose tasks with exact repository-relative `files`, `depends_on`, and `checks`. Explain any sequential dependency. Tasks that could run at the same time must not share a file. Ask for task-structure approval.
-4. After the second approval, create `_docs/plans/plan-N-name/` using the next numeric `N`, add its human-readable `plan.md`, create one `task-N-name.md` per task, and add a plan entry to `_docs/plans/index.json`.
+4. After the second approval, create `_docs/plans/plan-N-name/` using the next numeric `N`, add its human-readable `plan.md`, create one `task-N-name.md` per task, create `_docs/plans/plan-N-name/index.json` for the task state, and add only the plan metadata entry to `_docs/plans/index.json`.
 
 Use these document structures.
 
@@ -53,14 +53,23 @@ Use these document structures.
 
 각 task 문서는 해당 worker에게 전달할 정확한 파일 범위, 검증 명령, 완료 조건을 `## 작업` 아래에 함께 명시한다.
 
-The index entry uses this shape:
+The root `_docs/plans/index.json` entry uses this shape:
 
 ```json
 {
   "id": "plan-1-example",
   "directory": "plan-1-example",
   "title": "Example",
-  "status": "draft",
+  "status": "draft"
+}
+```
+
+The plan-local `_docs/plans/plan-1-example/index.json` uses this shape:
+
+```json
+{
+  "version": 1,
+  "plan_id": "plan-1-example",
   "tasks": [{
     "id": "task-1",
     "name": "Concise task name",
@@ -72,6 +81,8 @@ The index entry uses this shape:
 }
 ```
 
-Use only `pending`, `in_progress`, `completed`, or `error` for task status. Do not list `web-prototype/`. Test files may only be in `front/tests/**/*.test.ts(x)`, `back/test/unit/**/*.spec.ts`, or `tools/harness/**/*.test.mjs`.
+Never put `tasks` in the root plans index. The `plan_id` in the plan-local index must match its root plan entry.
+
+Use only `pending`, `in_progress`, `completed`, `error`, or `blocked` for task status. Do not list `web-prototype/`. Test files may only be in `front/tests/**/*.test.ts(x)`, `back/test/unit/**/*.spec.ts`, or `tools/harness/**/*.test.mjs`.
 
 Run `node tools/harness/cli.mjs validate --plan <id>` after writing the plan. Report the plan ID and that the user can explicitly invoke `$harness` next.

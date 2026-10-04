@@ -78,6 +78,7 @@
 
 - `_docs/ARCHITECTURE.md` -- 시스템 아키텍처와 레이어 구조
 - `_docs/plans/` -- plan 정의, task 지시, 실행 상태
+- `_docs/AI_DRAMA_data_model/` -- 테이블,도메인 구조 및 정의
 
 ## Architecture
 
@@ -92,6 +93,6 @@
 ## Codex Harness
 
 - `$harness-plan`, `$harness`, `$finish-plan`은 명시적으로 호출할 때만 사용한다. 작업은 `dev`에서만 수행하며 branch나 worktree를 만들지 않는다.
-- 계획 task는 정확한 `files`, `depends_on`, `checks`, `status`를 `_docs/plans/index.json`에 선언한다. `web-prototype/`은 계획·수정·검증 대상이 아니다.
+- `_docs/plans/index.json`은 플랜 목록과 메타데이터만 관리하고, 각 `_docs/plans/<plan>/index.json`에 정확한 `files`, `depends_on`, `checks`, `status`를 선언한다. `web-prototype/`은 계획·수정·검증 대상이 아니다.
 - 실행 중에는 `apply_patch`로만 파일을 수정해 hook의 task 범위와 테스트 위치 검사를 받는다. shell을 통한 파일 수정으로 hook을 우회하지 않는다.
 - 실행 중 task가 있으면 직접 `git commit`, `git push`, branch 조작을 하지 않는다. `$harness`는 commit/push하지 않으며, 완료된 plan은 `$finish-plan`의 `node tools/harness/cli.mjs finish`만 commit/push한다.
