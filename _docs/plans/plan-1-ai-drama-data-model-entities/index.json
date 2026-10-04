@@ -1,0 +1,234 @@
+{
+  "version": 1,
+  "plan_id": "plan-1-ai-drama-data-model-entities",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "entity-conventions",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/shared/entities/audited.entity.ts"
+      ],
+      "checks": [
+        "npm --prefix back run lint"
+      ],
+      "started_at": "2026-10-04T12:01:35.563Z",
+      "summary": "Added audited timestamp base entity; lint passed.",
+      "completed_at": "2026-10-04T12:03:45.323Z"
+    },
+    {
+      "id": "task-2",
+      "name": "identity-content",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/identity/entities/user.entity.ts",
+        "back/src/identity/entities/user-preference.entity.ts",
+        "back/src/identity/entities/index.ts",
+        "back/src/content/entities/production-company.entity.ts",
+        "back/src/content/entities/drama.entity.ts",
+        "back/src/content/entities/genre.entity.ts",
+        "back/src/content/entities/drama-genre.entity.ts",
+        "back/src/content/entities/drama-image.entity.ts",
+        "back/src/content/entities/episode.entity.ts",
+        "back/src/content/entities/episode-video.entity.ts",
+        "back/src/content/entities/episode-subtitle.entity.ts",
+        "back/src/content/entities/index.ts"
+      ],
+      "checks": [
+        "npm --prefix back run lint"
+      ],
+      "started_at": "2026-10-04T12:03:52.911Z",
+      "summary": "Implemented identity and content entities, constraints, indexes, exports; lint passed.",
+      "completed_at": "2026-10-04T12:08:23.386Z"
+    },
+    {
+      "id": "task-3",
+      "name": "programming-playback",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/programming/entities/content-collection.entity.ts",
+        "back/src/programming/entities/collection-drama.entity.ts",
+        "back/src/programming/entities/index.ts",
+        "back/src/playback/entities/user-saved-drama.entity.ts",
+        "back/src/playback/entities/user-watch-progress.entity.ts",
+        "back/src/playback/entities/user-preview-feed-state.entity.ts",
+        "back/src/playback/entities/index.ts"
+      ],
+      "checks": [
+        "npm --prefix back run lint"
+      ],
+      "started_at": "2026-10-04T12:04:07.336Z",
+      "summary": "Implemented programming and playback entities, constraints, indexes, exports; lint passed.",
+      "completed_at": "2026-10-04T12:08:57.737Z"
+    },
+    {
+      "id": "task-4",
+      "name": "economy",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/economy/entities/wallet.entity.ts",
+        "back/src/economy/entities/point-transaction.entity.ts",
+        "back/src/economy/entities/episode-entitlement.entity.ts",
+        "back/src/economy/entities/point-product.entity.ts",
+        "back/src/economy/entities/point-purchase-order.entity.ts",
+        "back/src/economy/entities/ad-reward-offer.entity.ts",
+        "back/src/economy/entities/ad-reward-claim.entity.ts",
+        "back/src/economy/entities/index.ts"
+      ],
+      "checks": [
+        "npm --prefix back run lint"
+      ],
+      "started_at": "2026-10-04T12:04:20.773Z",
+      "summary": "Implemented economy entities, constraints, indexes, exports; lint passed.",
+      "completed_at": "2026-10-04T12:08:47.038Z"
+    },
+    {
+      "id": "task-5",
+      "name": "registry-test-docs",
+      "status": "completed",
+      "depends_on": [
+        "task-6"
+      ],
+      "files": [
+        "back/src/shared/database/entities.ts",
+        "back/test/unit/entities/entities.spec.ts",
+        "_docs/ARCHITECTURE.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-04T12:26:58.039Z",
+      "summary": "Added 22-entity registry and metadata tests; documented architecture responsibilities; lint, test, and build passed.",
+      "completed_at": "2026-10-04T12:30:06.462Z"
+    },
+    {
+      "id": "task-6",
+      "name": "esm-import-paths",
+      "status": "completed",
+      "depends_on": [
+        "task-2",
+        "task-3",
+        "task-4"
+      ],
+      "files": [
+        "back/src/programming/entities/collection-drama.entity.ts",
+        "back/src/programming/entities/content-collection.entity.ts",
+        "back/src/programming/entities/index.ts",
+        "back/src/playback/entities/index.ts",
+        "back/src/playback/entities/user-watch-progress.entity.ts"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-04T12:25:25.516Z",
+      "summary": "Added NodeNext .js entity import and export extensions; lint and build passed.",
+      "completed_at": "2026-10-04T12:26:50.376Z"
+    },
+    {
+      "id": "task-7",
+      "name": "class-named-entity-files",
+      "status": "completed",
+      "depends_on": [
+        "task-5",
+        "task-6"
+      ],
+      "files": [
+        "back/src/shared/entities/AuditedEntity.entity.ts",
+        "back/src/identity/entities/User.entity.ts",
+        "back/src/identity/entities/UserPreference.entity.ts",
+        "back/src/content/entities/ProductionCompany.entity.ts",
+        "back/src/content/entities/Drama.entity.ts",
+        "back/src/content/entities/Genre.entity.ts",
+        "back/src/content/entities/DramaGenre.entity.ts",
+        "back/src/content/entities/DramaImage.entity.ts",
+        "back/src/content/entities/Episode.entity.ts",
+        "back/src/content/entities/EpisodeVideo.entity.ts",
+        "back/src/content/entities/EpisodeSubtitle.entity.ts",
+        "back/src/programming/entities/ContentCollection.entity.ts",
+        "back/src/programming/entities/CollectionDrama.entity.ts",
+        "back/src/playback/entities/UserSavedDrama.entity.ts",
+        "back/src/playback/entities/UserWatchProgress.entity.ts",
+        "back/src/playback/entities/UserPreviewFeedState.entity.ts",
+        "back/src/economy/entities/Wallet.entity.ts",
+        "back/src/economy/entities/PointTransaction.entity.ts",
+        "back/src/economy/entities/EpisodeEntitlement.entity.ts",
+        "back/src/economy/entities/PointProduct.entity.ts",
+        "back/src/economy/entities/PointPurchaseOrder.entity.ts",
+        "back/src/economy/entities/AdRewardOffer.entity.ts",
+        "back/src/economy/entities/AdRewardClaim.entity.ts",
+        "back/src/identity/entities/index.ts",
+        "back/src/content/entities/index.ts",
+        "back/src/programming/entities/index.ts",
+        "back/src/playback/entities/index.ts",
+        "back/src/economy/entities/index.ts"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-04T12:33:49.741Z",
+      "summary": "Renamed all Entity files to their PascalCase class names and updated NodeNext ESM import and export paths; lint, test, and build passed.",
+      "completed_at": "2026-10-04T12:35:47.675Z"
+    },
+    {
+      "id": "task-8",
+      "name": "lower-camel-entity-files",
+      "status": "completed",
+      "depends_on": [
+        "task-7"
+      ],
+      "files": [
+        "back/src/shared/entities/auditedEntity.entity.ts",
+        "back/src/identity/entities/user.entity.ts",
+        "back/src/identity/entities/userPreference.entity.ts",
+        "back/src/content/entities/productionCompany.entity.ts",
+        "back/src/content/entities/drama.entity.ts",
+        "back/src/content/entities/genre.entity.ts",
+        "back/src/content/entities/dramaGenre.entity.ts",
+        "back/src/content/entities/dramaImage.entity.ts",
+        "back/src/content/entities/episode.entity.ts",
+        "back/src/content/entities/episodeVideo.entity.ts",
+        "back/src/content/entities/episodeSubtitle.entity.ts",
+        "back/src/programming/entities/contentCollection.entity.ts",
+        "back/src/programming/entities/collectionDrama.entity.ts",
+        "back/src/playback/entities/userSavedDrama.entity.ts",
+        "back/src/playback/entities/userWatchProgress.entity.ts",
+        "back/src/playback/entities/userPreviewFeedState.entity.ts",
+        "back/src/economy/entities/wallet.entity.ts",
+        "back/src/economy/entities/pointTransaction.entity.ts",
+        "back/src/economy/entities/episodeEntitlement.entity.ts",
+        "back/src/economy/entities/pointProduct.entity.ts",
+        "back/src/economy/entities/pointPurchaseOrder.entity.ts",
+        "back/src/economy/entities/adRewardOffer.entity.ts",
+        "back/src/economy/entities/adRewardClaim.entity.ts",
+        "back/src/identity/entities/index.ts",
+        "back/src/content/entities/index.ts",
+        "back/src/programming/entities/index.ts",
+        "back/src/playback/entities/index.ts",
+        "back/src/economy/entities/index.ts"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-04T12:36:57.884Z",
+      "summary": "Changed Entity filenames to lower camel case with lowercase initial letters and updated NodeNext ESM paths; lint, test, and build passed.",
+      "completed_at": "2026-10-04T12:38:08.099Z"
+    }
+  ]
+}

@@ -1,4 +1,11 @@
 {
   "version": 1,
-  "plans": []
+  "plans": [
+    {
+      "id": "plan-1-ai-drama-data-model-entities",
+      "directory": "plan-1-ai-drama-data-model-entities",
+      "title": "AI DRAMA TypeORM Entity 구조",
+      "status": "completed"
+    }
+  ]
 }
