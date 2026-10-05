@@ -30,8 +30,8 @@ NestJS API server. Own `package.json` and lockfile.
 |---|---|
 | `src/` | NestJS modules, controllers, and services. |
 | `src/{domain}/entities/` | Domain-specific Entity classes and persistence metadata. |
-| `src/shared/entities/` | Shared persistence base entities and metadata. |
-| `src/shared/database/` | Shared TypeORM configuration and Entity registry, CLI `DataSource`, and migration files. |
+| `src/common/entities/` | Shared persistence base entities and metadata. |
+| `src/common/database/` | Shared TypeORM configuration and Entity registry, CLI `DataSource`, and migration files. |
 | `test/unit/` | Backend unit tests. |
 
 ## Web prototype — `web-prototype/`
