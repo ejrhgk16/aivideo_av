@@ -1,5 +1,5 @@
 import { Check, Column, Entity, PrimaryColumn } from 'typeorm';
-import { AuditedEntity } from '../../shared/entities/auditedEntity.entity.js';
+import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 
 @Entity({ name: 'wallets' })
 @Check('chk_wallets_available_points_non_negative', 'available_points >= 0')

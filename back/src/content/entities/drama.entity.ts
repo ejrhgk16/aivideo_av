@@ -1,6 +1,6 @@
 import { Check, Column, Entity, Index, PrimaryColumn, Unique } from 'typeorm';
 
-import { AuditedEntity } from '../../shared/entities/auditedEntity.entity.js';
+import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 
 @Entity({ name: 'dramas' })
 @Unique('uq_dramas_public_slug', ['publicSlug'])

@@ -1,6 +1,6 @@
 import { Check, Column, Entity, Index, PrimaryColumn } from 'typeorm';
 
-import { AuditedEntity } from '../../shared/entities/auditedEntity.entity.js';
+import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 
 @Entity({ name: 'user_watch_progress' })
 @Index('IDX_user_watch_progress_user_id_last_played_at', [

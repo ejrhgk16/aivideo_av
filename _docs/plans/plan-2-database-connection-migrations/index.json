@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "plan_id": "plan-2-database-connection-migrations",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "database-bootstrap-config",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/package.json",
+        "back/package-lock.json",
+        "back/.env.example",
+        "back/src/shared/database/databaseConfig.ts",
+        "back/src/shared/database/dataSource.ts"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-05T08:05:44.105Z",
+      "summary": "Changed 5 declared files. Added shared environment-aware MySQL configuration, production synchronize guard, CLI DataSource, migration scripts, @nestjs/config, and .env.example placeholders. Checks passed: npm --prefix back run lint; npm --prefix back run build.",
+      "completed_at": "2026-10-05T08:14:08.885Z"
+    },
+    {
+      "id": "task-2",
+      "name": "nest-typeorm-module",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/app.module.ts"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-05T08:14:35.036Z",
+      "summary": "Changed back/src/app.module.ts to register global environment-aware ConfigModule and TypeOrmModule.forRootAsync using task-1 database options. Preserved controller/service wiring and CLI-only migrations. Checks passed: npm --prefix back run lint; npm --prefix back run test; npm --prefix back run build.",
+      "completed_at": "2026-10-05T08:28:33.388Z"
+    },
+    {
+      "id": "task-3",
+      "name": "initial-schema-migration",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/shared/database/migrations/20261005000000-initAiDrama.ts"
+      ],
+      "checks": [
+        "npm --prefix back run build",
+        "npm --prefix back run db:migration:show",
+        "npm --prefix back run db:migration:run"
+      ],
+      "started_at": "2026-10-05T08:14:50.227Z",
+      "summary": "Created the 22-table InitAiDrama migration with MySQL/InnoDB/utf8mb4_0900_ai_ci, indexes, unique constraints, checks, and no foreign keys. Build passed; migration show/run passed against local MySQL at 127.0.0.1:3306/aivideodb; post-run verification found 22 application tables, 0 foreign keys, and 1 applied migration.",
+      "completed_at": "2026-10-05T08:30:01.042Z"
+    },
+    {
+      "id": "task-4",
+      "name": "tests-and-docs",
+      "status": "completed",
+      "depends_on": [
+        "task-2",
+        "task-3"
+      ],
+      "files": [
+        "back/test/unit/database/databaseConfig.spec.ts",
+        "_docs/ARCHITECTURE.md",
+        "back/README.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-05T08:30:12.974Z",
+      "summary": "Changed back/test/unit/database/databaseConfig.spec.ts, _docs/ARCHITECTURE.md, and back/README.md. Checks passed: npm --prefix back run lint; npm --prefix back run test; npm --prefix back run build. No failures; tests emitted pre-existing node_modules.corrupt warnings.",
+      "completed_at": "2026-10-05T08:33:11.680Z"
+    }
+  ]
+}

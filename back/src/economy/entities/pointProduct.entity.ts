@@ -1,5 +1,5 @@
 import { Check, Column, Entity, PrimaryColumn } from 'typeorm';
-import { AuditedEntity } from '../../shared/entities/auditedEntity.entity.js';
+import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 
 @Entity({ name: 'point_products' })
 @Check('chk_point_products_points_positive', 'points > 0')

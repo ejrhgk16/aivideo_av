@@ -5,7 +5,7 @@ import {
   DramaGenre,
   Episode,
   aiDramaEntities,
-} from '../../../src/shared/database/entities.js';
+} from '../../../src/common/database/entities.js';
 
 const expectedTableNames = new Set([
   'users',

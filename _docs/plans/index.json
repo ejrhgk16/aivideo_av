@@ -6,6 +6,12 @@
       "directory": "plan-1-ai-drama-data-model-entities",
       "title": "AI DRAMA TypeORM Entity 구조",
       "status": "completed"
+    },
+    {
+      "id": "plan-2-database-connection-migrations",
+      "directory": "plan-2-database-connection-migrations",
+      "title": "MySQL 연결 및 TypeORM Migration",
+      "status": "completed"
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { Check, Column, Entity, Index, PrimaryColumn } from 'typeorm';
-import { AuditedEntity } from '../../shared/entities/auditedEntity.entity.js';
+import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 
 @Entity({ name: 'ad_reward_claims' })
 @Index('idx_ad_reward_claims_user_offer_date_status', [

@@ -1,6 +1,6 @@
 import { Check, Column, Entity, Index, PrimaryColumn } from 'typeorm';
 
-import { AuditedEntity } from '../../shared/entities/auditedEntity.entity.js';
+import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 
 @Entity({ name: 'users' })
 @Index('idx_users_production_company_id', ['productionCompanyId'])

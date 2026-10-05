@@ -31,6 +31,30 @@
 $ npm install
 ```
 
+## Database environment
+
+Create environment files from `back/.env.example`, then replace the placeholders with the values for each environment:
+
+```bash
+$ cp .env.example .env.development
+$ cp .env.example .env.production
+```
+
+Use `DB_SYNCHRONIZE=true` only for local development. Development defaults to `true` when the variable is omitted. Keep `DB_SYNCHRONIZE=false` in production; enabling it in production is rejected by the database configuration. Apply schema changes in production through migrations.
+
+Never commit database passwords, credentials, or the actual `.env.development` and `.env.production` files. Keep only non-secret placeholders in `.env.example`.
+
+## Database migrations
+
+After building the application and setting `NODE_ENV=production` with the production environment variables, inspect and apply pending migrations during deployment:
+
+```bash
+$ npm run build
+$ npm run db:migration:show
+$ npm run db:migration:run
+$ npm run start:prod
+```
+
 ## Compile and run the project
 
 ```bash

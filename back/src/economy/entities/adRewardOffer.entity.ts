@@ -1,5 +1,5 @@
 import { Check, Column, Entity, PrimaryColumn } from 'typeorm';
-import { AuditedEntity } from '../../shared/entities/auditedEntity.entity.js';
+import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 
 @Entity({ name: 'ad_reward_offers' })
 @Check('chk_ad_reward_offers_reward_points_positive', 'reward_points > 0')

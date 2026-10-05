@@ -1,6 +1,6 @@
 import { Check, Column, Entity, Index, PrimaryColumn, Unique } from 'typeorm';
 
-import { AuditedEntity } from '../../shared/entities/auditedEntity.entity.js';
+import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 
 @Entity({ name: 'episode_subtitles' })
 @Unique('uq_episode_subtitles_episode_id_language_code', ['episodeId', 'languageCode'])
