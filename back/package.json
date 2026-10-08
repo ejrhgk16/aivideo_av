@@ -14,6 +14,7 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
+    "db:seed": "npm run build && node dist/common/database/seed.js",
     "db:migration:show": "typeorm migration:show -d dist/common/database/dataSource.js",
     "db:migration:run": "typeorm migration:run -d dist/common/database/dataSource.js",
     "db:migration:revert": "typeorm migration:revert -d dist/common/database/dataSource.js",

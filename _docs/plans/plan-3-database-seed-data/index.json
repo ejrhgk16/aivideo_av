@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "plan_id": "plan-3-database-seed-data",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "seed-data-definition",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/common/database/seed/initialData.ts",
+        "back/test/unit/database/initialData.spec.ts"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-08T06:55:09.239Z",
+      "summary": "Added deterministic initial data and DB-free relationship invariant tests. Passed: npm --prefix back run lint; npm --prefix back run test; npm --prefix back run build.",
+      "completed_at": "2026-10-08T06:58:24.350Z"
+    },
+    {
+      "id": "task-2",
+      "name": "seed-command-and-documentation",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/common/database/seed.ts",
+        "back/package.json",
+        "back/README.md",
+        "_docs/ARCHITECTURE.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build",
+        "npm --prefix back run db:seed",
+        "npm --prefix back run db:seed"
+      ],
+      "started_at": "2026-10-08T06:58:39.815Z",
+      "summary": "Added explicit transactional TypeORM seed CLI, db:seed script, and documentation. Passed: npm --prefix back run lint; npm --prefix back run test; npm --prefix back run build; npm --prefix back run db:seed twice.",
+      "completed_at": "2026-10-08T07:00:31.815Z"
+    }
+  ]
+}

@@ -12,6 +12,12 @@
       "directory": "plan-2-database-connection-migrations",
       "title": "MySQL 연결 및 TypeORM Migration",
       "status": "completed"
+    },
+    {
+      "id": "plan-3-database-seed-data",
+      "directory": "plan-3-database-seed-data",
+      "title": "개발용 예시 데이터 시드",
+      "status": "completed"
     }
   ]
 }

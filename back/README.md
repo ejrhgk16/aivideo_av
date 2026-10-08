@@ -55,6 +55,20 @@ $ npm run db:migration:run
 $ npm run start:prod
 ```
 
+## Development seed data
+
+The seed CLI inserts the fixed development catalog data and can be run manually
+after configuring the database environment variables (`NODE_ENV`, `DB_HOST`,
+`DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE`, and `DB_SYNCHRONIZE`):
+
+```bash
+$ npm run db:seed
+```
+
+The command is not invoked by server startup, builds, or migration commands. It
+is safe to run again because each row is upserted by its fixed primary key. Do
+not run it automatically as part of a production deployment.
+
 ## Compile and run the project
 
 ```bash
