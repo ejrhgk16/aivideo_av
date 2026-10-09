@@ -10,7 +10,7 @@
 
 ## Endpoint
 
-### GET /content-collections/:code
+### GET /collections/:code
 
 #### Path parameter
 

@@ -5,7 +5,7 @@ import {
   PublicCollectionService,
 } from './public-collection.service.js';
 
-@Controller('content-collections')
+@Controller('collections')
 export class PublicCollectionController {
   constructor(private readonly collectionService: PublicCollectionService) {}
 
