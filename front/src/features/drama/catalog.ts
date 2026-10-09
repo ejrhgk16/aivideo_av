@@ -1,6 +1,7 @@
 export const dramas = [
   {
     id: 'signal',
+    imageKey: 'signal.jpg',
     title: '마지막 신호',
     english: 'THE LAST SIGNAL',
     tag: '미스터리',
@@ -18,6 +19,7 @@ export const dramas = [
   },
   {
     id: 'season',
+    imageKey: 'season.jpg',
     title: '낯선 계절',
     english: 'A SEASON WITH YOU',
     tag: '로맨스',
@@ -35,6 +37,7 @@ export const dramas = [
   },
   {
     id: 'moon',
+    imageKey: 'moon.jpg',
     title: '달의 도시',
     english: 'CITY OF THE MOON',
     tag: 'SF',

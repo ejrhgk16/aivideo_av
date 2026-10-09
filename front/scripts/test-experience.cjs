@@ -4,15 +4,16 @@ const { join, resolve, relative, sep } = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const output = mkdtempSync(join(tmpdir(), 'aivideo-tests-'));
+const testFiles = ['tests/unit/experience.test.ts', 'tests/unit/media.test.ts'];
 try {
   const build = spawnSync(process.execPath, [
     require.resolve('typescript/bin/tsc'), '--ignoreConfig', '--module', 'commonjs',
     '--target', 'es2022', '--types', 'node', '--skipLibCheck', '--esModuleInterop',
-    '--strict', '--rootDir', '.', '--outDir', output, 'tests/unit/experience.test.ts',
+    '--strict', '--rootDir', '.', '--outDir', output, ...testFiles,
   ], { cwd: resolve(__dirname, '..'), stdio: 'inherit' });
   if (build.status !== 0) process.exitCode = build.status ?? 1;
   else {
-    const test = spawnSync(process.execPath, ['--test', join(output, 'tests', 'unit', 'experience.test.js')], { stdio: 'inherit' });
+    const test = spawnSync(process.execPath, ['--test', ...testFiles.map(file => join(output, file.replace(/\.ts$/, '.js')))], { stdio: 'inherit' });
     process.exitCode = test.status ?? 1;
   }
 } finally {

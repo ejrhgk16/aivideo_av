@@ -12,6 +12,8 @@ npm ci
 npm start
 ```
 
+미디어 base URL은 `front/.env.development`에서 설정합니다. `EXPO_PUBLIC_IMAGE_BASE_URL`과 `EXPO_PUBLIC_VIDEO_BASE_URL`에는 앱에서 접근 가능한 HTTP(S) URL을 넣어야 하며, 개발 PC의 `C:\...` 파일 경로는 사용할 수 없습니다. 예시는 `.env.example`에 있습니다.
+
 Expo Go 또는 개발 빌드에서 QR 코드를 열어 기기로 확인합니다. Expo 57과 호환되는 실행 앱이 필요합니다.
 
 ```sh
@@ -30,7 +32,8 @@ npm run ios       # macOS + Xcode 시뮬레이터
 | `src/theme/` | 색상·Pretendard 글꼴 이름 |
 | `src/features/drama/` | 작품 데이터, 포인트 및 시청 기록 규칙, 앱 상태 |
 | `src/services/` | AsyncStorage 및 플랫폼 공유 |
-| `assets/images/`, `assets/fonts/` | 앱에 포함되는 포스터·글꼴·라이선스 |
+| `media/images/`, `media/videos/` | 로컬 개발용 이미지·영상 파일 |
+| `assets/fonts/` | 앱에 포함되는 글꼴·라이선스 |
 
 `back`과 `web-prototype`의 의존성은 필요하지 않습니다. 기존 공개 웹 주소는 이 앱의 개발 서버나 배포 주소와 별개입니다.
 

@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Drama } from '@/features/drama/catalog';
+import { resolveImageUrl } from '@/services/media';
 import { colors, typography } from '@/theme/tokens';
 
 export function AppText({ weight = 'regular', style, ...props }: TextProps & { weight?: keyof typeof typography }) {
@@ -45,14 +46,8 @@ export function Page({ children, scroll = true, style, contentStyle }: {
   );
 }
 
-const artwork = {
-  signal: require('../../assets/images/signal.jpg'),
-  season: require('../../assets/images/season.jpg'),
-  moon: require('../../assets/images/moon.jpg'),
-};
-
 export function DramaImage({ drama, style, ...props }: Omit<ImageProps, 'source'> & { drama: Drama }) {
-  return <Image source={artwork[drama.id]} accessibilityLabel={`${drama.title} 표지`} contentFit="cover" transition={180} {...props} style={style} />;
+  return <Image source={{ uri: resolveImageUrl(drama.imageKey) }} accessibilityLabel={`${drama.title} 표지`} contentFit="cover" transition={180} {...props} style={style} />;
 }
 
 export function Poster({ drama, width = 148, onPress }: { drama: Drama; width?: number; onPress: () => void }) {
