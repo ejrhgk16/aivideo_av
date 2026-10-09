@@ -79,6 +79,13 @@
 - `_docs/ARCHITECTURE.md` -- 시스템 아키텍처와 레이어 구조
 - `_docs/plans/` -- plan 정의, task 지시, 실행 상태
 - `_docs/AI_DRAMA_data_model/` -- 테이블,도메인 구조 및 정의
+- `_docs/api/` -- 도메인별 REST API 계약과 공통 규칙
+
+## API 문서
+
+- 백엔드 REST endpoint를 추가·변경·삭제할 때는 같은 작업에서 해당 `_docs/api/<도메인>/` API 정의서를 갱신한다.
+- endpoint의 경로, 요청 값, 성공·오류 응답, 인증, 노출 규칙을 문서의 실제 구현과 일치시킨다.
+- 공통 API 규칙이 바뀌면 `_docs/api/00-overview/conventions.md`도 함께 갱신한다.
 
 ## Architecture
 

@@ -45,6 +45,7 @@ Preserved standalone web prototype. It is not imported or run by `front/`, and i
 | `_docs/plans/index.json` | Harness plan catalog and plan-level status only. |
 | `_docs/plans/plan-N-name/index.json` | Task definitions and execution state for one plan. |
 | `_docs/plans/plan-N-name/plan.md` | Human-readable plan scope, task details, and verification results. |
+| `_docs/api/` | Domain-organized REST API contracts and shared API conventions. |
 | `.agents/skills/` | Project-local Codex skills. |
 | `.codex/agents/` | Codex worker definitions. |
 | `.codex/hooks.json` | Codex hook registration. |

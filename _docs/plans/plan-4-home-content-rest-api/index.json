@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "plan_id": "plan-4-home-content-rest-api",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "public-catalog-api",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/content/content.module.ts",
+        "back/src/content/public-catalog.controller.ts",
+        "back/src/content/public-catalog.service.ts",
+        "back/test/unit/content/public-catalog.service.spec.ts"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-09T10:09:14.784Z",
+      "summary": "Added public catalog module plus latest dramas and genres APIs with repository-mock unit tests. Passed: npm --prefix back run lint; npm --prefix back run test; npm --prefix back run build.",
+      "completed_at": "2026-10-09T10:12:34.676Z"
+    },
+    {
+      "id": "task-2",
+      "name": "public-home-collection-api",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/programming/programming.module.ts",
+        "back/src/programming/public-collection.controller.ts",
+        "back/src/programming/public-collection.service.ts",
+        "back/test/unit/programming/public-collection.service.spec.ts"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-09T10:09:29.478Z",
+      "summary": "Added public home collection module plus active scheduled collection API with repository-mock unit tests. Passed: npm --prefix back run lint; npm --prefix back run test; npm --prefix back run build.",
+      "completed_at": "2026-10-09T10:12:34.750Z"
+    },
+    {
+      "id": "task-3",
+      "name": "register-content-api-modules",
+      "status": "completed",
+      "depends_on": [
+        "task-1",
+        "task-2"
+      ],
+      "files": [
+        "back/src/app.module.ts"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-09T10:13:09.920Z",
+      "summary": "Registered ContentModule and ProgrammingModule in AppModule. Passed: npm --prefix back run lint; npm --prefix back run test; npm --prefix back run build.",
+      "completed_at": "2026-10-09T10:14:00.032Z"
+    }
+  ]
+}

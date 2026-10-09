@@ -18,6 +18,12 @@
       "directory": "plan-3-database-seed-data",
       "title": "개발용 예시 데이터 시드",
       "status": "completed"
+    },
+    {
+      "id": "plan-4-home-content-rest-api",
+      "directory": "plan-4-home-content-rest-api",
+      "title": "홈 콘텐츠 REST API",
+      "status": "completed"
     }
   ]
 }
