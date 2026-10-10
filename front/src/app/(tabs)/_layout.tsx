@@ -1,6 +1,6 @@
 import Feather from '@expo/vector-icons/Feather';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { colors, typography } from '@/theme/tokens';
+import { colors, typography } from '@/common/theme/tokens';
 
 const tabs = [
   { name: 'index', label: '홈', icon: 'home' },

@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Icon } from '@/components/ui';
-import { colors, typography } from '@/theme/tokens';
+import { colors, typography } from '@/common/theme/tokens';
 
 const tabs = [
   { name: 'index', label: '홈', icon: 'home' },

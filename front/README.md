@@ -29,9 +29,8 @@ npm run ios       # macOS + Xcode 시뮬레이터
 | `src/app/` | Expo Router 경로와 네비게이터 |
 | `src/screens/` | 홈·추천·검색·보관함·내 정보·상세·재생·포인트 화면 |
 | `src/components/` | 공통 글자·버튼·포스터·페이지 |
-| `src/theme/` | 색상·Pretendard 글꼴 이름 |
-| `src/features/drama/` | 작품 데이터, 포인트 및 시청 기록 규칙, 앱 상태 |
-| `src/services/` | AsyncStorage 및 플랫폼 공유 |
+| `src/common/` | 공용 HTTP·저장소·환경·theme·순수 utility 코드 |
+| `src/features/` | 기능별 상태, endpoint, 타입 (`drama/`, `home/` 등) |
 | `media/images/`, `media/videos/` | 로컬 개발용 이미지·영상 파일 |
 | `assets/fonts/` | 앱에 포함되는 글꼴·라이선스 |
 

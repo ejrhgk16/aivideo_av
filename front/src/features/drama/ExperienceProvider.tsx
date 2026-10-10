@@ -8,7 +8,7 @@ import {
   useState,
   type PropsWithChildren,
 } from 'react';
-import { loadExperience, saveExperience } from '../../services/experience-storage';
+import { loadExperience, saveExperience } from '../../common/storage/experienceStorage';
 import {
   AD_REWARD,
   credit,

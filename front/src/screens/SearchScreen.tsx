@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AppText, EmptyState, Icon, Page, Poster, SectionTitle } from '@/components/ui';
 import { dramas } from '@/features/drama/catalog';
-import { colors, typography } from '@/theme/tokens';
+import { colors, typography } from '@/common/theme/tokens';
 
 const genres = ['전체', '미스터리', '로맨스', 'SF'] as const;
 

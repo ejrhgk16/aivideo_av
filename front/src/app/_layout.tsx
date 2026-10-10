@@ -5,7 +5,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ExperienceProvider, useExperience } from '@/features/drama/ExperienceProvider';
 import { AppText } from '@/components/ui';
-import { colors } from '@/theme/tokens';
+import { colors } from '@/common/theme/tokens';
 
 function AppNavigation() {
   const { ready, storageError } = useExperience();

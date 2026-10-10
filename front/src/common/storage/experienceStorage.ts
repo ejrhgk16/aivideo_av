@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { readExperience, type Experience } from '../features/drama/experience';
+import { readExperience, type Experience } from '../../features/drama/experience';
 
 const STORAGE_KEY = 'ai-drama-native-experience-v1';
 let pendingWrite: Promise<void> = Promise.resolve();

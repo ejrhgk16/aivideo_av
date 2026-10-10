@@ -5,8 +5,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { AppText, Button, DramaImage, Icon, Page, Poster, SectionTitle } from '@/components/ui';
 import { dramas, type Drama } from '@/features/drama/catalog';
 import { useExperience } from '@/features/drama/ExperienceProvider';
-import { getHomeCollection } from '@/services/homeContent';
-import { colors } from '@/theme/tokens';
+import { getHomeCollection } from '@/features/home/homeContent';
+import { colors } from '@/common/theme/tokens';
 
 const tabs = ['추천', '최신', '랭킹', '장르'] as const;
 

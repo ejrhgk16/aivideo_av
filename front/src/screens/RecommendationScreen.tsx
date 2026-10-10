@@ -7,8 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText, Button, DramaImage, Icon } from '@/components/ui';
 import { dramas, type Drama } from '@/features/drama/catalog';
 import { useExperience } from '@/features/drama/ExperienceProvider';
-import { shareDrama } from '@/services/share-drama';
-import { colors } from '@/theme/tokens';
+import { shareDrama } from '@/common/shareDrama';
+import { colors } from '@/common/theme/tokens';
 
 type CardProps = { drama: Drama; height: number; active: boolean; saved: boolean; captions: boolean; watchedEpisode?: number; onSave: (id: string) => void };
 const PreviewCard = memo(function PreviewCard({ drama, height, active, saved, captions, watchedEpisode, onSave }: CardProps) {

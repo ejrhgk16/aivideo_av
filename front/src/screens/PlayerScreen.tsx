@@ -7,8 +7,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText, Button, DramaImage, EmptyState, Icon } from '@/components/ui';
 import { getDrama } from '@/features/drama/catalog';
 import { useExperience } from '@/features/drama/ExperienceProvider';
-import { shareDrama } from '@/services/share-drama';
-import { colors } from '@/theme/tokens';
+import { shareDrama } from '@/common/shareDrama';
+import { colors } from '@/common/theme/tokens';
 
 type Sheet = 'unlock' | 'episodes' | 'details' | 'settings' | 'speed' | null;
 const formatTime = (time: number) => `00:${String(Math.floor(time)).padStart(2, '0')}`;

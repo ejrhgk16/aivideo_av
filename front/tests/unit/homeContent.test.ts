@@ -2,7 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { getHomeCollection } from '../../src/services/homeContent';
+import { getHomeCollection } from '../../src/features/home/homeContent';
 
 test('home collection requests use the configured API base URL', async () => {
   const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;

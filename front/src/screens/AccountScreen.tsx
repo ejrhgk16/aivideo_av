@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText, Button, Icon, Page, SectionTitle } from '@/components/ui';
 import { useExperience } from '@/features/drama/ExperienceProvider';
-import { colors } from '@/theme/tokens';
+import { colors } from '@/common/theme/tokens';
 
 export function AccountScreen() {
   const router = useRouter();

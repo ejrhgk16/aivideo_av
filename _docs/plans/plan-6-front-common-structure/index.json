@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "plan_id": "plan-6-front-common-structure",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "Common layer restructure",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/services/experience-storage.ts",
+        "front/src/services/media.ts",
+        "front/src/services/share-drama.ts",
+        "front/src/theme/tokens.ts",
+        "front/src/common/storage/experienceStorage.ts",
+        "front/src/common/media.ts",
+        "front/src/common/shareDrama.ts",
+        "front/src/common/theme/tokens.ts",
+        "front/src/app/_layout.tsx",
+        "front/src/app/(tabs)/_layout.tsx",
+        "front/src/app/(tabs)/_layout.web.tsx",
+        "front/src/components/ui.tsx",
+        "front/src/features/drama/ExperienceProvider.tsx",
+        "front/src/screens/AccountScreen.tsx",
+        "front/src/screens/DramaDetailScreen.tsx",
+        "front/src/screens/HomeScreen.tsx",
+        "front/src/screens/LibraryScreen.tsx",
+        "front/src/screens/PlayerScreen.tsx",
+        "front/src/screens/RecommendationScreen.tsx",
+        "front/src/screens/SearchScreen.tsx",
+        "front/src/screens/WalletScreen.tsx",
+        "front/tests/unit/media.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-10T08:53:14.156Z",
+      "summary": "Moved shared storage, media, sharing, and theme files into common with camelCase names; updated imports and media test; typecheck, tests, and export passed.",
+      "completed_at": "2026-10-10T08:55:06.851Z"
+    },
+    {
+      "id": "task-2",
+      "name": "Home feature relocation",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/src/services/homeContent.ts",
+        "front/src/features/home/homeContent.ts",
+        "front/src/screens/HomeScreen.tsx",
+        "front/tests/unit/homeContent.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-10T08:55:17.392Z",
+      "summary": "Moved home content endpoint and types into features/home; updated screen and test imports; typecheck, tests, and export passed.",
+      "completed_at": "2026-10-10T08:56:26.968Z"
+    },
+    {
+      "id": "task-3",
+      "name": "Document common structure",
+      "status": "completed",
+      "depends_on": [
+        "task-1",
+        "task-2"
+      ],
+      "files": [
+        "_docs/ARCHITECTURE.md"
+      ],
+      "checks": [
+        "node tools/harness/cli.mjs validate --plan plan-6-front-common-structure"
+      ],
+      "started_at": "2026-10-10T08:56:37.151Z",
+      "summary": "Documented common as the shared layer and features as the feature-specific layer; plan validation passed.",
+      "completed_at": "2026-10-10T08:57:13.108Z"
+    }
+  ]
+}

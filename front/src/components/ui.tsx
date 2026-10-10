@@ -8,8 +8,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { Drama } from '@/features/drama/catalog';
-import { resolveImageUrl } from '@/services/media';
-import { colors, typography } from '@/theme/tokens';
+import { resolveImageUrl } from '@/common/media';
+import { colors, typography } from '@/common/theme/tokens';
 
 export function AppText({ weight = 'regular', style, ...props }: TextProps & { weight?: keyof typeof typography }) {
   return <Text {...props} style={[styles.text, { fontFamily: typography[weight] }, style]} />;

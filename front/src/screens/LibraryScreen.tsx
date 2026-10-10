@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AppText, DramaImage, EmptyState, Icon, Page, Poster, SectionTitle } from '@/components/ui';
 import { getDrama } from '@/features/drama/catalog';
 import { useExperience } from '@/features/drama/ExperienceProvider';
-import { colors } from '@/theme/tokens';
+import { colors } from '@/common/theme/tokens';
 
 export function LibraryScreen() {
   const router = useRouter();

@@ -30,6 +30,12 @@
       "directory": "plan-5-front-home-api-connection",
       "title": "프론트 홈 API 연결",
       "status": "completed"
+    },
+    {
+      "id": "plan-6-front-common-structure",
+      "directory": "plan-6-front-common-structure",
+      "title": "프론트 공용 코드 구조 정리",
+      "status": "completed"
     }
   ]
 }

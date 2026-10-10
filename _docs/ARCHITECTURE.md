@@ -13,10 +13,8 @@ Expo React Native client. Own `package.json` and lockfile.
 | `src/app/` | Expo Router routes and navigators. |
 | `src/screens/` | Screen-level UI. |
 | `src/components/` | Reusable UI components. |
-| `src/theme/` | Design tokens and shared styling. |
-| `src/features/` | Feature state, endpoints, and types. |
-| `src/services/` | Shared HTTP, storage, and environment services. |
-| `src/utils/` | Pure shared utility functions only. |
+| `src/common/` | Shared HTTP, storage, environment, theme, and pure utility code. |
+| `src/features/` | Feature-specific state, endpoints, and types. |
 | `assets/images/` | Static screen images. |
 | `assets/icons/` | Static icons. |
 | `assets/fonts/` | Font files and licenses. |

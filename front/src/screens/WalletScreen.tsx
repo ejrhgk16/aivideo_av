@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText, Button, Icon, Page, SectionTitle } from '@/components/ui';
 import { useExperience } from '@/features/drama/ExperienceProvider';
 import { DAILY_AD_LIMIT, remainingAds } from '@/features/drama/experience';
-import { colors } from '@/theme/tokens';
+import { colors } from '@/common/theme/tokens';
 
 const packs = [{ points: 100, price: '1,100원' }, { points: 300, price: '3,300원' }, { points: 600, price: '6,600원' }];
 
