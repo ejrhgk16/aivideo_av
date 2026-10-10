@@ -17,4 +17,6 @@
 
 - 이미지의 `storageKey`는 객체 스토리지 내부 키이며, 접근 가능한 URL이 아니다.
 - 현재 정의된 홈 콘텐츠 API는 인증을 요구하지 않는다.
-- 인증, CORS, 미디어 URL 발급은 별도 API 계약이 확정될 때 정의한다.
+- 개발 웹 클라이언트 `http://localhost:8081`만 CORS 요청 origin으로 허용한다.
+- CORS는 와일드카드 origin을 사용하지 않으며, 운영 origin과 credentials는 별도 계약에서 정의한다.
+- 미디어 URL 발급은 별도 API 계약이 확정될 때 정의한다.

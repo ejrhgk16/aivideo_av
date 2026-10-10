@@ -4,7 +4,7 @@ const { join, resolve, relative, sep } = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const output = mkdtempSync(join(tmpdir(), 'aivideo-tests-'));
-const testFiles = ['tests/unit/experience.test.ts', 'tests/unit/media.test.ts'];
+const testFiles = ['tests/unit/experience.test.ts', 'tests/unit/media.test.ts', 'tests/unit/homeContent.test.ts'];
 try {
   const build = spawnSync(process.execPath, [
     require.resolve('typescript/bin/tsc'), '--ignoreConfig', '--module', 'commonjs',

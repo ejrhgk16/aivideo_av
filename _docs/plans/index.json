@@ -24,6 +24,12 @@
       "directory": "plan-4-home-content-rest-api",
       "title": "홈 콘텐츠 REST API",
       "status": "completed"
+    },
+    {
+      "id": "plan-5-front-home-api-connection",
+      "directory": "plan-5-front-home-api-connection",
+      "title": "프론트 홈 API 연결",
+      "status": "completed"
     }
   ]
 }

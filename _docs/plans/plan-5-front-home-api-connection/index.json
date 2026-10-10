@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "plan_id": "plan-5-front-home-api-connection",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "Home API client",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/.env",
+        "front/src/services/homeContent.ts",
+        "front/tests/unit/homeContent.test.ts",
+        "front/scripts/test-experience.cjs"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test"
+      ],
+      "started_at": "2026-10-10T07:22:09.842Z",
+      "summary": "Added API base URL configuration, typed home collection client, and unit coverage; typecheck and tests passed.",
+      "completed_at": "2026-10-10T07:24:29.804Z"
+    },
+    {
+      "id": "task-2",
+      "name": "Home API logging",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/src/screens/HomeScreen.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-10T07:24:39.794Z",
+      "summary": "Home screen requests HOME_FEATURED and EDITORIAL_TOP_3 in parallel and logs each result; typecheck, tests, and export passed.",
+      "completed_at": "2026-10-10T07:26:29.216Z"
+    },
+    {
+      "id": "task-3",
+      "name": "Web CORS",
+      "status": "completed",
+      "depends_on": [
+        "task-2"
+      ],
+      "files": [
+        "back/src/main.ts",
+        "back/src/common/http/webCors.ts",
+        "back/test/unit/webCors.spec.ts",
+        "_docs/api/00-overview/conventions.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-10T07:46:58.203Z",
+      "summary": "Added strict development-web CORS handling, real temporary-server OPTIONS and GET tests, and updated API conventions; lint, tests, and build passed.",
+      "completed_at": "2026-10-10T07:49:49.309Z"
+    }
+  ]
+}

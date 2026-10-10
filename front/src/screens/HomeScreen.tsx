@@ -1,15 +1,31 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AppText, Button, DramaImage, Icon, Page, Poster, SectionTitle } from '@/components/ui';
 import { dramas, type Drama } from '@/features/drama/catalog';
 import { useExperience } from '@/features/drama/ExperienceProvider';
+import { getHomeCollection } from '@/services/homeContent';
 import { colors } from '@/theme/tokens';
 
 const tabs = ['추천', '최신', '랭킹', '장르'] as const;
 
 export function HomeScreen() {
+  useEffect(() => {
+    const collectionCodes = ['HOME_FEATURED', 'EDITORIAL_TOP_3'];
+
+    void Promise.all(
+      collectionCodes.map(async (code) => {
+        try {
+          const collection = await getHomeCollection(code);
+          console.log(`[HomeScreen] ${code} collection`, collection);
+        } catch (error) {
+          console.error(`[HomeScreen] ${code} collection request failed`, error);
+        }
+      }),
+    );
+  }, []);
+
   const router = useRouter();
   const { width } = useWindowDimensions();
   const { state, ready, toggleSave } = useExperience();
