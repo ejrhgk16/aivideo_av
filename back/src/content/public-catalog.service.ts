@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Drama } from './entities/drama.entity.js';
@@ -26,6 +27,29 @@ export type DramaSummary = {
 };
 
 export type GenreSummary = Pick<Genre, 'id' | 'code' | 'name'>;
+
+export type DramaDetail = {
+  id: string;
+  slug: string;
+  title: string;
+  shortDescription: string;
+  synopsis: string;
+  productionCompany: string | null;
+  genres: Array<{ id: number; code: string; name: string }>;
+  images: {
+    poster: string | null;
+    hero: string | null;
+    thumbnail: string | null;
+  };
+  episodes: Array<{
+    id: string;
+    episodeNumber: number;
+    title: string | null;
+    synopsis: string | null;
+    durationMs: number;
+    pricePoints: number;
+  }>;
+};
 
 export class PublicCatalogService {
   constructor(
@@ -117,6 +141,68 @@ export class PublicCatalogService {
         freeEpisodeCount: dramaEpisodes.filter((episode) => episode.pricePoints === 0).length,
       };
     });
+  }
+
+  async getDrama(dramaId: string, now = new Date()): Promise<DramaDetail> {
+    const drama = await this.dramaRepository.findOne({
+      where: { id: dramaId, status: PUBLIC_STATUS },
+    });
+
+    if (
+      !drama ||
+      drama.status !== PUBLIC_STATUS ||
+      drama.publishedAt === null ||
+      drama.publishedAt > now
+    ) {
+      throw new NotFoundException(`Drama '${dramaId}' was not found`);
+    }
+
+    const [company, dramaGenres, genres, images, episodes] = await Promise.all([
+      this.productionCompanyRepository.findOne({ where: { id: drama.productionCompanyId } }),
+      this.dramaGenreRepository.findBy({ dramaId: drama.id }),
+      this.genreRepository.find({ order: { displayOrder: 'ASC' } }),
+      this.dramaImageRepository.findBy({ dramaId: drama.id }),
+      this.episodeRepository.findBy({ dramaId: drama.id }),
+    ]);
+
+    const genresById = new Map(genres.map((genre) => [genre.id, genre]));
+    const imageByKind = new Map(images.map((image) => [image.kind, image.storageKey]));
+    const publicEpisodes = episodes
+      .filter(
+        (episode) =>
+          episode.status === PUBLIC_STATUS &&
+          episode.publishedAt !== null &&
+          episode.publishedAt <= now,
+      )
+      .sort((left, right) => left.episodeNumber - right.episodeNumber);
+
+    return {
+      id: drama.id,
+      slug: drama.publicSlug,
+      title: drama.title,
+      shortDescription: drama.shortDescription,
+      synopsis: drama.synopsis,
+      productionCompany: company?.name ?? null,
+      genres: dramaGenres
+        .map((link) => genresById.get(link.genreId))
+        .filter((genre): genre is Genre => genre !== undefined)
+        .map(({ id, code, name }) => ({ id, code, name })),
+      images: {
+        poster: imageByKind.get('POSTER') ?? null,
+        hero: imageByKind.get('HERO') ?? null,
+        thumbnail: imageByKind.get('THUMBNAIL') ?? null,
+      },
+      episodes: publicEpisodes.map(
+        ({ id, episodeNumber, title, synopsis, durationMs, pricePoints }) => ({
+          id,
+          episodeNumber,
+          title,
+          synopsis,
+          durationMs,
+          pricePoints,
+        }),
+      ),
+    };
   }
 
   async listGenres(): Promise<GenreSummary[]> {

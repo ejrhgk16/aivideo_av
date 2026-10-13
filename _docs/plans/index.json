@@ -36,6 +36,12 @@
       "directory": "plan-6-front-common-structure",
       "title": "프론트 공용 코드 구조 정리",
       "status": "completed"
+    },
+    {
+      "id": "plan-7-public-drama-detail-api",
+      "directory": "plan-7-public-drama-detail-api",
+      "title": "공개 작품 상세 REST API",
+      "status": "completed"
     }
   ]
 }

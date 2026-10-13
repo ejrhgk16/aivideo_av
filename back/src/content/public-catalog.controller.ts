@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Param, Query } from '@nestjs/common';
 import { PublicCatalogService } from './public-catalog.service.js';
 
 @Controller()
@@ -11,6 +11,11 @@ export class PublicCatalogController {
       throw new BadRequestException('sort must be latest');
     }
     return this.publicCatalogService.listDramas('latest');
+  }
+
+  @Get('dramas/:dramaId')
+  getDrama(@Param('dramaId') dramaId: string) {
+    return this.publicCatalogService.getDrama(dramaId);
   }
 
   @Get('genres')

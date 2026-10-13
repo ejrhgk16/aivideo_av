@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "plan_id": "plan-7-public-drama-detail-api",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "공개 작품 상세 구현 및 테스트",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/content/public-catalog.controller.ts",
+        "back/src/content/public-catalog.service.ts",
+        "back/test/unit/content/public-catalog.service.spec.ts"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-13T08:11:34.925Z",
+      "summary": "Added GET /dramas/:dramaId with public drama validation, detail metadata, ordered published episodes, pricePoints, and 404 handling. Extended unit tests for detail composition, filtering, ordering, prices, and unavailable dramas. All declared checks passed: lint, test (20 passed), build.",
+      "completed_at": "2026-10-13T08:16:19.278Z"
+    },
+    {
+      "id": "task-2",
+      "name": "공개 작품 상세 API 계약 문서화",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "_docs/api/02-content/dramas.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-13T08:16:52.328Z",
+      "summary": "Updated _docs/api/02-content/dramas.md with GET /dramas/:dramaId path/auth/200/404 contract, all response fields, public filtering and episode ordering, pricePoints semantics, and exclusion of user-specific FREE/LOCKED/ENTITLED states. Declared checks passed: lint, test (20 passed), build.",
+      "completed_at": "2026-10-13T08:18:02.548Z"
+    }
+  ]
+}
