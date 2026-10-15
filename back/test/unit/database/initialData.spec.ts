@@ -6,9 +6,9 @@ describe('initial seed data', () => {
     expect(initialData.genres).toHaveLength(6);
     expect(initialData.dramas).toHaveLength(5);
     expect(initialData.dramaGenres).toHaveLength(10);
-    expect(initialData.dramaImages).toHaveLength(15);
+    expect(initialData.contentImages).toHaveLength(51);
     expect(initialData.episodes).toHaveLength(20);
-    expect(initialData.episodeVideos).toHaveLength(40);
+    expect(initialData.contentVideos).toHaveLength(30);
     expect(initialData.episodeSubtitles).toHaveLength(20);
     expect(initialData.contentCollections).toHaveLength(3);
     expect(initialData.collectionDramas).toHaveLength(13);
@@ -33,9 +33,21 @@ describe('initial seed data', () => {
         ({ dramaId, genreId }) => dramaIds.has(dramaId) && genreIds.has(genreId),
       ),
     ).toBe(true);
-    expect(initialData.dramaImages.every(({ dramaId }) => dramaIds.has(dramaId))).toBe(true);
+    expect(
+      initialData.contentImages.every(({ contentType, contentId }) =>
+        contentType === 'DRAMA'
+          ? dramaIds.has(contentId!)
+          : contentType === 'GENRE'
+            ? genreIds.has(Number(contentId))
+            : episodeIds.has(contentId!),
+      ),
+    ).toBe(true);
     expect(initialData.episodes.every(({ dramaId }) => dramaIds.has(dramaId))).toBe(true);
-    expect(initialData.episodeVideos.every(({ episodeId }) => episodeIds.has(episodeId))).toBe(true);
+    expect(
+      initialData.contentVideos.every(({ contentType, contentId }) =>
+        contentType === 'DRAMA' ? dramaIds.has(contentId!) : episodeIds.has(contentId!),
+      ),
+    ).toBe(true);
     expect(initialData.episodeSubtitles.every(({ episodeId }) => episodeIds.has(episodeId))).toBe(true);
     expect(
       initialData.collectionDramas.every(
@@ -57,11 +69,62 @@ describe('initial seed data', () => {
     }
   });
 
-  it('has one full and one preview video for each episode', () => {
-    for (const episode of initialData.episodes) {
-      const videos = initialData.episodeVideos.filter(({ episodeId }) => episodeId === episode.id);
+  it('has the planned image ownership and ordered campaigns', () => {
+    for (const drama of initialData.dramas) {
+      const images = initialData.contentImages.filter(
+        ({ contentType, contentId }) => contentType === 'DRAMA' && contentId === drama.id,
+      );
 
-      expect(videos.map(({ kind }) => kind).sort()).toEqual(['FULL', 'PREVIEW']);
+      expect(images.map(({ kind }) => kind).sort()).toEqual([
+        'CAMPAIGN',
+        'CAMPAIGN',
+        'DETAIL_COVER',
+        'HOME_HERO',
+        'POSTER',
+      ]);
+      expect(
+        images
+          .filter(({ kind }) => kind === 'CAMPAIGN')
+          .sort((left, right) => left.displayOrder! - right.displayOrder!)
+          .map(({ displayOrder }) => displayOrder),
+      ).toEqual([1, 2]);
+    }
+
+    for (const genre of initialData.genres) {
+      expect(
+        initialData.contentImages.filter(
+          ({ contentType, contentId, kind }) =>
+            contentType === 'GENRE' && contentId === String(genre.id) && kind === 'GENRE_TILE',
+        ),
+      ).toHaveLength(1);
+    }
+
+    for (const episode of initialData.episodes) {
+      expect(
+        initialData.contentImages.filter(
+          ({ contentType, contentId, kind }) =>
+            contentType === 'EPISODE' && contentId === episode.id && kind === 'EPISODE_COVER',
+        ),
+      ).toHaveLength(1);
+    }
+  });
+
+  it('has multiple drama previews and one full video for each episode', () => {
+    for (const drama of initialData.dramas) {
+      const videos = initialData.contentVideos
+        .filter(({ contentType, contentId }) => contentType === 'DRAMA' && contentId === drama.id)
+        .sort((left, right) => left.displayOrder! - right.displayOrder!);
+
+      expect(videos.map(({ kind }) => kind)).toEqual(['PREVIEW', 'PREVIEW']);
+      expect(videos.map(({ displayOrder }) => displayOrder)).toEqual([1, 2]);
+    }
+
+    for (const episode of initialData.episodes) {
+      const videos = initialData.contentVideos.filter(
+        ({ contentType, contentId }) => contentType === 'EPISODE' && contentId === episode.id,
+      );
+
+      expect(videos.map(({ kind }) => kind)).toEqual(['FULL']);
       expect(videos.every(({ storageKey }) => storageKey?.includes(episode.id!))).toBe(true);
     }
   });
@@ -78,10 +141,29 @@ describe('initial seed data', () => {
     }
 
     expect(
-      initialData.dramaImages.every(({ storageKey }) => storageKey?.startsWith('dramas/')),
+      initialData.contentImages
+        .filter(({ contentType }) => contentType === 'DRAMA')
+        .every(({ storageKey }) => storageKey?.startsWith('dramas/')),
     ).toBe(true);
     expect(
-      initialData.episodeVideos.every(({ storageKey }) => storageKey?.startsWith('episodes/')),
+      initialData.contentImages
+        .filter(({ contentType }) => contentType === 'EPISODE')
+        .every(({ storageKey }) => storageKey?.startsWith('episodes/')),
+    ).toBe(true);
+    expect(
+      initialData.contentImages
+        .filter(({ contentType }) => contentType === 'GENRE')
+        .every(({ storageKey }) => storageKey?.startsWith('genres/')),
+    ).toBe(true);
+    expect(
+      initialData.contentVideos
+        .filter(({ contentType }) => contentType === 'DRAMA')
+        .every(({ storageKey }) => storageKey?.startsWith('dramas/')),
+    ).toBe(true);
+    expect(
+      initialData.contentVideos
+        .filter(({ contentType }) => contentType === 'EPISODE')
+        .every(({ storageKey }) => storageKey?.startsWith('episodes/')),
     ).toBe(true);
     expect(
       initialData.episodeSubtitles.every(({ storageKey }) => storageKey?.startsWith('episodes/')),

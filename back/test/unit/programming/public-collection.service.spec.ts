@@ -13,7 +13,8 @@ describe('PublicCollectionService', () => {
     const productionCompanyRepository = repository();
     const dramaGenreRepository = repository();
     const genreRepository = repository();
-    const dramaImageRepository = repository();
+    const contentImageRepository = repository();
+    const contentVideoRepository = repository();
     const episodeRepository = repository();
     const publishedAt = new Date('2026-01-01T00:00:00.000Z');
     const now = Date.now();
@@ -37,7 +38,16 @@ describe('PublicCollectionService', () => {
     productionCompanyRepository.find.mockResolvedValue([{ id: 'company-1', name: 'Studio' }]);
     dramaGenreRepository.find.mockResolvedValue([{ dramaId: 'drama-1', genreId: 1 }]);
     genreRepository.find.mockResolvedValue([{ id: 1, code: 'ROMANCE', name: '로맨스' }]);
-    dramaImageRepository.find.mockResolvedValue([{ dramaId: 'drama-1', kind: 'POSTER', storageKey: 'poster.webp' }]);
+    contentImageRepository.find.mockResolvedValue([
+      { contentType: 'DRAMA', contentId: 'drama-1', kind: 'POSTER', storageKey: 'poster.webp', displayOrder: 1 },
+      { contentType: 'DRAMA', contentId: 'drama-1', kind: 'HOME_HERO', storageKey: 'hero.webp', displayOrder: 1 },
+      { contentType: 'DRAMA', contentId: 'drama-1', kind: 'CAMPAIGN', storageKey: 'campaign-2.webp', displayOrder: 2 },
+      { contentType: 'DRAMA', contentId: 'drama-1', kind: 'CAMPAIGN', storageKey: 'campaign-1.webp', displayOrder: 1 },
+    ]);
+    contentVideoRepository.find.mockResolvedValue([
+      { contentType: 'DRAMA', contentId: 'drama-1', kind: 'PREVIEW', storageKey: 'preview-2.mp4', durationMs: 20000, displayOrder: 2 },
+      { contentType: 'DRAMA', contentId: 'drama-1', kind: 'PREVIEW', storageKey: 'preview-1.mp4', durationMs: 15000, displayOrder: 1 },
+    ]);
     episodeRepository.find.mockResolvedValue([
       { dramaId: 'drama-1', status: 'PUBLISHED', publishedAt, pricePoints: 0 },
       { dramaId: 'drama-1', status: 'PUBLISHED', publishedAt, pricePoints: 10 },
@@ -51,7 +61,8 @@ describe('PublicCollectionService', () => {
       productionCompanyRepository as never,
       dramaGenreRepository as never,
       genreRepository as never,
-      dramaImageRepository as never,
+      contentImageRepository as never,
+      contentVideoRepository as never,
       episodeRepository as never,
     );
 
@@ -63,9 +74,23 @@ describe('PublicCollectionService', () => {
         expect.objectContaining({
           displayOrder: 1,
           id: 'drama-1',
+          slug: 'first',
+          title: 'First',
+          shortDescription: 'First short',
+          productionCompany: { id: 'company-1', name: 'Studio' },
+          genres: [{ id: 1, code: 'ROMANCE', name: '로맨스' }],
           publishedEpisodeCount: 2,
           freeEpisodeCount: 1,
-          images: { POSTER: 'poster.webp', HERO: null, THUMBNAIL: null },
+          images: {
+            poster: 'poster.webp',
+            homeHero: 'hero.webp',
+            detailCover: null,
+            campaigns: ['campaign-1.webp', 'campaign-2.webp'],
+          },
+          previewVideos: [
+            { storageKey: 'preview-1.mp4', durationMs: 15000 },
+            { storageKey: 'preview-2.mp4', durationMs: 20000 },
+          ],
         }),
       ],
     });
@@ -76,6 +101,7 @@ describe('PublicCollectionService', () => {
     collectionRepository.findOne.mockResolvedValue(null);
     const service = new PublicCollectionService(
       collectionRepository as never,
+      repository() as never,
       repository() as never,
       repository() as never,
       repository() as never,

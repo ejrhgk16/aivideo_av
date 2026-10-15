@@ -1,24 +1,15 @@
-import { Check, Column, Entity, Index, PrimaryColumn, Unique } from 'typeorm';
+import { ContentImage } from './contentImage.entity.js';
 
-import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
+/**
+ * Transitional alias for modules that still use the pre-polymorphic media
+ * name. The entity metadata is owned by ContentImage so this does not add a
+ * second table to the registry.
+ */
+export { ContentImage as DramaImage };
 
-@Entity({ name: 'drama_images' })
-@Unique('uq_drama_images_drama_id_kind', ['dramaId', 'kind'])
-@Index('idx_drama_images_drama_id', ['dramaId'])
-@Check("kind IN ('POSTER', 'HERO', 'THUMBNAIL')")
-export class DramaImage extends AuditedEntity {
-  @PrimaryColumn({ type: 'char', length: 36 })
-  id!: string;
-
-  @Column({ name: 'drama_id', type: 'char', length: 36 })
-  dramaId!: string;
-
-  @Column({ type: 'varchar', length: 16 })
-  kind!: string;
-
-  @Column({ name: 'storage_key', type: 'varchar', length: 500 })
-  storageKey!: string;
-
-  @Column({ name: 'alt_text', type: 'varchar', length: 200, nullable: true })
-  altText!: string | null;
+declare module './contentImage.entity.js' {
+  interface ContentImage {
+    /** @deprecated Use contentId with contentType = 'DRAMA'. */
+    dramaId: string;
+  }
 }

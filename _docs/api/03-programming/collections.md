@@ -40,10 +40,20 @@
         { "id": 1, "code": "ROMANCE", "name": "로맨스" }
       ],
       "images": {
-        "POSTER": "dramas/our-last-spring/images/poster.webp",
-        "HERO": "dramas/our-last-spring/images/hero.webp",
-        "THUMBNAIL": "dramas/our-last-spring/images/thumbnail.webp"
+        "poster": "dramas/our-last-spring/images/poster.webp",
+        "homeHero": "dramas/our-last-spring/images/home-hero.webp",
+        "detailCover": "dramas/our-last-spring/images/detail-cover.webp",
+        "campaigns": [
+          "dramas/our-last-spring/images/campaign-1.webp",
+          "dramas/our-last-spring/images/campaign-2.webp"
+        ]
       },
+      "previewVideos": [
+        {
+          "storageKey": "dramas/our-last-spring/videos/preview-1.mp4",
+          "durationMs": 30000
+        }
+      ],
       "publishedEpisodeCount": 4,
       "freeEpisodeCount": 1
     }
@@ -60,9 +70,13 @@
 | `dramas[].id`, `slug`, `title`, `shortDescription` | string | 작품 기본 정보 |
 | `dramas[].productionCompany` | object \| null | 제작사 식별자와 이름 |
 | `dramas[].genres` | array | 연결된 장르 목록 |
-| `dramas[].images.POSTER` | string \| null | 포스터 storage key |
-| `dramas[].images.HERO` | string \| null | 히어로 이미지 storage key |
-| `dramas[].images.THUMBNAIL` | string \| null | 썸네일 storage key |
+| `dramas[].images.poster` | string \| null | 포스터 storage key |
+| `dramas[].images.homeHero` | string \| null | 홈 히어로 이미지 storage key |
+| `dramas[].images.detailCover` | string \| null | 상세 커버 이미지 storage key |
+| `dramas[].images.campaigns` | string[] | 캠페인 이미지 storage key 목록. `display_order` 오름차순 |
+| `dramas[].previewVideos` | array | 작품 프리뷰 영상 목록. `display_order` 오름차순 |
+| `dramas[].previewVideos[].storageKey` | string | 프리뷰 영상 storage key |
+| `dramas[].previewVideos[].durationMs` | number | 프리뷰 영상 재생 시간(ms) |
 | `dramas[].publishedEpisodeCount` | number | 공개된 회차 수 |
 | `dramas[].freeEpisodeCount` | number | 공개 회차 중 무료 회차 수 |
 
@@ -91,5 +105,6 @@
 - `collection_dramas`
 - `dramas`, `production_companies`
 - `drama_genres`, `genres`
-- `drama_images`
+- `content_images` (`content_type = 'DRAMA'`)
+- `content_videos` (`content_type = 'DRAMA'`, `kind = 'PREVIEW'`)
 - `episodes`

@@ -37,9 +37,18 @@
     ],
     "images": {
       "poster": "dramas/our-last-spring/images/poster.webp",
-      "hero": "dramas/our-last-spring/images/hero.webp",
-      "thumbnail": "dramas/our-last-spring/images/thumbnail.webp"
+      "homeHero": "dramas/our-last-spring/images/home-hero.webp",
+      "detailCover": "dramas/our-last-spring/images/detail-cover.webp",
+      "campaigns": [
+        "dramas/our-last-spring/images/campaign-1.webp"
+      ]
     },
+    "previewVideos": [
+      {
+        "storageKey": "dramas/our-last-spring/videos/preview-1.mp4",
+        "durationMs": 30000
+      }
+    ],
     "episodeCount": 4,
     "freeEpisodeCount": 1
   }
@@ -55,8 +64,12 @@
 | `productionCompany` | string \| null | 제작사명. 연결된 제작사가 없으면 `null` |
 | `genres` | array | 연결된 장르의 식별자·코드·이름 |
 | `images.poster` | string \| null | 포스터 storage key |
-| `images.hero` | string \| null | 히어로 이미지 storage key |
-| `images.thumbnail` | string \| null | 썸네일 storage key |
+| `images.homeHero` | string \| null | 홈 히어로 이미지 storage key |
+| `images.detailCover` | string \| null | 상세 커버 이미지 storage key |
+| `images.campaigns` | string[] | 캠페인 이미지 storage key. `displayOrder` 오름차순 |
+| `previewVideos` | array | 작품 프리뷰 영상. `displayOrder` 오름차순 |
+| `previewVideos[].storageKey` | string | 프리뷰 영상 storage key |
+| `previewVideos[].durationMs` | number | 프리뷰 영상 재생 시간(밀리초) |
 | `episodeCount` | number | 공개된 회차 수 |
 | `freeEpisodeCount` | number | 공개 회차 중 `pricePoints = 0`인 회차 수 |
 
@@ -107,9 +120,18 @@
   ],
   "images": {
     "poster": "dramas/our-last-spring/images/poster.webp",
-    "hero": "dramas/our-last-spring/images/hero.webp",
-    "thumbnail": "dramas/our-last-spring/images/thumbnail.webp"
-  },
+      "homeHero": "dramas/our-last-spring/images/home-hero.webp",
+      "detailCover": "dramas/our-last-spring/images/detail-cover.webp",
+      "campaigns": [
+        "dramas/our-last-spring/images/campaign-1.webp"
+      ]
+    },
+    "previewVideos": [
+      {
+        "storageKey": "dramas/our-last-spring/videos/preview-1.mp4",
+        "durationMs": 30000
+      }
+    ],
   "episodes": [
     {
       "id": "00000002-0000-4000-8000-000000000101",
@@ -144,8 +166,12 @@
 | `genres[].code` | string | 장르 코드 |
 | `genres[].name` | string | 장르명 |
 | `images.poster` | string \| null | 포스터 storage key |
-| `images.hero` | string \| null | 히어로 이미지 storage key |
-| `images.thumbnail` | string \| null | 썸네일 이미지 storage key |
+| `images.homeHero` | string \| null | 홈 히어로 이미지 storage key |
+| `images.detailCover` | string \| null | 상세 커버 이미지 storage key |
+| `images.campaigns` | string[] | 캠페인 이미지 storage key. `displayOrder` 오름차순 |
+| `previewVideos` | array | 작품 프리뷰 영상. `displayOrder` 오름차순 |
+| `previewVideos[].storageKey` | string | 프리뷰 영상 storage key |
+| `previewVideos[].durationMs` | number | 프리뷰 영상 재생 시간(밀리초) |
 | `episodes` | array | 공개된 회차 목록 |
 | `episodes[].id` | string | 회차 식별자 |
 | `episodes[].episodeNumber` | number | 회차 번호 |
@@ -153,6 +179,7 @@
 | `episodes[].synopsis` | string \| null | 회차 소개 |
 | `episodes[].durationMs` | number | 재생 시간(밀리초) |
 | `episodes[].pricePoints` | number | 회차 해제에 필요한 포인트. `0`이면 무료이고, `0`보다 크면 해제에 포인트가 필요하다 |
+| `episodes[].image` | string \| null | 회차 커버 이미지 storage key |
 
 #### 404 Response
 
@@ -180,5 +207,6 @@
 - `dramas`
 - `production_companies`
 - `drama_genres`, `genres`
-- `drama_images`
+- `content_images`
+- `content_videos`
 - `episodes`

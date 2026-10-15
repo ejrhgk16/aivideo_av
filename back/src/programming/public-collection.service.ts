@@ -2,16 +2,27 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 
+import { ContentImage } from '../content/entities/contentImage.entity.js';
+import { ContentVideo } from '../content/entities/contentVideo.entity.js';
 import { Drama } from '../content/entities/drama.entity.js';
 import { DramaGenre } from '../content/entities/dramaGenre.entity.js';
-import { DramaImage } from '../content/entities/dramaImage.entity.js';
 import { Episode } from '../content/entities/episode.entity.js';
 import { Genre } from '../content/entities/genre.entity.js';
 import { ProductionCompany } from '../content/entities/productionCompany.entity.js';
 import { CollectionDrama } from './entities/collectionDrama.entity.js';
 import { ContentCollection } from './entities/contentCollection.entity.js';
 
-type ImageKind = 'POSTER' | 'HERO' | 'THUMBNAIL';
+type PublicImages = {
+  poster: string | null;
+  homeHero: string | null;
+  detailCover: string | null;
+  campaigns: string[];
+};
+
+type PublicPreviewVideo = {
+  storageKey: string;
+  durationMs: number;
+};
 
 export interface PublicDramaSummary {
   id: string;
@@ -20,7 +31,8 @@ export interface PublicDramaSummary {
   shortDescription: string;
   productionCompany: { id: string; name: string } | null;
   genres: Array<{ id: number; code: string; name: string }>;
-  images: Record<ImageKind, string | null>;
+  images: PublicImages;
+  previewVideos: PublicPreviewVideo[];
   publishedEpisodeCount: number;
   freeEpisodeCount: number;
 }
@@ -51,8 +63,10 @@ export class PublicCollectionService {
     private readonly dramaGenreRepository: Repository<DramaGenre>,
     @InjectRepository(Genre)
     private readonly genreRepository: Repository<Genre>,
-    @InjectRepository(DramaImage)
-    private readonly dramaImageRepository: Repository<DramaImage>,
+    @InjectRepository(ContentImage)
+    private readonly contentImageRepository: Repository<ContentImage>,
+    @InjectRepository(ContentVideo)
+    private readonly contentVideoRepository: Repository<ContentVideo>,
     @InjectRepository(Episode)
     private readonly episodeRepository: Repository<Episode>,
   ) {}
@@ -88,17 +102,23 @@ export class PublicCollectionService {
     );
 
     const publicDramaIds = publicDramas.map(({ id }) => id);
-    const [companies, dramaGenres, genres, images, episodes] = publicDramaIds.length
+    const [companies, dramaGenres, genres, images, videos, episodes] = publicDramaIds.length
       ? await Promise.all([
           this.productionCompanyRepository.find({
             where: { id: In(publicDramas.map(({ productionCompanyId }) => productionCompanyId)) },
           }),
           this.dramaGenreRepository.find({ where: { dramaId: In(publicDramaIds) } }),
           this.genreRepository.find(),
-          this.dramaImageRepository.find({ where: { dramaId: In(publicDramaIds) } }),
+          this.contentImageRepository.find({
+            where: { contentType: 'DRAMA', contentId: In(publicDramaIds) },
+          }),
+          this.contentVideoRepository.find({
+            where: { contentType: 'DRAMA', contentId: In(publicDramaIds), kind: 'PREVIEW' },
+            order: { displayOrder: 'ASC' },
+          }),
           this.episodeRepository.find({ where: { dramaId: In(publicDramaIds) } }),
         ])
-      : [[], [], [], [], []];
+      : [[], [], [], [], [], []];
 
     const companiesById = new Map(companies.map((company) => [company.id, company]));
     const genresById = new Map(genres.map((genre) => [genre.id, genre]));
@@ -109,11 +129,18 @@ export class PublicCollectionService {
       genreIdsByDrama.set(dramaGenre.dramaId, dramaGenreIds);
     }
 
-    const imagesByDrama = new Map<string, Partial<Record<ImageKind, string>>>();
+    const imagesByDrama = new Map<string, ContentImage[]>();
     for (const image of images) {
-      const dramaImages = imagesByDrama.get(image.dramaId) ?? {};
-      dramaImages[image.kind as ImageKind] = image.storageKey;
-      imagesByDrama.set(image.dramaId, dramaImages);
+      const dramaImages = imagesByDrama.get(image.contentId) ?? [];
+      dramaImages.push(image);
+      imagesByDrama.set(image.contentId, dramaImages);
+    }
+
+    const previewVideosByDrama = new Map<string, ContentVideo[]>();
+    for (const video of videos) {
+      const dramaVideos = previewVideosByDrama.get(video.contentId) ?? [];
+      dramaVideos.push(video);
+      previewVideosByDrama.set(video.contentId, dramaVideos);
     }
 
     const episodesByDrama = new Map<string, Episode[]>();
@@ -134,7 +161,20 @@ export class PublicCollectionService {
       }
 
       const dramaEpisodes = episodesByDrama.get(drama.id) ?? [];
-      const dramaImages = imagesByDrama.get(drama.id) ?? {};
+      const dramaImages = imagesByDrama.get(drama.id) ?? [];
+      const imageByKind = new Map<string, string>();
+      const campaignImages: Array<{ displayOrder: number; storageKey: string }> = [];
+      for (const image of dramaImages) {
+        if (image.kind === 'CAMPAIGN') {
+          campaignImages.push({ displayOrder: image.displayOrder, storageKey: image.storageKey });
+        } else if (!imageByKind.has(image.kind)) {
+          imageByKind.set(image.kind, image.storageKey);
+        }
+      }
+      campaignImages.sort((left, right) => left.displayOrder - right.displayOrder);
+      const previewVideos = (previewVideosByDrama.get(drama.id) ?? [])
+        .slice()
+        .sort((left, right) => left.displayOrder - right.displayOrder);
       return [
         {
           displayOrder: scheduledDrama.displayOrder,
@@ -153,10 +193,14 @@ export class PublicCollectionService {
             return genre ? [{ id: genre.id, code: genre.code, name: genre.name }] : [];
           }),
           images: {
-            POSTER: dramaImages.POSTER ?? null,
-            HERO: dramaImages.HERO ?? null,
-            THUMBNAIL: dramaImages.THUMBNAIL ?? null,
+            poster: imageByKind.get('POSTER') ?? null,
+            homeHero: imageByKind.get('HOME_HERO') ?? null,
+            detailCover: imageByKind.get('DETAIL_COVER') ?? null,
+            campaigns: campaignImages.map(({ storageKey }) => storageKey),
           },
+          previewVideos: previewVideos.map(
+            ({ storageKey, durationMs }) => ({ storageKey, durationMs }),
+          ),
           publishedEpisodeCount: dramaEpisodes.length,
           freeEpisodeCount: dramaEpisodes.filter(({ pricePoints }) => pricePoints === 0).length,
         },

@@ -3,7 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Drama } from './entities/drama.entity.js';
 import { DramaGenre } from './entities/dramaGenre.entity.js';
-import { DramaImage } from './entities/dramaImage.entity.js';
+import { ContentImage } from './entities/contentImage.entity.js';
+import { ContentVideo } from './entities/contentVideo.entity.js';
 import { Episode } from './entities/episode.entity.js';
 import { Genre } from './entities/genre.entity.js';
 import { ProductionCompany } from './entities/productionCompany.entity.js';
@@ -19,14 +20,16 @@ export type DramaSummary = {
   genres: Array<{ id: number; code: string; name: string }>;
   images: {
     poster: string | null;
-    hero: string | null;
-    thumbnail: string | null;
+    homeHero: string | null;
+    detailCover: string | null;
+    campaigns: string[];
   };
+  previewVideos: Array<{ storageKey: string; durationMs: number }>;
   episodeCount: number;
   freeEpisodeCount: number;
 };
 
-export type GenreSummary = Pick<Genre, 'id' | 'code' | 'name'>;
+export type GenreSummary = Pick<Genre, 'id' | 'code' | 'name'> & { tileImage: string | null };
 
 export type DramaDetail = {
   id: string;
@@ -38,9 +41,11 @@ export type DramaDetail = {
   genres: Array<{ id: number; code: string; name: string }>;
   images: {
     poster: string | null;
-    hero: string | null;
-    thumbnail: string | null;
+    homeHero: string | null;
+    detailCover: string | null;
+    campaigns: string[];
   };
+  previewVideos: Array<{ storageKey: string; durationMs: number }>;
   episodes: Array<{
     id: string;
     episodeNumber: number;
@@ -48,8 +53,27 @@ export type DramaDetail = {
     synopsis: string | null;
     durationMs: number;
     pricePoints: number;
+    image: string | null;
   }>;
 };
+
+function mapImages(images: ContentImage[]) {
+  const sorted = [...images].sort((left, right) => left.displayOrder - right.displayOrder);
+  const firstOfKind = (kind: string) => sorted.find((image) => image.kind === kind)?.storageKey ?? null;
+
+  return {
+    poster: firstOfKind('POSTER'),
+    homeHero: firstOfKind('HOME_HERO'),
+    detailCover: firstOfKind('DETAIL_COVER'),
+    campaigns: sorted.filter((image) => image.kind === 'CAMPAIGN').map((image) => image.storageKey),
+  };
+}
+
+function mapPreviewVideos(videos: ContentVideo[]) {
+  return [...videos]
+    .sort((left, right) => left.displayOrder - right.displayOrder)
+    .map(({ storageKey, durationMs }) => ({ storageKey, durationMs }));
+}
 
 export class PublicCatalogService {
   constructor(
@@ -61,8 +85,10 @@ export class PublicCatalogService {
     private readonly dramaGenreRepository: Repository<DramaGenre>,
     @InjectRepository(Genre)
     private readonly genreRepository: Repository<Genre>,
-    @InjectRepository(DramaImage)
-    private readonly dramaImageRepository: Repository<DramaImage>,
+    @InjectRepository(ContentImage)
+    private readonly contentImageRepository: Repository<ContentImage>,
+    @InjectRepository(ContentVideo)
+    private readonly contentVideoRepository: Repository<ContentVideo>,
     @InjectRepository(Episode)
     private readonly episodeRepository: Repository<Episode>,
   ) {}
@@ -84,11 +110,12 @@ export class PublicCatalogService {
     }
 
     const dramaIds = dramas.map((drama) => drama.id);
-    const [companies, dramaGenres, genres, images, episodes] = await Promise.all([
+    const [companies, dramaGenres, genres, images, videos, episodes] = await Promise.all([
       this.productionCompanyRepository.findBy({ id: In(dramas.map((drama) => drama.productionCompanyId)) }),
       this.dramaGenreRepository.findBy({ dramaId: In(dramaIds) }),
       this.genreRepository.find({ order: { displayOrder: 'ASC' } }),
-      this.dramaImageRepository.findBy({ dramaId: In(dramaIds) }),
+      this.contentImageRepository.findBy({ contentType: 'DRAMA', contentId: In(dramaIds) }),
+      this.contentVideoRepository.findBy({ contentType: 'DRAMA', contentId: In(dramaIds), kind: 'PREVIEW' }),
       this.episodeRepository.findBy({ dramaId: In(dramaIds) }),
     ]);
 
@@ -100,11 +127,17 @@ export class PublicCatalogService {
       links.push(link);
       genreLinksByDrama.set(link.dramaId, links);
     }
-    const imagesByDrama = new Map<string, DramaImage[]>();
+    const imagesByDrama = new Map<string, ContentImage[]>();
     for (const image of images) {
-      const dramaImages = imagesByDrama.get(image.dramaId) ?? [];
+      const dramaImages = imagesByDrama.get(image.contentId) ?? [];
       dramaImages.push(image);
-      imagesByDrama.set(image.dramaId, dramaImages);
+      imagesByDrama.set(image.contentId, dramaImages);
+    }
+    const videosByDrama = new Map<string, ContentVideo[]>();
+    for (const video of videos) {
+      const dramaVideos = videosByDrama.get(video.contentId) ?? [];
+      dramaVideos.push(video);
+      videosByDrama.set(video.contentId, dramaVideos);
     }
     const episodesByDrama = new Map<string, Episode[]>();
     for (const episode of episodes) {
@@ -118,7 +151,7 @@ export class PublicCatalogService {
 
     return dramas.map((drama) => {
       const dramaImages = imagesByDrama.get(drama.id) ?? [];
-      const imageByKind = new Map(dramaImages.map((image) => [image.kind, image.storageKey]));
+      const dramaVideos = videosByDrama.get(drama.id) ?? [];
       const dramaEpisodes = episodesByDrama.get(drama.id) ?? [];
       const dramaGenresForDrama = genreLinksByDrama.get(drama.id) ?? [];
 
@@ -132,11 +165,8 @@ export class PublicCatalogService {
           .map((link) => genresById.get(link.genreId))
           .filter((genre): genre is Genre => genre !== undefined)
           .map(({ id, code, name }) => ({ id, code, name })),
-        images: {
-          poster: imageByKind.get('POSTER') ?? null,
-          hero: imageByKind.get('HERO') ?? null,
-          thumbnail: imageByKind.get('THUMBNAIL') ?? null,
-        },
+        images: mapImages(dramaImages),
+        previewVideos: mapPreviewVideos(dramaVideos),
         episodeCount: dramaEpisodes.length,
         freeEpisodeCount: dramaEpisodes.filter((episode) => episode.pricePoints === 0).length,
       };
@@ -157,16 +187,16 @@ export class PublicCatalogService {
       throw new NotFoundException(`Drama '${dramaId}' was not found`);
     }
 
-    const [company, dramaGenres, genres, images, episodes] = await Promise.all([
+    const [company, dramaGenres, genres, images, videos, episodes] = await Promise.all([
       this.productionCompanyRepository.findOne({ where: { id: drama.productionCompanyId } }),
       this.dramaGenreRepository.findBy({ dramaId: drama.id }),
       this.genreRepository.find({ order: { displayOrder: 'ASC' } }),
-      this.dramaImageRepository.findBy({ dramaId: drama.id }),
+      this.contentImageRepository.findBy({ contentType: 'DRAMA', contentId: drama.id }),
+      this.contentVideoRepository.findBy({ contentType: 'DRAMA', contentId: drama.id, kind: 'PREVIEW' }),
       this.episodeRepository.findBy({ dramaId: drama.id }),
     ]);
 
     const genresById = new Map(genres.map((genre) => [genre.id, genre]));
-    const imageByKind = new Map(images.map((image) => [image.kind, image.storageKey]));
     const publicEpisodes = episodes
       .filter(
         (episode) =>
@@ -175,6 +205,14 @@ export class PublicCatalogService {
           episode.publishedAt <= now,
       )
       .sort((left, right) => left.episodeNumber - right.episodeNumber);
+    const episodeImages = publicEpisodes.length === 0
+      ? []
+      : await this.contentImageRepository.findBy({
+        contentType: 'EPISODE',
+        contentId: In(publicEpisodes.map((episode) => episode.id)),
+        kind: 'EPISODE_COVER',
+      });
+    const episodeImagesById = new Map(episodeImages.map((image) => [image.contentId, image.storageKey]));
 
     return {
       id: drama.id,
@@ -187,11 +225,8 @@ export class PublicCatalogService {
         .map((link) => genresById.get(link.genreId))
         .filter((genre): genre is Genre => genre !== undefined)
         .map(({ id, code, name }) => ({ id, code, name })),
-      images: {
-        poster: imageByKind.get('POSTER') ?? null,
-        hero: imageByKind.get('HERO') ?? null,
-        thumbnail: imageByKind.get('THUMBNAIL') ?? null,
-      },
+      images: mapImages(images),
+      previewVideos: mapPreviewVideos(videos),
       episodes: publicEpisodes.map(
         ({ id, episodeNumber, title, synopsis, durationMs, pricePoints }) => ({
           id,
@@ -200,6 +235,7 @@ export class PublicCatalogService {
           synopsis,
           durationMs,
           pricePoints,
+          image: episodeImagesById.get(id) ?? null,
         }),
       ),
     };
@@ -207,6 +243,16 @@ export class PublicCatalogService {
 
   async listGenres(): Promise<GenreSummary[]> {
     const genres = await this.genreRepository.find({ order: { displayOrder: 'ASC' } });
-    return genres.map(({ id, code, name }) => ({ id, code, name }));
+    const tileImages = await this.contentImageRepository.findBy({
+      contentType: 'GENRE',
+      kind: 'GENRE_TILE',
+    });
+    const tileImagesByGenre = new Map(tileImages.map((image) => [image.contentId, image.storageKey]));
+    return genres.map(({ id, code, name }) => ({
+      id,
+      code,
+      name,
+      tileImage: tileImagesByGenre.get(String(id)) ?? null,
+    }));
   }
 }

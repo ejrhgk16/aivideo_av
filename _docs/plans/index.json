@@ -42,6 +42,12 @@
       "directory": "plan-7-public-drama-detail-api",
       "title": "공개 작품 상세 REST API",
       "status": "completed"
+    },
+    {
+      "id": "plan-8-content-media-model",
+      "directory": "plan-8-content-media-model",
+      "title": "콘텐츠 이미지·영상 미디어 모델 전환",
+      "status": "completed"
     }
   ]
 }

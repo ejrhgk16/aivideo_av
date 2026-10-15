@@ -2,7 +2,8 @@ import { PublicCatalogService } from '../../../src/content/public-catalog.servic
 import { NotFoundException } from '@nestjs/common';
 import { Drama } from '../../../src/content/entities/drama.entity.js';
 import { DramaGenre } from '../../../src/content/entities/dramaGenre.entity.js';
-import { DramaImage } from '../../../src/content/entities/dramaImage.entity.js';
+import { ContentImage } from '../../../src/content/entities/contentImage.entity.js';
+import { ContentVideo } from '../../../src/content/entities/contentVideo.entity.js';
 import { Episode } from '../../../src/content/entities/episode.entity.js';
 import { Genre } from '../../../src/content/entities/genre.entity.js';
 import { ProductionCompany } from '../../../src/content/entities/productionCompany.entity.js';
@@ -54,7 +55,24 @@ describe('PublicCatalogService', () => {
     genres.find.mockResolvedValue([Object.assign(new Genre(), { id: 1, code: 'MYSTERY', name: '미스터리', displayOrder: 1 })]);
     const images = repository();
     images.findBy.mockResolvedValue([
-      Object.assign(new DramaImage(), { dramaId: 'drama-1', kind: 'POSTER', storageKey: 'poster.jpg' }),
+      Object.assign(new ContentImage(), {
+        contentType: 'DRAMA', contentId: 'drama-1', kind: 'POSTER', storageKey: 'poster.jpg', displayOrder: 1,
+      }),
+      Object.assign(new ContentImage(), {
+        contentType: 'DRAMA', contentId: 'drama-1', kind: 'CAMPAIGN', storageKey: 'campaign-2.jpg', displayOrder: 2,
+      }),
+      Object.assign(new ContentImage(), {
+        contentType: 'DRAMA', contentId: 'drama-1', kind: 'CAMPAIGN', storageKey: 'campaign-1.jpg', displayOrder: 1,
+      }),
+    ]);
+    const videos = repository();
+    videos.findBy.mockResolvedValue([
+      Object.assign(new ContentVideo(), {
+        contentType: 'DRAMA', contentId: 'drama-1', kind: 'PREVIEW', storageKey: 'preview-2.mp4', durationMs: 2000, displayOrder: 2,
+      }),
+      Object.assign(new ContentVideo(), {
+        contentType: 'DRAMA', contentId: 'drama-1', kind: 'PREVIEW', storageKey: 'preview-1.mp4', durationMs: 1000, displayOrder: 1,
+      }),
     ]);
     const episodes = repository();
     episodes.findBy.mockResolvedValue([
@@ -69,6 +87,7 @@ describe('PublicCatalogService', () => {
       dramaGenres as never,
       genres as never,
       images as never,
+      videos as never,
       episodes as never,
     );
 
@@ -79,7 +98,14 @@ describe('PublicCatalogService', () => {
         productionCompany: '제작사',
         episodeCount: 2,
         freeEpisodeCount: 1,
-        images: { poster: 'poster.jpg', hero: null, thumbnail: null },
+        images: {
+          poster: 'poster.jpg', homeHero: null, detailCover: null,
+          campaigns: ['campaign-1.jpg', 'campaign-2.jpg'],
+        },
+        previewVideos: [
+          { storageKey: 'preview-1.mp4', durationMs: 1000 },
+          { storageKey: 'preview-2.mp4', durationMs: 2000 },
+        ],
       }),
     ]);
     expect(qb.where).toHaveBeenCalledWith('drama.status = :status', { status: 'PUBLISHED' });
@@ -88,20 +114,23 @@ describe('PublicCatalogService', () => {
   });
 
   it('returns genres in display order', async () => {
-    const genres = repository<Genre>();
+    const genres = repository();
     const rows = [Object.assign(new Genre(), { id: 1, code: 'MYSTERY', name: '미스터리', displayOrder: 1 })];
     genres.find.mockResolvedValue(rows);
+    const images = repository();
+    images.findBy.mockResolvedValue([]);
     const service = new PublicCatalogService(
       repository() as never,
       repository() as never,
       repository() as never,
       genres as never,
+      images as never,
       repository() as never,
       repository() as never,
     );
 
     await expect(service.listGenres()).resolves.toEqual([
-      { id: 1, code: 'MYSTERY', name: '미스터리' },
+      { id: 1, code: 'MYSTERY', name: '미스터리', tileImage: null },
     ]);
     expect(genres.find).toHaveBeenCalledWith({ order: { displayOrder: 'ASC' } });
   });
@@ -131,8 +160,15 @@ describe('PublicCatalogService', () => {
     genres.find.mockResolvedValue([Object.assign(new Genre(), { id: 1, code: 'MYSTERY', name: '미스터리' })]);
     const images = repository();
     images.findBy.mockResolvedValue([
-      Object.assign(new DramaImage(), { dramaId: 'drama-1', kind: 'POSTER', storageKey: 'poster.jpg' }),
+      Object.assign(new ContentImage(), {
+        contentType: 'DRAMA', contentId: 'drama-1', kind: 'POSTER', storageKey: 'poster.jpg', displayOrder: 1,
+      }),
+      Object.assign(new ContentImage(), {
+        contentType: 'EPISODE', contentId: 'episode-1', kind: 'EPISODE_COVER', storageKey: 'episode-1.jpg', displayOrder: 1,
+      }),
     ]);
+    const videos = repository();
+    videos.findBy.mockResolvedValue([]);
     const episodes = repository();
     episodes.findBy.mockResolvedValue([
       Object.assign(new Episode(), {
@@ -176,6 +212,7 @@ describe('PublicCatalogService', () => {
       dramaGenres as never,
       genres as never,
       images as never,
+      videos as never,
       episodes as never,
     );
 
@@ -187,7 +224,8 @@ describe('PublicCatalogService', () => {
       synopsis: '긴 줄거리',
       productionCompany: '제작사',
       genres: [{ id: 1, code: 'MYSTERY', name: '미스터리' }],
-      images: { poster: 'poster.jpg', hero: null, thumbnail: null },
+      images: { poster: 'poster.jpg', homeHero: null, detailCover: null, campaigns: [] },
+      previewVideos: [],
       episodes: [
         {
           id: 'episode-1',
@@ -196,6 +234,7 @@ describe('PublicCatalogService', () => {
           synopsis: '첫 번째',
           durationMs: 90000,
           pricePoints: 0,
+          image: 'episode-1.jpg',
         },
         {
           id: 'episode-2',
@@ -204,6 +243,7 @@ describe('PublicCatalogService', () => {
           synopsis: '두 번째',
           durationMs: 120000,
           pricePoints: 10,
+          image: null,
         },
       ],
     });
@@ -215,6 +255,7 @@ describe('PublicCatalogService', () => {
     const dramas = repository();
     const service = new PublicCatalogService(
       dramas as never,
+      repository() as never,
       repository() as never,
       repository() as never,
       repository() as never,

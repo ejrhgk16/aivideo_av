@@ -2,6 +2,8 @@ import 'reflect-metadata';
 import { getMetadataArgsStorage } from 'typeorm';
 
 import {
+  ContentImage,
+  ContentVideo,
   DramaGenre,
   Episode,
   aiDramaEntities,
@@ -14,9 +16,9 @@ const expectedTableNames = new Set([
   'dramas',
   'genres',
   'drama_genres',
-  'drama_images',
+  'content_images',
   'episodes',
-  'episode_videos',
+  'content_videos',
   'episode_subtitles',
   'content_collections',
   'collection_dramas',
@@ -76,6 +78,19 @@ describe('AI DRAMA entity registry', () => {
         target: Episode,
         name: 'idx_episodes_status_published_at',
         columns: ['status', 'publishedAt'],
+      }),
+    );
+    expect(metadataStorage.uniques).toContainEqual(
+      expect.objectContaining({
+        target: ContentImage,
+        name: 'uq_content_images_content_type_content_id_kind_display_order',
+        columns: ['contentType', 'contentId', 'kind', 'displayOrder'],
+      }),
+    );
+    expect(metadataStorage.checks).toContainEqual(
+      expect.objectContaining({
+        target: ContentVideo,
+        expression: 'display_order > 0',
       }),
     );
   });

@@ -1,11 +1,11 @@
 import { AdRewardOffer, PointProduct } from '../../economy/entities/index.js';
 import {
+  ContentImage,
+  ContentVideo,
   Drama,
   DramaGenre,
-  DramaImage,
   Episode,
   EpisodeSubtitle,
-  EpisodeVideo,
   Genre,
   ProductionCompany,
 } from '../../content/entities/index.js';
@@ -30,12 +30,12 @@ async function seed(): Promise<void> {
         .getRepository(DramaGenre)
         .upsert(initialData.dramaGenres, ['dramaId', 'genreId']);
       await manager
-        .getRepository(DramaImage)
-        .upsert(initialData.dramaImages, ['id']);
+        .getRepository(ContentImage)
+        .upsert(initialData.contentImages, ['id']);
       await manager.getRepository(Episode).upsert(initialData.episodes, ['id']);
       await manager
-        .getRepository(EpisodeVideo)
-        .upsert(initialData.episodeVideos, ['id']);
+        .getRepository(ContentVideo)
+        .upsert(initialData.contentVideos, ['id']);
       await manager
         .getRepository(EpisodeSubtitle)
         .upsert(initialData.episodeSubtitles, ['id']);

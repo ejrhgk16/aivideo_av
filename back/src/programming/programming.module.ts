@@ -3,7 +3,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { Drama } from '../content/entities/drama.entity.js';
 import { DramaGenre } from '../content/entities/dramaGenre.entity.js';
-import { DramaImage } from '../content/entities/dramaImage.entity.js';
+import { ContentImage } from '../content/entities/contentImage.entity.js';
+import { ContentVideo } from '../content/entities/contentVideo.entity.js';
 import { Episode } from '../content/entities/episode.entity.js';
 import { Genre } from '../content/entities/genre.entity.js';
 import { ProductionCompany } from '../content/entities/productionCompany.entity.js';
@@ -21,7 +22,8 @@ import { PublicCollectionService } from './public-collection.service.js';
       ProductionCompany,
       DramaGenre,
       Genre,
-      DramaImage,
+      ContentImage,
+      ContentVideo,
       Episode,
     ]),
   ],

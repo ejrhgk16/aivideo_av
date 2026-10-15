@@ -1,28 +1,17 @@
-import { Check, Column, Entity, Index, PrimaryColumn, Unique } from 'typeorm';
+import { ContentVideo } from './contentVideo.entity.js';
 
-import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
+/**
+ * Transitional alias for modules that still use the pre-polymorphic media
+ * name. The entity metadata is owned by ContentVideo so this does not add a
+ * second table to the registry.
+ */
+export { ContentVideo as EpisodeVideo };
 
-@Entity({ name: 'episode_videos' })
-@Unique('uq_episode_videos_episode_id_kind', ['episodeId', 'kind'])
-@Index('idx_episode_videos_episode_id', ['episodeId'])
-@Check("kind IN ('FULL', 'PREVIEW')")
-@Check('duration_ms > 0')
-export class EpisodeVideo extends AuditedEntity {
-  @PrimaryColumn({ type: 'char', length: 36 })
-  id!: string;
-
-  @Column({ name: 'episode_id', type: 'char', length: 36 })
-  episodeId!: string;
-
-  @Column({ type: 'varchar', length: 16 })
-  kind!: string;
-
-  @Column({ name: 'storage_key', type: 'varchar', length: 500 })
-  storageKey!: string;
-
-  @Column({ name: 'thumbnail_key', type: 'varchar', length: 500, nullable: true })
-  thumbnailKey!: string | null;
-
-  @Column({ name: 'duration_ms', type: 'int' })
-  durationMs!: number;
+declare module './contentVideo.entity.js' {
+  interface ContentVideo {
+    /** @deprecated Use contentId with contentType = 'EPISODE'. */
+    episodeId: string;
+    /** @deprecated Video thumbnails are managed by content_images. */
+    thumbnailKey?: string | null;
+  }
 }

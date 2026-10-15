@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "plan_id": "plan-8-content-media-model",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "콘텐츠 미디어 스키마 교체",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/content/entities/contentImage.entity.ts",
+        "back/src/content/entities/contentVideo.entity.ts",
+        "back/src/content/entities/dramaImage.entity.ts",
+        "back/src/content/entities/episodeVideo.entity.ts",
+        "back/src/content/entities/index.ts",
+        "back/src/common/database/entities.ts",
+        "back/src/common/database/migrations/20261015000000-replaceContentMedia.ts",
+        "back/test/unit/entities/entities.spec.ts",
+        "_docs/AI_DRAMA_data_model/02-content/content_images.md",
+        "_docs/AI_DRAMA_data_model/02-content/content_videos.md",
+        "_docs/AI_DRAMA_data_model/02-content/drama_images.md",
+        "_docs/AI_DRAMA_data_model/02-content/episode_videos.md",
+        "_docs/AI_DRAMA_data_model/02-content/README.md",
+        "_docs/AI_DRAMA_data_model/00-overview/ERD.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-15T04:27:23.995Z",
+      "summary": "Added transitional DramaImage/EpisodeVideo aliases backed by ContentImage/ContentVideo and exported them to preserve compatibility with pending tasks without adding legacy tables. All declared checks pass: lint, 20 tests across 7 files, and build.",
+      "completed_at": "2026-10-15T04:29:15.394Z"
+    },
+    {
+      "id": "task-2",
+      "name": "콘텐츠 미디어 시드 재생성",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/common/database/seed/initialData.ts",
+        "back/src/common/database/seed.ts",
+        "back/test/unit/database/initialData.spec.ts"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-15T04:31:25.594Z",
+      "summary": "시드 구현을 확인했고 추가 수정 없이 완료했습니다. contentImages 51건과 contentVideos 30건이 새 ContentImage/ContentVideo Entity를 사용하며, 드라마별 PREVIEW 2건·회차별 FULL 1건·캠페인 순서·장르/회차 이미지·storage key 규칙을 단위 테스트로 검증했습니다. 선언된 lint, 전체 test(7 files/21 tests), build 모두 통과했습니다.",
+      "completed_at": "2026-10-15T04:32:15.968Z"
+    },
+    {
+      "id": "task-3",
+      "name": "콘텐츠 공개 API 미디어 매핑",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/content/content.module.ts",
+        "back/src/content/public-catalog.service.ts",
+        "back/test/unit/content/public-catalog.service.spec.ts",
+        "_docs/api/02-content/dramas.md",
+        "_docs/api/02-content/genres.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-15T04:29:34.819Z",
+      "summary": "ContentModule과 PublicCatalogService를 ContentImage/ContentVideo 기반으로 전환하고, poster/homeHero/detailCover/campaigns, 정렬된 drama PREVIEW 영상, genre tileImage, episode cover image 매핑을 구현했습니다. 단위 테스트와 dramas/genres API 문서를 갱신했습니다. lint, test(7 files/21 tests), build 모두 통과했습니다.",
+      "completed_at": "2026-10-15T04:32:06.457Z"
+    },
+    {
+      "id": "task-4",
+      "name": "컬렉션 공개 API 미디어 매핑",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/programming/programming.module.ts",
+        "back/src/programming/public-collection.service.ts",
+        "back/test/unit/programming/public-collection.service.spec.ts",
+        "_docs/api/03-programming/collections.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-15T04:29:45.355Z",
+      "summary": "컬렉션 공개 API가 ContentImage/ContentVideo를 조회하도록 변경되었습니다. images는 poster/homeHero/detailCover/campaigns, previewVideos는 displayOrder 오름차순 storageKey/durationMs 배열을 반환하며 구 응답 키를 제거했습니다. 모듈·단위 테스트·API 문서를 갱신했고 npm --prefix back run lint, test(21 tests), build 모두 통과했습니다.",
+      "completed_at": "2026-10-15T04:32:04.603Z"
+    }
+  ]
+}

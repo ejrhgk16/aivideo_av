@@ -21,7 +21,8 @@
   {
     "id": 1,
     "code": "ROMANCE",
-    "name": "로맨스"
+    "name": "로맨스",
+    "tileImage": "genres/romance/images/tile.webp"
   }
 ]
 ```
@@ -31,6 +32,7 @@
 | `id` | number | 장르 식별자 |
 | `code` | string | 시스템 장르 코드 |
 | `name` | string | 화면 표시명 |
+| `tileImage` | string \| null | 장르 타일 이미지 storage key |
 
 ## 정렬 규칙
 
@@ -39,3 +41,4 @@
 ## 관련 데이터 모델
 
 - `genres`
+- `content_images`

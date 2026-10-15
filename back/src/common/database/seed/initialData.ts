@@ -1,12 +1,12 @@
 import type { DeepPartial } from 'typeorm';
 
 import type {
+  ContentImage,
+  ContentVideo,
   Drama,
   DramaGenre,
-  DramaImage,
   Episode,
   EpisodeSubtitle,
-  EpisodeVideo,
   Genre,
   ProductionCompany,
 } from '../../../content/entities/index.js';
@@ -21,9 +21,9 @@ export interface InitialSeedData {
   genres: Array<DeepPartial<Genre>>;
   dramas: Array<DeepPartial<Drama>>;
   dramaGenres: Array<DeepPartial<DramaGenre>>;
-  dramaImages: Array<DeepPartial<DramaImage>>;
+  contentImages: Array<DeepPartial<ContentImage>>;
   episodes: Array<DeepPartial<Episode>>;
-  episodeVideos: Array<DeepPartial<EpisodeVideo>>;
+  contentVideos: Array<DeepPartial<ContentVideo>>;
   episodeSubtitles: Array<DeepPartial<EpisodeSubtitle>>;
   contentCollections: Array<DeepPartial<ContentCollection>>;
   collectionDramas: Array<DeepPartial<CollectionDrama>>;
@@ -117,15 +117,37 @@ const dramaGenres = [
   { dramaId: dramas[4].id, genreId: 5 },
 ];
 
-const dramaImages = dramas.flatMap((drama, dramaIndex) =>
-  (['POSTER', 'HERO', 'THUMBNAIL'] as const).map((kind, kindIndex) => ({
-    id: fixedId(3, dramaIndex * 10 + kindIndex + 1),
-    dramaId: drama.id,
-    kind,
-    storageKey: `dramas/${drama.publicSlug}/images/${kind.toLowerCase()}.webp`,
-    altText: `${drama.title} ${kind.toLowerCase()} 이미지`,
+const contentImages = [
+  ...dramas.flatMap((drama, dramaIndex) => [
+    ...(['POSTER', 'HOME_HERO', 'DETAIL_COVER'] as const).map((kind, kindIndex) => ({
+      id: fixedId(3, dramaIndex * 10 + kindIndex + 1),
+      contentType: 'DRAMA',
+      contentId: drama.id,
+      kind,
+      storageKey: `dramas/${drama.publicSlug}/images/${kind.toLowerCase()}.webp`,
+      altText: `${drama.title} ${kind.toLowerCase()} 이미지`,
+      displayOrder: 1,
+    })),
+    ...[1, 2].map((displayOrder) => ({
+      id: fixedId(3, dramaIndex * 10 + 4 + displayOrder),
+      contentType: 'DRAMA',
+      contentId: drama.id,
+      kind: 'CAMPAIGN',
+      storageKey: `dramas/${drama.publicSlug}/images/campaign-${displayOrder}.webp`,
+      altText: `${drama.title} 캠페인 이미지 ${displayOrder}`,
+      displayOrder,
+    })),
+  ]),
+  ...genres.map((genre, genreIndex) => ({
+    id: fixedId(3, 51 + genreIndex),
+    contentType: 'GENRE',
+    contentId: String(genre.id),
+    kind: 'GENRE_TILE',
+    storageKey: `genres/${genre.code.toLowerCase()}/tile.webp`,
+    altText: `${genre.name} 장르 이미지`,
+    displayOrder: 1,
   })),
-);
+];
 
 const episodes = dramas.flatMap((drama, dramaIndex) =>
   [1, 2, 3, 4].map((episodeNumber) => ({
@@ -141,16 +163,38 @@ const episodes = dramas.flatMap((drama, dramaIndex) =>
   })),
 );
 
-const episodeVideos = episodes.flatMap((episode) =>
-  (['FULL', 'PREVIEW'] as const).map((kind, kindIndex) => ({
-    id: fixedId(5, Number(episode.id.slice(-4)) * 10 + kindIndex + 1),
-    episodeId: episode.id,
-    kind,
-    storageKey: `episodes/${episode.id}/${kind.toLowerCase()}.mp4`,
-    thumbnailKey: `episodes/${episode.id}/thumbnail.webp`,
-    durationMs: kind === 'FULL' ? episode.durationMs : 30000,
+const contentImagesForEpisodes = episodes.map((episode, episodeIndex) => ({
+  id: fixedId(3, 61 + episodeIndex),
+  contentType: 'EPISODE',
+  contentId: episode.id,
+  kind: 'EPISODE_COVER',
+  storageKey: `episodes/${episode.id}/images/cover.webp`,
+  altText: `${episode.title} 커버 이미지`,
+  displayOrder: 1,
+}));
+
+const contentVideos = [
+  ...dramas.flatMap((drama, dramaIndex) =>
+    [1, 2].map((displayOrder) => ({
+      id: fixedId(5, dramaIndex * 10 + displayOrder),
+      contentType: 'DRAMA',
+      contentId: drama.id,
+      kind: 'PREVIEW',
+      storageKey: `dramas/${drama.publicSlug}/videos/preview-${displayOrder}.mp4`,
+      durationMs: 30000,
+      displayOrder,
+    })),
+  ),
+  ...episodes.map((episode, episodeIndex) => ({
+    id: fixedId(5, 51 + episodeIndex),
+    contentType: 'EPISODE',
+    contentId: episode.id,
+    kind: 'FULL',
+    storageKey: `episodes/${episode.id}/full.mp4`,
+    durationMs: episode.durationMs,
+    displayOrder: 1,
   })),
-);
+];
 
 const episodeSubtitles = episodes.map((episode, index) => ({
   id: fixedId(6, index + 1),
@@ -227,9 +271,9 @@ export const initialData: InitialSeedData = {
   genres,
   dramas,
   dramaGenres,
-  dramaImages,
+  contentImages: [...contentImages, ...contentImagesForEpisodes],
   episodes,
-  episodeVideos,
+  contentVideos,
   episodeSubtitles,
   contentCollections,
   collectionDramas,
