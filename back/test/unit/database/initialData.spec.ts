@@ -1,4 +1,12 @@
 import { initialData } from '../../../src/common/database/seed/initialData.js';
+import {
+  createDramaImageStorageKey,
+  createDramaPreviewStorageKey,
+  createEpisodeImageStorageKey,
+  createEpisodeSubtitleStorageKey,
+  createEpisodeVideoStorageKey,
+  createGenreImageStorageKey,
+} from '../../../src/content/media-storage.js';
 
 describe('initial seed data', () => {
   it('contains the planned number of catalog and commerce rows', () => {
@@ -130,6 +138,8 @@ describe('initial seed data', () => {
   });
 
   it('keeps collection ordering and media storage keys deterministic', () => {
+    const episodeById = new Map(initialData.episodes.map((episode) => [episode.id, episode]));
+
     for (const collection of initialData.contentCollections) {
       const rows = initialData.collectionDramas
         .filter(({ collectionId }) => collectionId === collection.id)
@@ -140,33 +150,45 @@ describe('initial seed data', () => {
       );
     }
 
-    expect(
-      initialData.contentImages
-        .filter(({ contentType }) => contentType === 'DRAMA')
-        .every(({ storageKey }) => storageKey?.startsWith('dramas/')),
-    ).toBe(true);
-    expect(
-      initialData.contentImages
-        .filter(({ contentType }) => contentType === 'EPISODE')
-        .every(({ storageKey }) => storageKey?.startsWith('episodes/')),
-    ).toBe(true);
-    expect(
-      initialData.contentImages
-        .filter(({ contentType }) => contentType === 'GENRE')
-        .every(({ storageKey }) => storageKey?.startsWith('genres/')),
-    ).toBe(true);
-    expect(
-      initialData.contentVideos
-        .filter(({ contentType }) => contentType === 'DRAMA')
-        .every(({ storageKey }) => storageKey?.startsWith('dramas/')),
-    ).toBe(true);
-    expect(
-      initialData.contentVideos
-        .filter(({ contentType }) => contentType === 'EPISODE')
-        .every(({ storageKey }) => storageKey?.startsWith('episodes/')),
-    ).toBe(true);
-    expect(
-      initialData.episodeSubtitles.every(({ storageKey }) => storageKey?.startsWith('episodes/')),
-    ).toBe(true);
+    for (const image of initialData.contentImages) {
+      if (image.contentType === 'DRAMA') {
+        expect(image.storageKey).toBe(
+          createDramaImageStorageKey(image.contentId!, image.id!, image.kind!),
+        );
+      } else if (image.contentType === 'GENRE') {
+        expect(image.storageKey).toBe(createGenreImageStorageKey(image.contentId!, image.id!));
+      } else {
+        const episode = episodeById.get(image.contentId!);
+
+        expect(image.storageKey).toBe(
+          createEpisodeImageStorageKey(episode!.dramaId!, image.contentId!, image.id!),
+        );
+      }
+    }
+
+    for (const video of initialData.contentVideos) {
+      if (video.contentType === 'DRAMA') {
+        expect(video.storageKey).toBe(createDramaPreviewStorageKey(video.contentId!, video.id!));
+      } else {
+        const episode = episodeById.get(video.contentId!);
+
+        expect(video.storageKey).toBe(
+          createEpisodeVideoStorageKey(episode!.dramaId!, video.contentId!, video.id!),
+        );
+      }
+    }
+
+    for (const subtitle of initialData.episodeSubtitles) {
+      const episode = episodeById.get(subtitle.episodeId!);
+
+      expect(subtitle.storageKey).toBe(
+        createEpisodeSubtitleStorageKey(
+          episode!.dramaId!,
+          subtitle.episodeId!,
+          subtitle.languageCode!,
+          subtitle.format!,
+        ),
+      );
+    }
   });
 });

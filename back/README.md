@@ -33,16 +33,19 @@ $ npm install
 
 ## Database environment
 
-Create environment files from `back/.env.example`, then replace the placeholders with the values for each environment:
-
-```bash
-$ cp .env.example .env.development
-$ cp .env.example .env.production
-```
-
 Use `DB_SYNCHRONIZE=true` only for local development. Development defaults to `true` when the variable is omitted. Keep `DB_SYNCHRONIZE=false` in production; enabling it in production is rejected by the database configuration. Apply schema changes in production through migrations.
 
-Never commit database passwords, credentials, or the actual `.env.development` and `.env.production` files. Keep only non-secret placeholders in `.env.example`.
+Never commit database passwords, credentials, or the actual `.env.development` and `.env.production` files.
+
+## Local media storage
+
+`storageKey` values are relative object keys, not URLs or absolute paths. Configure the backend-only local root with `MEDIA_STORAGE_ROOT`:
+
+```env
+MEDIA_STORAGE_ROOT=../front/media
+```
+
+Each runtime environment must set this value explicitly. The key generation rules live in `src/content/media-storage.ts`; use those functions for seed data and future upload flows. `front/media` is Git-ignored development storage and is not served automatically by Expo or the API.
 
 ## Database migrations
 

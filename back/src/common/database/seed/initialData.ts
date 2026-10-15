@@ -1,5 +1,13 @@
 import type { DeepPartial } from 'typeorm';
 
+import {
+  createDramaImageStorageKey,
+  createDramaPreviewStorageKey,
+  createEpisodeImageStorageKey,
+  createEpisodeSubtitleStorageKey,
+  createEpisodeVideoStorageKey,
+  createGenreImageStorageKey,
+} from '../../../content/media-storage.js';
 import type {
   ContentImage,
   ContentVideo,
@@ -119,34 +127,46 @@ const dramaGenres = [
 
 const contentImages = [
   ...dramas.flatMap((drama, dramaIndex) => [
-    ...(['POSTER', 'HOME_HERO', 'DETAIL_COVER'] as const).map((kind, kindIndex) => ({
-      id: fixedId(3, dramaIndex * 10 + kindIndex + 1),
-      contentType: 'DRAMA',
-      contentId: drama.id,
-      kind,
-      storageKey: `dramas/${drama.publicSlug}/images/${kind.toLowerCase()}.webp`,
-      altText: `${drama.title} ${kind.toLowerCase()} 이미지`,
-      displayOrder: 1,
-    })),
-    ...[1, 2].map((displayOrder) => ({
-      id: fixedId(3, dramaIndex * 10 + 4 + displayOrder),
-      contentType: 'DRAMA',
-      contentId: drama.id,
-      kind: 'CAMPAIGN',
-      storageKey: `dramas/${drama.publicSlug}/images/campaign-${displayOrder}.webp`,
-      altText: `${drama.title} 캠페인 이미지 ${displayOrder}`,
-      displayOrder,
-    })),
+    ...(['POSTER', 'HOME_HERO', 'DETAIL_COVER'] as const).map((kind, kindIndex) => {
+      const id = fixedId(3, dramaIndex * 10 + kindIndex + 1);
+
+      return {
+        id,
+        contentType: 'DRAMA',
+        contentId: drama.id,
+        kind,
+        storageKey: createDramaImageStorageKey(drama.id, id, kind),
+        altText: `${drama.title} ${kind.toLowerCase()} 이미지`,
+        displayOrder: 1,
+      };
+    }),
+    ...[1, 2].map((displayOrder) => {
+      const id = fixedId(3, dramaIndex * 10 + 4 + displayOrder);
+
+      return {
+        id,
+        contentType: 'DRAMA',
+        contentId: drama.id,
+        kind: 'CAMPAIGN',
+        storageKey: createDramaImageStorageKey(drama.id, id, 'CAMPAIGN'),
+        altText: `${drama.title} 캠페인 이미지 ${displayOrder}`,
+        displayOrder,
+      };
+    }),
   ]),
-  ...genres.map((genre, genreIndex) => ({
-    id: fixedId(3, 51 + genreIndex),
-    contentType: 'GENRE',
-    contentId: String(genre.id),
-    kind: 'GENRE_TILE',
-    storageKey: `genres/${genre.code.toLowerCase()}/tile.webp`,
-    altText: `${genre.name} 장르 이미지`,
-    displayOrder: 1,
-  })),
+  ...genres.map((genre, genreIndex) => {
+    const id = fixedId(3, 51 + genreIndex);
+
+    return {
+      id,
+      contentType: 'GENRE',
+      contentId: String(genre.id),
+      kind: 'GENRE_TILE',
+      storageKey: createGenreImageStorageKey(genre.id, id),
+      altText: `${genre.name} 장르 이미지`,
+      displayOrder: 1,
+    };
+  }),
 ];
 
 const episodes = dramas.flatMap((drama, dramaIndex) =>
@@ -163,46 +183,68 @@ const episodes = dramas.flatMap((drama, dramaIndex) =>
   })),
 );
 
-const contentImagesForEpisodes = episodes.map((episode, episodeIndex) => ({
-  id: fixedId(3, 61 + episodeIndex),
-  contentType: 'EPISODE',
-  contentId: episode.id,
-  kind: 'EPISODE_COVER',
-  storageKey: `episodes/${episode.id}/images/cover.webp`,
-  altText: `${episode.title} 커버 이미지`,
-  displayOrder: 1,
-}));
+const contentImagesForEpisodes = episodes.map((episode, episodeIndex) => {
+  const id = fixedId(3, 61 + episodeIndex);
+
+  return {
+    id,
+    contentType: 'EPISODE',
+    contentId: episode.id,
+    kind: 'EPISODE_COVER',
+    storageKey: createEpisodeImageStorageKey(episode.dramaId, episode.id, id),
+    altText: `${episode.title} 커버 이미지`,
+    displayOrder: 1,
+  };
+});
 
 const contentVideos = [
   ...dramas.flatMap((drama, dramaIndex) =>
-    [1, 2].map((displayOrder) => ({
-      id: fixedId(5, dramaIndex * 10 + displayOrder),
-      contentType: 'DRAMA',
-      contentId: drama.id,
-      kind: 'PREVIEW',
-      storageKey: `dramas/${drama.publicSlug}/videos/preview-${displayOrder}.mp4`,
-      durationMs: 30000,
-      displayOrder,
-    })),
+    [1, 2].map((displayOrder) => {
+      const id = fixedId(5, dramaIndex * 10 + displayOrder);
+
+      return {
+        id,
+        contentType: 'DRAMA',
+        contentId: drama.id,
+        kind: 'PREVIEW',
+        storageKey: createDramaPreviewStorageKey(drama.id, id),
+        durationMs: 30000,
+        displayOrder,
+      };
+    }),
   ),
-  ...episodes.map((episode, episodeIndex) => ({
-    id: fixedId(5, 51 + episodeIndex),
-    contentType: 'EPISODE',
-    contentId: episode.id,
-    kind: 'FULL',
-    storageKey: `episodes/${episode.id}/full.mp4`,
-    durationMs: episode.durationMs,
-    displayOrder: 1,
-  })),
+  ...episodes.map((episode, episodeIndex) => {
+    const id = fixedId(5, 51 + episodeIndex);
+
+    return {
+      id,
+      contentType: 'EPISODE',
+      contentId: episode.id,
+      kind: 'FULL',
+      storageKey: createEpisodeVideoStorageKey(episode.dramaId, episode.id, id),
+      durationMs: episode.durationMs,
+      displayOrder: 1,
+    };
+  }),
 ];
 
-const episodeSubtitles = episodes.map((episode, index) => ({
-  id: fixedId(6, index + 1),
-  episodeId: episode.id,
-  languageCode: 'ko',
-  format: 'VTT',
-  storageKey: `episodes/${episode.id}/subtitles/ko.vtt`,
-}));
+const episodeSubtitles = episodes.map((episode, index) => {
+  const languageCode = 'ko';
+  const format = 'VTT';
+
+  return {
+    id: fixedId(6, index + 1),
+    episodeId: episode.id,
+    languageCode,
+    format,
+    storageKey: createEpisodeSubtitleStorageKey(
+      episode.dramaId,
+      episode.id,
+      languageCode,
+      format,
+    ),
+  };
+});
 
 const contentCollections = [
   {
