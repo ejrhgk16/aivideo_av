@@ -23,12 +23,14 @@ test('home collection requests use the configured API base URL', async () => {
         genres: [{ id: 1, code: 'ROMANCE', name: '로맨스' }],
         images: {
           poster: null,
+          posterLandscape: null,
           homeHero: null,
           detailCover: null,
           campaigns: ['dramas/our-last-spring/images/campaign-1.webp'],
         },
         imageUrls: {
           poster: null,
+          posterLandscape: '/media/images/dramas/example/images/poster-landscape/image-1.webp',
           homeHero: '/media/images/dramas/example/images/home-hero/image-1.webp',
           detailCover: null,
           campaigns: [],
@@ -55,11 +57,13 @@ test('home collection requests use the configured API base URL', async () => {
     const result = await getHomeCollection('/HOME_FEATURED');
     await getHomeCollection('EDITORIAL_TOP_3');
     await getHomeCollection('RECOMMENDATION_DAILY');
+    await getHomeCollection('HOME_CAMPAIGN');
 
     assert.deepEqual(requestedUrls, [
       'http://localhost:3000/collections/HOME_FEATURED',
       'http://localhost:3000/collections/EDITORIAL_TOP_3',
       'http://localhost:3000/collections/RECOMMENDATION_DAILY',
+      'http://localhost:3000/collections/HOME_CAMPAIGN',
     ]);
     assert.deepEqual(result, responseBody);
   } finally {

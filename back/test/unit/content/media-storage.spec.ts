@@ -18,6 +18,9 @@ describe('media storage', () => {
     expect(createDramaImageStorageKey('drama-1', 'image-1', 'POSTER')).toBe(
       'dramas/drama-1/images/poster/image-1.webp',
     );
+    expect(createDramaImageStorageKey('drama-1', 'image-5', 'POSTER_LANDSCAPE')).toBe(
+      'dramas/drama-1/images/poster-landscape/image-5.webp',
+    );
     expect(createDramaImageStorageKey('drama-1', 'image-2', 'CAMPAIGN')).toBe(
       'dramas/drama-1/images/campaign/image-2.webp',
     );

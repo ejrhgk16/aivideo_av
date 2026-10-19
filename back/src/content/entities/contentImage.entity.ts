@@ -13,7 +13,7 @@ import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 ])
 @Check("content_type IN ('DRAMA','GENRE','EPISODE')")
 @Check(
-  "kind IN ('POSTER','HOME_HERO','DETAIL_COVER','CAMPAIGN','GENRE_TILE','EPISODE_COVER')",
+  "kind IN ('POSTER','POSTER_LANDSCAPE','HOME_HERO','DETAIL_COVER','CAMPAIGN','GENRE_TILE','EPISODE_COVER')",
 )
 export class ContentImage extends AuditedEntity {
   @PrimaryColumn({ type: 'char', length: 36 })

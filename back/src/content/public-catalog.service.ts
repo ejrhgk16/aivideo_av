@@ -21,6 +21,7 @@ export type DramaSummary = {
   genres: Array<{ id: number; code: string; name: string }>;
   images: {
     poster: string | null;
+    posterLandscape: string | null;
     homeHero: string | null;
     detailCover: string | null;
     campaigns: string[];
@@ -43,6 +44,7 @@ export type DramaDetail = {
   genres: Array<{ id: number; code: string; name: string }>;
   images: {
     poster: string | null;
+    posterLandscape: string | null;
     homeHero: string | null;
     detailCover: string | null;
     campaigns: string[];
@@ -66,6 +68,7 @@ function mapImages(images: ContentImage[]) {
 
   const imageKeys = {
     poster: firstOfKind('POSTER'),
+    posterLandscape: firstOfKind('POSTER_LANDSCAPE'),
     homeHero: firstOfKind('HOME_HERO'),
     detailCover: firstOfKind('DETAIL_COVER'),
     campaigns: sorted.filter((image) => image.kind === 'CAMPAIGN').map((image) => image.storageKey),

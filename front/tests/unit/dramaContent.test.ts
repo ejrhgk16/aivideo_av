@@ -18,12 +18,14 @@ test('drama detail requests use the configured API base URL and return the API c
     genres: [{ id: 1, code: 'ROMANCE', name: '로맨스' }],
     images: {
       poster: 'dramas/our-last-spring/images/poster.webp',
+      posterLandscape: 'dramas/our-last-spring/images/poster-landscape/image-1.webp',
       homeHero: 'dramas/our-last-spring/images/home-hero.webp',
       detailCover: null,
       campaigns: [],
     },
     imageUrls: {
       poster: '/media/images/dramas/example/images/poster/image-1.webp',
+      posterLandscape: '/media/images/dramas/example/images/poster-landscape/image-1.webp',
       homeHero: null,
       detailCover: null,
       campaigns: [],

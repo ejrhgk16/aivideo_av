@@ -7,6 +7,7 @@ describe('createDramaImageUrls', () => {
       createDramaImageUrls(
         {
           poster: 'dramas/drama-1/images/poster/image-1.webp',
+          posterLandscape: 'dramas/drama-1/images/poster-landscape/image-4.webp',
           homeHero: 'dramas/drama-1/images/home-hero/image-2.webp',
           detailCover: null,
           campaigns: ['dramas/drama-1/images/campaign/image-3.webp'],
@@ -15,6 +16,7 @@ describe('createDramaImageUrls', () => {
       ),
     ).toEqual({
       poster: '/media/images/dramas/drama-1/images/poster/image-1.webp',
+      posterLandscape: '/media/images/dramas/drama-1/images/poster-landscape/image-4.webp',
       homeHero: '/media/images/dramas/drama-1/images/home-hero/image-2.webp',
       detailCover: null,
       campaigns: ['/media/images/dramas/drama-1/images/campaign/image-3.webp'],
@@ -24,9 +26,9 @@ describe('createDramaImageUrls', () => {
   it('does not expose local URLs outside development', () => {
     expect(
       createDramaImageUrls(
-        { poster: 'poster.webp', homeHero: null, detailCover: null, campaigns: [] },
+        { poster: 'poster.webp', posterLandscape: null, homeHero: null, detailCover: null, campaigns: [] },
         { NODE_ENV: 'production' },
       ),
-    ).toEqual({ poster: null, homeHero: null, detailCover: null, campaigns: [] });
+    ).toEqual({ poster: null, posterLandscape: null, homeHero: null, detailCover: null, campaigns: [] });
   });
 });

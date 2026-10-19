@@ -4,7 +4,7 @@ import { isAbsolute, relative, sep } from 'node:path';
 import { Controller, Get, NotFoundException, Param, StreamableFile } from '@nestjs/common';
 import { getMediaStorageRoot, resolveMediaStoragePath } from './media-storage.js';
 
-const IMAGE_KIND_PATTERN = /^(poster|home-hero|detail-cover|campaign)$/;
+const IMAGE_KIND_PATTERN = /^(poster|poster-landscape|home-hero|detail-cover|campaign)$/;
 const FILENAME_PATTERN = /^[^/\\]+\.webp$/;
 
 @Controller('media/images')

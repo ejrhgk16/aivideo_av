@@ -1,9 +1,15 @@
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 
-export type DramaImageKind = 'POSTER' | 'HOME_HERO' | 'DETAIL_COVER' | 'CAMPAIGN';
+export type DramaImageKind =
+  | 'POSTER'
+  | 'POSTER_LANDSCAPE'
+  | 'HOME_HERO'
+  | 'DETAIL_COVER'
+  | 'CAMPAIGN';
 
 const dramaImageDirectoryByKind: Record<DramaImageKind, string> = {
   POSTER: 'poster',
+  POSTER_LANDSCAPE: 'poster-landscape',
   HOME_HERO: 'home-hero',
   DETAIL_COVER: 'detail-cover',
   CAMPAIGN: 'campaign',

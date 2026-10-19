@@ -37,6 +37,7 @@
     ],
     "images": {
       "poster": "dramas/our-last-spring/images/poster.webp",
+      "posterLandscape": "dramas/our-last-spring/images/poster-landscape.webp",
       "homeHero": "dramas/our-last-spring/images/home-hero.webp",
       "detailCover": "dramas/our-last-spring/images/detail-cover.webp",
       "campaigns": [
@@ -45,6 +46,7 @@
     },
     "imageUrls": {
       "poster": "/media/images/dramas/00000002-0000-4000-8000-000000000001/images/poster/image-1.webp",
+      "posterLandscape": "/media/images/dramas/00000002-0000-4000-8000-000000000001/images/poster-landscape/image-1.webp",
       "homeHero": "/media/images/dramas/00000002-0000-4000-8000-000000000001/images/home-hero/image-1.webp",
       "detailCover": null,
       "campaigns": []
@@ -70,10 +72,12 @@
 | `productionCompany` | string \| null | 제작사명. 연결된 제작사가 없으면 `null` |
 | `genres` | array | 연결된 장르의 식별자·코드·이름 |
 | `images.poster` | string \| null | 포스터 storage key |
+| `images.posterLandscape` | string \| null | 가로 포스터 storage key |
 | `images.homeHero` | string \| null | 홈 히어로 이미지 storage key |
 | `images.detailCover` | string \| null | 상세 커버 이미지 storage key |
 | `images.campaigns` | string[] | 캠페인 이미지 storage key. `displayOrder` 오름차순 |
 | `imageUrls.poster` | string \| null | 개발 환경에서 사용할 이미지 URL 경로. 해당 이미지가 없거나 개발 환경이 아니면 `null` |
+| `imageUrls.posterLandscape` | string \| null | 가로 포스터 이미지 URL 경로. 이미지가 없거나 개발 환경이 아니면 `null` |
 | `imageUrls.homeHero` | string \| null | 홈 히어로 이미지 URL 경로 |
 | `imageUrls.detailCover` | string \| null | 상세 커버 이미지 URL 경로 |
 | `imageUrls.campaigns` | string[] | 캠페인 이미지 URL 경로. `displayOrder` 오름차순 |
@@ -130,6 +134,7 @@
   ],
   "images": {
     "poster": "dramas/our-last-spring/images/poster.webp",
+    "posterLandscape": "dramas/our-last-spring/images/poster-landscape.webp",
       "homeHero": "dramas/our-last-spring/images/home-hero.webp",
       "detailCover": "dramas/our-last-spring/images/detail-cover.webp",
       "campaigns": [
@@ -138,6 +143,7 @@
     },
     "imageUrls": {
       "poster": "/media/images/dramas/00000002-0000-4000-8000-000000000001/images/poster/image-1.webp",
+      "posterLandscape": "/media/images/dramas/00000002-0000-4000-8000-000000000001/images/poster-landscape/image-1.webp",
       "homeHero": "/media/images/dramas/00000002-0000-4000-8000-000000000001/images/home-hero/image-1.webp",
       "detailCover": null,
       "campaigns": []
@@ -182,10 +188,12 @@
 | `genres[].code` | string | 장르 코드 |
 | `genres[].name` | string | 장르명 |
 | `images.poster` | string \| null | 포스터 storage key |
+| `images.posterLandscape` | string \| null | 가로 포스터 storage key |
 | `images.homeHero` | string \| null | 홈 히어로 이미지 storage key |
 | `images.detailCover` | string \| null | 상세 커버 이미지 storage key |
 | `images.campaigns` | string[] | 캠페인 이미지 storage key. `displayOrder` 오름차순 |
 | `imageUrls.poster` | string \| null | 개발 환경에서 사용할 이미지 URL 경로. 해당 이미지가 없거나 개발 환경이 아니면 `null` |
+| `imageUrls.posterLandscape` | string \| null | 가로 포스터 이미지 URL 경로. 이미지가 없거나 개발 환경이 아니면 `null` |
 | `imageUrls.homeHero` | string \| null | 홈 히어로 이미지 URL 경로 |
 | `imageUrls.detailCover` | string \| null | 상세 커버 이미지 URL 경로 |
 | `imageUrls.campaigns` | string[] | 캠페인 이미지 URL 경로. `displayOrder` 오름차순 |
@@ -226,7 +234,7 @@
 
 ### GET /media/images/dramas/:dramaId/images/:kind/:filename
 
-개발 환경에서만 `MEDIA_STORAGE_ROOT` 아래 작품 이미지 파일을 응답한다. 요청은 `POSTER`, `HOME_HERO`, `DETAIL_COVER`, `CAMPAIGN` storage key에 대응하는 폴더와 `.webp` 파일로 제한한다. 영상, 다른 이미지 종류, 저장소 루트 밖의 파일은 `404 Not Found`를 반환한다. 운영 환경에는 이 로컬 파일 경로가 제공되지 않으며, 운영 이미지 URL은 추후 외부 스토리지 signed URL로 제공한다.
+개발 환경에서만 `MEDIA_STORAGE_ROOT` 아래 작품 이미지 파일을 응답한다. 요청은 `POSTER`, `POSTER_LANDSCAPE`, `HOME_HERO`, `DETAIL_COVER`, `CAMPAIGN` storage key에 대응하는 폴더와 `.webp` 파일로 제한한다. `POSTER_LANDSCAPE` 파일은 `poster-landscape` 폴더에서 제공한다. 영상, 다른 이미지 종류, 저장소 루트 밖의 파일은 `404 Not Found`를 반환한다. 운영 환경에는 이 로컬 파일 경로가 제공되지 않으며, 운영 이미지 URL은 추후 외부 스토리지 signed URL로 제공한다.
 
 성공 응답은 `Content-Type: image/webp`와 이미지 바이너리이며 JSON을 반환하지 않는다.
 

@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "plan_id": "plan-11-front-home-multiple-genres",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "홈 장르·추천 UI 개선",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/screens/HomeScreen.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-19T11:14:58.267Z",
+      "summary": "HomeScreen now shows all genres joined with · and keeps the empty-genre fallback. TOP 3 posters are 84×118 with tighter spacing for text. The featured hero responds to horizontal swipes using its measured width and stays in sync with the number buttons. Checks passed: typecheck, test (17/17), export.",
+      "completed_at": "2026-10-19T11:16:50.268Z"
+    },
+    {
+      "id": "task-2",
+      "name": "가로 포스터 종류와 캠페인 시드 추가",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/content/entities/contentImage.entity.ts",
+        "back/src/content/media-storage.ts",
+        "back/src/common/database/migrations/20261019000000-addLandscapePoster.ts",
+        "back/src/common/database/seed/initialData.ts",
+        "back/test/unit/content/media-storage.spec.ts",
+        "back/test/unit/database/initialData.spec.ts",
+        "_docs/AI_DRAMA_data_model/02-content/content_images.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-19T11:51:34.040Z",
+      "summary": "Added POSTER_LANDSCAPE with a reversible DB constraint migration and storage-key mapping. Seed data now gives each drama a landscape-poster record referencing its HOME_HERO file and adds an active HOME_CAMPAIGN featuring the romance drama. Updated tests and the content-image model documentation. Lint, tests (31 passed), and build passed.",
+      "completed_at": "2026-10-19T11:53:06.670Z"
+    },
+    {
+      "id": "task-3",
+      "name": "가로 포스터 API 응답 연결",
+      "status": "completed",
+      "depends_on": [
+        "task-2"
+      ],
+      "files": [
+        "back/src/content/media-url.ts",
+        "back/src/content/local-image.controller.ts",
+        "back/src/content/public-catalog.service.ts",
+        "back/src/programming/public-collection.service.ts",
+        "back/test/unit/content/media-url.spec.ts",
+        "back/test/unit/content/local-image.controller.spec.ts",
+        "back/test/unit/content/public-catalog.service.spec.ts",
+        "back/test/unit/programming/public-collection.service.spec.ts",
+        "_docs/api/02-content/dramas.md",
+        "_docs/api/03-programming/collections.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-19T11:53:16.483Z",
+      "summary": "Added posterLandscape storage keys and development URLs to public drama list/detail and collection responses; allowed the poster-landscape local image path; documented HOME_CAMPAIGN and image behavior. Backend lint, tests (32 passed), and build passed.",
+      "completed_at": "2026-10-19T11:55:12.805Z"
+    },
+    {
+      "id": "task-4",
+      "name": "홈 캠페인 배너와 TOP 3 가로 이미지 표시",
+      "status": "completed",
+      "depends_on": [
+        "task-3"
+      ],
+      "files": [
+        "front/src/features/home/homeContent.ts",
+        "front/src/features/drama/dramaContent.ts",
+        "front/src/screens/HomeScreen.tsx",
+        "front/tests/unit/homeContent.test.ts",
+        "front/tests/unit/dramaContent.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-19T11:55:23.811Z",
+      "summary": "프론트 API 타입에 posterLandscape를 추가하고, HOME_CAMPAIGN을 별도 요청해 이미지가 있을 때만 기존 문구의 로맨스 배너를 표시하도록 연결했습니다. TOP 3는 가로 포스터를 우선 사용하고 없으면 세로 포스터로 대체합니다. typecheck, test (17/17), export 통과.",
+      "completed_at": "2026-10-19T11:57:05.081Z"
+    }
+  ]
+}

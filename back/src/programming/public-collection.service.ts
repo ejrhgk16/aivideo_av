@@ -15,6 +15,7 @@ import { createDramaImageUrls } from '../content/media-url.js';
 
 type PublicImages = {
   poster: string | null;
+  posterLandscape: string | null;
   homeHero: string | null;
   detailCover: string | null;
   campaigns: string[];
@@ -196,12 +197,14 @@ export class PublicCollectionService {
           }),
           images: {
             poster: imageByKind.get('POSTER') ?? null,
+            posterLandscape: imageByKind.get('POSTER_LANDSCAPE') ?? null,
             homeHero: imageByKind.get('HOME_HERO') ?? null,
             detailCover: imageByKind.get('DETAIL_COVER') ?? null,
             campaigns: campaignImages.map(({ storageKey }) => storageKey),
           },
           imageUrls: createDramaImageUrls({
             poster: imageByKind.get('POSTER') ?? null,
+            posterLandscape: imageByKind.get('POSTER_LANDSCAPE') ?? null,
             homeHero: imageByKind.get('HOME_HERO') ?? null,
             detailCover: imageByKind.get('DETAIL_COVER') ?? null,
             campaigns: campaignImages.map(({ storageKey }) => storageKey),

@@ -8,12 +8,14 @@ export interface HomeCollectionDrama {
   genres: Array<{ id: number; code: string; name: string }>;
   images: {
     poster: string | null;
+    posterLandscape: string | null;
     homeHero: string | null;
     detailCover: string | null;
     campaigns: string[];
   };
   imageUrls: {
     poster: string | null;
+    posterLandscape: string | null;
     homeHero: string | null;
     detailCover: string | null;
     campaigns: string[];

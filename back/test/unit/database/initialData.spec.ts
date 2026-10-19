@@ -14,12 +14,12 @@ describe('initial seed data', () => {
     expect(initialData.genres).toHaveLength(6);
     expect(initialData.dramas).toHaveLength(5);
     expect(initialData.dramaGenres).toHaveLength(10);
-    expect(initialData.contentImages).toHaveLength(51);
+    expect(initialData.contentImages).toHaveLength(56);
     expect(initialData.episodes).toHaveLength(20);
     expect(initialData.contentVideos).toHaveLength(30);
     expect(initialData.episodeSubtitles).toHaveLength(20);
-    expect(initialData.contentCollections).toHaveLength(3);
-    expect(initialData.collectionDramas).toHaveLength(13);
+    expect(initialData.contentCollections).toHaveLength(4);
+    expect(initialData.collectionDramas).toHaveLength(14);
     expect(initialData.pointProducts).toHaveLength(3);
     expect(initialData.adRewardOffers).toHaveLength(2);
   });
@@ -89,6 +89,7 @@ describe('initial seed data', () => {
         'DETAIL_COVER',
         'HOME_HERO',
         'POSTER',
+        'POSTER_LANDSCAPE',
       ]);
       expect(
         images
@@ -96,6 +97,11 @@ describe('initial seed data', () => {
           .sort((left, right) => left.displayOrder! - right.displayOrder!)
           .map(({ displayOrder }) => displayOrder),
       ).toEqual([1, 2]);
+
+      const landscapePoster = images.find(({ kind }) => kind === 'POSTER_LANDSCAPE');
+      expect(landscapePoster?.storageKey).toBe(
+        createDramaImageStorageKey(drama.id, landscapePoster!.id!, 'POSTER_LANDSCAPE'),
+      );
     }
 
     for (const genre of initialData.genres) {
@@ -115,6 +121,22 @@ describe('initial seed data', () => {
         ),
       ).toHaveLength(1);
     }
+
+    const homeCampaign = initialData.contentCollections.find(
+      ({ code }) => code === 'HOME_CAMPAIGN',
+    );
+    expect(homeCampaign).toMatchObject({ kind: 'HOME', isActive: true });
+
+    const homeCampaignDrama = initialData.collectionDramas.find(
+      ({ collectionId }) => collectionId === homeCampaign?.id,
+    );
+    expect(homeCampaignDrama?.dramaId).toBe(initialData.dramas[0].id);
+    expect(
+      initialData.contentImages.filter(
+        ({ contentType, contentId, kind }) =>
+          contentType === 'DRAMA' && contentId === homeCampaignDrama?.dramaId && kind === 'CAMPAIGN',
+      ),
+    ).toHaveLength(2);
   });
 
   it('has multiple drama previews and one full video for each episode', () => {
@@ -157,6 +179,7 @@ describe('initial seed data', () => {
         const kind = image.kind;
         if (
           kind !== 'POSTER' &&
+          kind !== 'POSTER_LANDSCAPE' &&
           kind !== 'HOME_HERO' &&
           kind !== 'DETAIL_COVER' &&
           kind !== 'CAMPAIGN'

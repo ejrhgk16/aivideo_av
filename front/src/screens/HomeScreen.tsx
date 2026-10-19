@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type ImageStyle, type StyleProp, type ViewStyle } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { PanResponder, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type ImageStyle, type StyleProp, type ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,15 +24,19 @@ function collectionDramas(collection: HomeCollection | null): HomeCollectionDram
   return [...(collection?.dramas ?? [])].sort((first, second) => first.displayOrder - second.displayOrder);
 }
 
+function genreLabel(drama: HomeCollectionDrama): string {
+  return drama.genres.map((genre) => genre.name).join(' · ') || '장르 정보 없음';
+}
+
 function ApiRankRows({ dramas: apiDramas, onPress }: { dramas: HomeCollectionDrama[]; onPress: (drama: HomeCollectionDrama) => void }) {
   return <View>{apiDramas.map((drama, index) => (
     <Pressable key={drama.id} accessibilityRole="button" accessibilityLabel={(index + 1) + '위 ' + drama.title + ' 작품 소개'} style={styles.rankRow} onPress={() => onPress(drama)}>
       <AppText weight="bold" style={[styles.rankNumber, index === 0 && styles.accent]}>{index + 1}</AppText>
-      <ApiDramaImage imageUrl={drama.imageUrls.poster} title={drama.title} style={styles.rankImage} />
+      <ApiDramaImage imageUrl={drama.imageUrls.posterLandscape ?? drama.imageUrls.poster} title={drama.title} style={styles.rankImage} />
       <View style={styles.rankCopy}>
         <AppText style={styles.overline}>{drama.productionCompany?.name ?? '제작사 정보 없음'}</AppText>
         <AppText weight="semibold" style={styles.rankTitle}>{drama.title}</AppText>
-        <AppText style={styles.small}>{drama.genres[0]?.name ?? '장르 정보 없음'} · {drama.publishedEpisodeCount}화</AppText>
+        <AppText style={styles.small}>{genreLabel(drama)} · {drama.publishedEpisodeCount}화</AppText>
         <AppText style={styles.free}>{drama.freeEpisodeCount}화까지 무료</AppText>
       </View>
       <Icon name="chevron-right" size={18} color={colors.muted} />
@@ -45,11 +49,9 @@ function ApiPoster({ drama, width, onPress }: { drama: HomeCollectionDrama; widt
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={drama.title + ' 작품 소개'} style={{ width, gap: 10 }}>
       <View style={[styles.apiPoster, { height: width * 1.48 }]}>
         <ApiDramaImage imageUrl={drama.imageUrls.poster} title={drama.title} style={StyleSheet.absoluteFill} />
-        <LinearGradient colors={['transparent', '#000000CC']} style={StyleSheet.absoluteFill} />
-        <View style={styles.apiPosterTitle}><AppText weight="bold" style={styles.apiPosterText}>{drama.title}</AppText></View>
       </View>
       <AppText weight="semibold" numberOfLines={1}>{drama.title}</AppText>
-      <AppText style={styles.apiMeta}>{drama.genres[0]?.name ?? '장르 정보 없음'} · {drama.freeEpisodeCount}화 무료</AppText>
+      <AppText style={styles.apiMeta}>{genreLabel(drama)} · {drama.freeEpisodeCount}화 무료</AppText>
     </Pressable>
   );
 }
@@ -60,10 +62,12 @@ export function HomeScreen() {
   const { state } = useExperience();
   const [tab, setTab] = useState<(typeof tabs)[number]>('추천');
   const [heroIndex, setHeroIndex] = useState(0);
+  const [heroWidth, setHeroWidth] = useState(0);
   const [featured, setFeatured] = useState<HomeCollection | null>(null);
   const [featuredStatus, setFeaturedStatus] = useState<CollectionStatus>('loading');
   const [daily, setDaily] = useState<HomeCollection | null>(null);
   const [dailyStatus, setDailyStatus] = useState<CollectionStatus>('loading');
+  const [campaign, setCampaign] = useState<HomeCollection | null>(null);
   const [topThree, setTopThree] = useState<HomeCollection | null>(null);
   const [topThreeStatus, setTopThreeStatus] = useState<CollectionStatus>('loading');
 
@@ -81,13 +85,25 @@ export function HomeScreen() {
       (collection) => { if (active) { setTopThree(collection); setTopThreeStatus('loaded'); } },
       () => { if (active) setTopThreeStatus('error'); },
     );
+    void getHomeCollection('HOME_CAMPAIGN').then(
+      (collection) => { if (active) setCampaign(collection); },
+      () => undefined,
+    );
     return () => { active = false; };
   }, []);
 
   const featuredDramas = collectionDramas(featured);
   const dailyDramas = collectionDramas(daily);
   const topThreeDramas = collectionDramas(topThree);
+  const campaignImage = collectionDramas(campaign)[0]?.imageUrls.campaigns[0] ?? null;
   const hero = featuredDramas[heroIndex];
+  const heroResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_event, gestureState) => featuredDramas.length > 1 && Math.abs(gestureState.dx) > 12 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
+    onPanResponderRelease: (_event, gestureState) => {
+      if (heroWidth === 0 || Math.abs(gestureState.dx) < heroWidth * 0.15) return;
+      setHeroIndex((index) => Math.max(0, Math.min(featuredDramas.length - 1, index + (gestureState.dx < 0 ? 1 : -1))));
+    },
+  }), [featuredDramas.length, heroWidth]);
   const posterWidth = Math.min(Math.max((Math.min(width, 960) - 58) / 2, 140), 230);
   const openDetail = (drama: Drama | HomeCollectionDrama) => router.push({ pathname: '/drama/[id]', params: { id: drama.id } });
   const openGenre = (genre: string) => router.push({ pathname: '/search', params: { genre } });
@@ -111,14 +127,14 @@ export function HomeScreen() {
       </View>
       <View style={styles.tabs} accessibilityRole="tablist">{tabs.map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: item === tab }} style={[styles.tab, item === tab && styles.selectedTab]} onPress={() => setTab(item)}><AppText weight={item === tab ? 'bold' : 'medium'} style={[styles.tabText, item === tab && styles.selectedText]}>{item}</AppText></Pressable>)}</View>
       {tab === '추천' ? <>
-        <View style={styles.hero}>
+        <View style={styles.hero} onLayout={(event) => setHeroWidth(event.nativeEvent.layout.width)} {...heroResponder.panHandlers}>
           {hero ? <ApiDramaImage imageUrl={hero.imageUrls.homeHero ?? hero.imageUrls.detailCover ?? hero.imageUrls.poster} title={hero.title} style={StyleSheet.absoluteFill as ImageStyle} /> : null}
           <LinearGradient pointerEvents="none" colors={['#0B0C0F00', '#0B0C0F29', '#0B0C0FE6', colors.background]} locations={[0.14, 0.35, 0.72, 1]} style={StyleSheet.absoluteFill} />
           <View style={styles.heroContent}>
             {hero ? <>
               <View style={styles.eyebrowRow}><View style={styles.liveDot} /><AppText weight="semibold" style={styles.eyebrow}>오늘의 발견  /  {hero.productionCompany?.name ?? '오늘의 추천'}</AppText></View>
               <AppText style={styles.heroCopy}>{hero.shortDescription}</AppText><AppText weight="bold" style={styles.heroTitle}>{hero.title}</AppText>
-              <AppText style={styles.heroMeta}>{hero.genres[0]?.name ?? '장르 정보 없음'}  ·  {hero.publishedEpisodeCount}화 공개  ·  {hero.freeEpisodeCount}화 무료</AppText>
+              <AppText style={styles.heroMeta}>{genreLabel(hero)}  ·  {hero.publishedEpisodeCount}화 공개  ·  {hero.freeEpisodeCount}화 무료</AppText>
               <View style={styles.heroActions}>
                 <Button style={styles.heroButton} disabled label="재생 준비 중" icon={<Icon name="play" size={17} color={colors.background} />} onPress={() => undefined} />
                 <Pressable disabled style={styles.saveButton} accessibilityRole="button" accessibilityLabel="저장 기능 준비 중" accessibilityState={{ disabled: true }}><Icon name="plus" size={23} color={colors.text} /></Pressable>
@@ -134,6 +150,15 @@ export function HomeScreen() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.posterRail}>{dailyDramas.map((drama) => <ApiPoster key={drama.id} drama={drama} width={posterWidth} onPress={() => openDetail(drama)} />)}</ScrollView>
           </>
           : <View style={styles.section}><SectionTitle eyebrow="QUICK ESCAPE" title="1분이면, 빠져드는 이야기" />{collectionState(dailyStatus, '오늘의 추천', '추천 작품이 없습니다.')}</View>}
+        {campaignImage ? <Pressable accessibilityRole="button" accessibilityLabel="로맨스 만나기" onPress={() => openGenre('ROMANCE')} style={styles.campaignBanner}>
+          <ApiDramaImage imageUrl={campaignImage} title="로맨스 캠페인" style={StyleSheet.absoluteFill} />
+          <LinearGradient pointerEvents="none" colors={['#0B0C0F12', '#0B0C0FDD']} style={StyleSheet.absoluteFill} />
+          <View style={styles.campaignCopy}>
+            <AppText weight="semibold" style={styles.campaignEyebrow}>오늘은, 설레도 괜찮아.</AppText>
+            <AppText weight="bold" style={styles.campaignTitle}>퇴근길을 채울 로맨스 한 편</AppText>
+            <View style={styles.campaignLink}><AppText weight="semibold" style={styles.campaignLinkText}>로맨스 만나기</AppText><Icon name="arrow-right" size={15} color={colors.text} /></View>
+          </View>
+        </Pressable> : null}
         <View style={styles.section}>
           <SectionTitle eyebrow="EDITOR’S PICK" title="지금 눈여겨볼 TOP 3" action="더 보기" onAction={() => setTab('랭킹')} />{ranks}
           <Pressable style={styles.previewLink} accessibilityRole="button" onPress={() => router.push('/recommend')}><View style={styles.previewIcon}><Icon name="film" color={colors.accent} size={24} /></View><View style={styles.flex}><AppText weight="semibold" style={styles.previewTitle}>어떤 이야기가 취향인가요?</AppText><AppText style={styles.small}>넘겨보며 다음 드라마를 골라보세요.</AppText></View><Icon name="arrow-right" color={colors.text} size={19} /></Pressable>
@@ -156,8 +181,6 @@ const styles = StyleSheet.create({
   heroEmpty: { paddingHorizontal: 22, paddingTop: 240, paddingBottom: 10 },
   imagePlaceholder: { backgroundColor: colors.surface },
   apiPoster: { overflow: 'hidden', borderRadius: 14, borderCurve: 'continuous', backgroundColor: colors.surface },
-  apiPosterTitle: { position: 'absolute', bottom: 16, left: 12, right: 10 },
-  apiPosterText: { fontSize: 22, lineHeight: 29, letterSpacing: -0.9 },
   apiMeta: { fontSize: 13, lineHeight: 19, color: colors.muted },
   heroContent: { paddingHorizontal: 22, paddingTop: 240, paddingBottom: 10, gap: 12 }, eyebrowRow: { flexDirection: 'row', gap: 7, alignItems: 'center' }, liveDot: { width: 5, height: 5, borderRadius: 3, borderCurve: 'continuous', backgroundColor: colors.accent }, eyebrow: { fontSize: 9, lineHeight: 15, letterSpacing: 1.2, color: colors.text },
   heroCopy: { fontSize: 16, lineHeight: 23, color: '#E8EBE4' }, heroTitle: { fontSize: 40, lineHeight: 49, letterSpacing: -1.5 }, heroMeta: { fontSize: 11, lineHeight: 17, color: '#CAD0D0' }, heroActions: { flexDirection: 'row', gap: 8, marginTop: 7 },
@@ -165,7 +188,8 @@ const styles = StyleSheet.create({
   detailLink: { minHeight: 35, flexDirection: 'row', gap: 6, alignItems: 'center', alignSelf: 'flex-start' }, detailLinkText: { color: colors.muted, fontSize: 11 },
   heroPagination: { flexDirection: 'row', gap: 7, alignSelf: 'center', paddingBottom: 10 }, heroPageButton: { minWidth: 34, minHeight: 35, alignItems: 'center', justifyContent: 'center', gap: 4 }, heroPageLine: { width: 20, height: 2, backgroundColor: colors.border }, activePageLine: { width: 28, backgroundColor: colors.accent }, heroPageNumber: { fontSize: 9, color: colors.muted },
   section: { paddingHorizontal: 22, paddingTop: 30 }, posterRail: { paddingHorizontal: 22, gap: 14, paddingTop: 17, paddingBottom: 6 }, posterGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, paddingTop: 20 },
-  rankRow: { flexDirection: 'row', gap: 14, alignItems: 'center', paddingVertical: 20, borderBottomWidth: 1, borderBottomColor: colors.border }, rankNumber: { width: 26, fontSize: 31, color: colors.muted }, rankImage: { width: 60, height: 84, borderRadius: 7, borderCurve: 'continuous' }, rankCopy: { flex: 1, gap: 4 }, overline: { fontSize: 8, lineHeight: 13, letterSpacing: 1, color: colors.muted }, rankTitle: { fontSize: 16 }, small: { fontSize: 11, lineHeight: 17, color: colors.muted }, free: { fontSize: 10, color: colors.accent }, accent: { color: colors.accent },
+  rankRow: { flexDirection: 'row', gap: 8, alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border }, rankNumber: { width: 18, fontSize: 22, color: colors.muted }, rankImage: { width: 112, height: 63, borderRadius: 7, borderCurve: 'continuous' }, rankCopy: { flex: 1, minWidth: 0, gap: 3 }, overline: { fontSize: 8, lineHeight: 12, letterSpacing: 1, color: colors.muted }, rankTitle: { fontSize: 14 }, small: { fontSize: 10, lineHeight: 14, color: colors.muted }, free: { fontSize: 10, lineHeight: 14, color: colors.accent }, accent: { color: colors.accent },
+  campaignBanner: { aspectRatio: 2, marginHorizontal: 22, marginTop: 30, borderRadius: 16, borderCurve: 'continuous', overflow: 'hidden', justifyContent: 'flex-end', backgroundColor: colors.surface }, campaignCopy: { paddingHorizontal: 18, paddingVertical: 15, gap: 5 }, campaignEyebrow: { fontSize: 11, color: '#E8EBE4' }, campaignTitle: { fontSize: 18, lineHeight: 24 }, campaignLink: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }, campaignLinkText: { fontSize: 11 },
   previewLink: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: 14, borderCurve: 'continuous', padding: 17, marginTop: 30 }, previewIcon: { width: 37, height: 46, justifyContent: 'center', alignItems: 'center' }, previewTitle: { fontSize: 14, marginBottom: 5 }, footer: { color: colors.muted, fontSize: 10, lineHeight: 17, textAlign: 'center', marginTop: 35 }, intro: { color: colors.muted, fontSize: 13, marginTop: 10, marginBottom: 10 },
   genreList: { gap: 15, marginTop: 20 }, genreTile: { minHeight: 175, borderRadius: 15, borderCurve: 'continuous', overflow: 'hidden', justifyContent: 'flex-end' }, genreContent: { padding: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, genreTitle: { fontSize: 28 },
 });

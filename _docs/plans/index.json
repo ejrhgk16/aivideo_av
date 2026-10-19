@@ -60,6 +60,12 @@
       "directory": "plan-10-front-home-api-display",
       "title": "프론트 홈 API 데이터 화면 출력",
       "status": "completed"
+    },
+    {
+      "id": "plan-11-front-home-multiple-genres",
+      "directory": "plan-11-front-home-multiple-genres",
+      "title": "프론트 홈 다중 장르·캠페인·가로 포스터 개선",
+      "status": "completed"
     }
   ]
 }

@@ -30,6 +30,21 @@ describe('LocalImageController', () => {
     expect(Buffer.concat(chunks).toString()).toBe('image-data');
   });
 
+  it('serves landscape poster files from the poster-landscape directory', async () => {
+    root = await mkdtemp(join(tmpdir(), 'local-images-'));
+    const imagePath = join(root, 'dramas', 'drama-1', 'images', 'poster-landscape');
+    await mkdir(imagePath, { recursive: true });
+    await writeFile(join(imagePath, 'image-1.webp'), 'landscape-image-data');
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('MEDIA_STORAGE_ROOT', root);
+    const controller = new LocalImageController();
+
+    const response = await controller.getDramaImage('drama-1', 'poster-landscape', 'image-1.webp');
+    const chunks: Buffer[] = [];
+    for await (const chunk of response.getStream()) chunks.push(Buffer.from(chunk));
+    expect(Buffer.concat(chunks).toString()).toBe('landscape-image-data');
+  });
+
   it.each([
     ['rejects video files', 'drama-1', 'poster', 'clip.mp4'],
     ['rejects unsupported image directories', 'drama-1', 'videos', 'image.webp'],

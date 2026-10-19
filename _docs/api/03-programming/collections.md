@@ -2,7 +2,7 @@
 
 ## 목적
 
-운영자가 정한 홈 추천과 편집 랭킹의 작품 편성·노출 순서를 제공한다. 현재 홈은 `HOME_FEATURED`, `EDITORIAL_TOP_3`, `RECOMMENDATION_DAILY` 코드를 사용한다.
+운영자가 정한 홈 추천과 편집 랭킹의 작품 편성·노출 순서를 제공한다. 현재 홈은 `HOME_FEATURED`, `EDITORIAL_TOP_3`, `RECOMMENDATION_DAILY`, `HOME_CAMPAIGN` 코드를 사용한다.
 
 ## 인증
 
@@ -16,15 +16,15 @@
 
 | 이름 | 타입 | 설명 |
 | --- | --- | --- |
-| `code` | string | 컬렉션 코드. 예: `HOME_FEATURED`, `EDITORIAL_TOP_3`, `RECOMMENDATION_DAILY` |
+| `code` | string | 컬렉션 코드. 예: `HOME_FEATURED`, `EDITORIAL_TOP_3`, `RECOMMENDATION_DAILY`, `HOME_CAMPAIGN` |
 
 #### 200 Response
 
 ```json
 {
-  "code": "HOME_FEATURED",
-  "title": "오늘의 추천",
-  "description": "지금 만나보세요",
+  "code": "HOME_CAMPAIGN",
+  "title": "로맨스 만나기",
+  "description": "퇴근길을 채울 로맨스 한 편",
   "dramas": [
     {
       "displayOrder": 1,
@@ -41,6 +41,7 @@
       ],
       "images": {
         "poster": "dramas/our-last-spring/images/poster.webp",
+        "posterLandscape": "dramas/our-last-spring/images/poster-landscape.webp",
         "homeHero": "dramas/our-last-spring/images/home-hero.webp",
         "detailCover": "dramas/our-last-spring/images/detail-cover.webp",
         "campaigns": [
@@ -50,9 +51,13 @@
       },
       "imageUrls": {
         "poster": "/media/images/dramas/00000002-0000-4000-8000-000000000001/images/poster/image-1.webp",
+        "posterLandscape": "/media/images/dramas/00000002-0000-4000-8000-000000000001/images/poster-landscape/image-1.webp",
         "homeHero": "/media/images/dramas/00000002-0000-4000-8000-000000000001/images/home-hero/image-1.webp",
         "detailCover": null,
-        "campaigns": []
+        "campaigns": [
+          "/media/images/dramas/00000002-0000-4000-8000-000000000001/images/campaign/image-1.webp",
+          "/media/images/dramas/00000002-0000-4000-8000-000000000001/images/campaign/image-2.webp"
+        ]
       },
       "previewVideos": [
         {
@@ -77,10 +82,12 @@
 | `dramas[].productionCompany` | object \| null | 제작사 식별자와 이름 |
 | `dramas[].genres` | array | 연결된 장르 목록 |
 | `dramas[].images.poster` | string \| null | 포스터 storage key |
+| `dramas[].images.posterLandscape` | string \| null | 가로 포스터 storage key |
 | `dramas[].images.homeHero` | string \| null | 홈 히어로 이미지 storage key |
 | `dramas[].images.detailCover` | string \| null | 상세 커버 이미지 storage key |
 | `dramas[].images.campaigns` | string[] | 캠페인 이미지 storage key 목록. `display_order` 오름차순 |
 | `dramas[].imageUrls.poster` | string \| null | 개발 환경에서 사용할 이미지 URL 경로. 해당 이미지가 없거나 개발 환경이 아니면 `null` |
+| `dramas[].imageUrls.posterLandscape` | string \| null | 가로 포스터 이미지 URL 경로. 이미지가 없거나 개발 환경이 아니면 `null` |
 | `dramas[].imageUrls.homeHero` | string \| null | 홈 히어로 이미지 URL 경로 |
 | `dramas[].imageUrls.detailCover` | string \| null | 상세 커버 이미지 URL 경로 |
 | `dramas[].imageUrls.campaigns` | string[] | 캠페인 이미지 URL 경로. `display_order` 오름차순 |
@@ -108,7 +115,10 @@
 - 컬렉션 항목은 `starts_at`이 없거나 현재 시각 이하이고, `ends_at`이 없거나 현재 시각보다 이후여야 한다.
 - 연결된 작품과 회차는 `PUBLISHED`이고 `published_at`이 현재 시각 이하일 때만 노출한다.
 - 작품은 `display_order` 오름차순으로 반환한다.
+- `HOME_CAMPAIGN`은 홈 캠페인 배너에 사용할 작품과 `campaigns` 이미지 목록을 반환한다.
 - `images`의 storage key는 유지하고, `imageUrls`에는 개발 환경에서 API 서버 기준 `/media/images/` URL 경로를 반환한다. 운영 환경에는 로컬 파일 URL을 반환하지 않으며 향후 signed URL을 사용한다.
+
+개발 환경 이미지 제공 경로는 [작품 API 정의](../02-content/dramas.md#개발용-이미지-파일-api)를 따른다. `POSTER_LANDSCAPE` 이미지는 `poster-landscape` 디렉터리에서 제공한다.
 
 ## 관련 데이터 모델
 

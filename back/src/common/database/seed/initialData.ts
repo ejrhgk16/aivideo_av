@@ -169,6 +169,20 @@ const contentImages = [
   }),
 ];
 
+const landscapePosters = dramas.map((drama, dramaIndex) => {
+  const id = fixedId(3, dramaIndex * 10 + 7);
+
+  return {
+    id,
+    contentType: 'DRAMA',
+    contentId: drama.id,
+    kind: 'POSTER_LANDSCAPE',
+    storageKey: createDramaImageStorageKey(drama.id, id, 'POSTER_LANDSCAPE'),
+    altText: `${drama.title} 가로 포스터 이미지`,
+    displayOrder: 1,
+  };
+});
+
 const episodeDurationsMs = [103125, 53453, 84084, 92459, 68610, 92593, 52500];
 
 const episodes = dramas.flatMap((drama, dramaIndex) =>
@@ -273,6 +287,14 @@ const contentCollections = [
     kind: 'RECOMMENDATION_FEED',
     isActive: true,
   },
+  {
+    id: fixedId(7, 4),
+    code: 'HOME_CAMPAIGN',
+    title: '로맨스 만나기',
+    description: '퇴근길을 채울 로맨스 한 편',
+    kind: 'HOME',
+    isActive: true,
+  },
 ];
 
 const collectionDramas = [
@@ -297,6 +319,13 @@ const collectionDramas = [
     startsAt: null,
     endsAt: null,
   })),
+  {
+    collectionId: contentCollections[3].id,
+    dramaId: dramas[0].id,
+    displayOrder: 1,
+    startsAt: null,
+    endsAt: null,
+  },
 ];
 
 const pointProducts = [
@@ -315,7 +344,7 @@ export const initialData: InitialSeedData = {
   genres,
   dramas,
   dramaGenres,
-  contentImages: [...contentImages, ...contentImagesForEpisodes],
+  contentImages: [...contentImages, ...landscapePosters, ...contentImagesForEpisodes],
   episodes,
   contentVideos,
   episodeSubtitles,

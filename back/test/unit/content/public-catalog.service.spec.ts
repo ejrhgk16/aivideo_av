@@ -63,6 +63,9 @@ describe('PublicCatalogService', () => {
         contentType: 'DRAMA', contentId: 'drama-1', kind: 'POSTER', storageKey: 'dramas/drama-1/images/poster/image-1.webp', displayOrder: 1,
       }),
       Object.assign(new ContentImage(), {
+        contentType: 'DRAMA', contentId: 'drama-1', kind: 'POSTER_LANDSCAPE', storageKey: 'dramas/drama-1/images/poster-landscape/image-4.webp', displayOrder: 1,
+      }),
+      Object.assign(new ContentImage(), {
         contentType: 'DRAMA', contentId: 'drama-1', kind: 'CAMPAIGN', storageKey: 'dramas/drama-1/images/campaign/image-2.webp', displayOrder: 2,
       }),
       Object.assign(new ContentImage(), {
@@ -103,11 +106,12 @@ describe('PublicCatalogService', () => {
         episodeCount: 2,
         freeEpisodeCount: 1,
         images: {
-          poster: 'dramas/drama-1/images/poster/image-1.webp', homeHero: null, detailCover: null,
+          poster: 'dramas/drama-1/images/poster/image-1.webp', posterLandscape: 'dramas/drama-1/images/poster-landscape/image-4.webp', homeHero: null, detailCover: null,
           campaigns: ['dramas/drama-1/images/campaign/image-1.webp', 'dramas/drama-1/images/campaign/image-2.webp'],
         },
         imageUrls: {
           poster: '/media/images/dramas/drama-1/images/poster/image-1.webp',
+          posterLandscape: '/media/images/dramas/drama-1/images/poster-landscape/image-4.webp',
           homeHero: null,
           detailCover: null,
           campaigns: ['/media/images/dramas/drama-1/images/campaign/image-1.webp', '/media/images/dramas/drama-1/images/campaign/image-2.webp'],
@@ -175,6 +179,9 @@ describe('PublicCatalogService', () => {
         contentType: 'DRAMA', contentId: 'drama-1', kind: 'POSTER', storageKey: 'dramas/drama-1/images/poster/image-1.webp', displayOrder: 1,
       }),
       Object.assign(new ContentImage(), {
+        contentType: 'DRAMA', contentId: 'drama-1', kind: 'POSTER_LANDSCAPE', storageKey: 'dramas/drama-1/images/poster-landscape/image-4.webp', displayOrder: 1,
+      }),
+      Object.assign(new ContentImage(), {
         contentType: 'EPISODE', contentId: 'episode-1', kind: 'EPISODE_COVER', storageKey: 'episode-1.jpg', displayOrder: 1,
       }),
     ]);
@@ -235,8 +242,8 @@ describe('PublicCatalogService', () => {
       synopsis: '긴 줄거리',
       productionCompany: '제작사',
       genres: [{ id: 1, code: 'MYSTERY', name: '미스터리' }],
-      images: { poster: 'dramas/drama-1/images/poster/image-1.webp', homeHero: null, detailCover: null, campaigns: [] },
-      imageUrls: { poster: '/media/images/dramas/drama-1/images/poster/image-1.webp', homeHero: null, detailCover: null, campaigns: [] },
+      images: { poster: 'dramas/drama-1/images/poster/image-1.webp', posterLandscape: 'dramas/drama-1/images/poster-landscape/image-4.webp', homeHero: null, detailCover: null, campaigns: [] },
+      imageUrls: { poster: '/media/images/dramas/drama-1/images/poster/image-1.webp', posterLandscape: '/media/images/dramas/drama-1/images/poster-landscape/image-4.webp', homeHero: null, detailCover: null, campaigns: [] },
       previewVideos: [],
       episodes: [
         {

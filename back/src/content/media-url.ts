@@ -1,5 +1,6 @@
 type DramaImageStorageKeys = {
   poster: string | null;
+  posterLandscape: string | null;
   homeHero: string | null;
   detailCover: string | null;
   campaigns: string[];
@@ -7,6 +8,7 @@ type DramaImageStorageKeys = {
 
 export type DramaImageUrls = {
   poster: string | null;
+  posterLandscape: string | null;
   homeHero: string | null;
   detailCover: string | null;
   campaigns: string[];
@@ -23,6 +25,7 @@ export function createDramaImageUrls(
 ): DramaImageUrls {
   return {
     poster: images.poster ? localImageUrl(images.poster, environment) : null,
+    posterLandscape: images.posterLandscape ? localImageUrl(images.posterLandscape, environment) : null,
     homeHero: images.homeHero ? localImageUrl(images.homeHero, environment) : null,
     detailCover: images.detailCover ? localImageUrl(images.detailCover, environment) : null,
     campaigns: images.campaigns.flatMap((storageKey) => {
