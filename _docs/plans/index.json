@@ -48,6 +48,12 @@
       "directory": "plan-8-content-media-model",
       "title": "콘텐츠 이미지·영상 미디어 모델 전환",
       "status": "completed"
+    },
+    {
+      "id": "plan-9-home-collection-contract-and-daily-request",
+      "directory": "plan-9-home-collection-contract-and-daily-request",
+      "title": "홈 컬렉션 응답 정합화 및 데일리 요청·로그 추가",
+      "status": "completed"
     }
   ]
 }

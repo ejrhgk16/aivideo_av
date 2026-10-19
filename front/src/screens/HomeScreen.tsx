@@ -12,7 +12,7 @@ const tabs = ['추천', '최신', '랭킹', '장르'] as const;
 
 export function HomeScreen() {
   useEffect(() => {
-    const collectionCodes = ['HOME_FEATURED', 'EDITORIAL_TOP_3'];
+    const collectionCodes = ['HOME_FEATURED', 'EDITORIAL_TOP_3', 'RECOMMENDATION_DAILY'];
 
     void Promise.all(
       collectionCodes.map(async (code) => {

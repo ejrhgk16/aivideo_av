@@ -7,10 +7,12 @@ export interface HomeCollectionDrama {
   productionCompany: { id: string; name: string } | null;
   genres: Array<{ id: number; code: string; name: string }>;
   images: {
-    POSTER: string | null;
-    HERO: string | null;
-    THUMBNAIL: string | null;
+    poster: string | null;
+    homeHero: string | null;
+    detailCover: string | null;
+    campaigns: string[];
   };
+  previewVideos: Array<{ storageKey: string; durationMs: number }>;
   publishedEpisodeCount: number;
   freeEpisodeCount: number;
 }

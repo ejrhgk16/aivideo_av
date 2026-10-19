@@ -2,7 +2,7 @@
 
 ## 목적
 
-운영자가 정한 홈 추천과 편집 랭킹의 작품 편성·노출 순서를 제공한다. 현재 홈은 `HOME_FEATURED`, `EDITORIAL_TOP_3` 코드를 사용한다.
+운영자가 정한 홈 추천과 편집 랭킹의 작품 편성·노출 순서를 제공한다. 현재 홈은 `HOME_FEATURED`, `EDITORIAL_TOP_3`, `RECOMMENDATION_DAILY` 코드를 사용한다.
 
 ## 인증
 
@@ -16,7 +16,7 @@
 
 | 이름 | 타입 | 설명 |
 | --- | --- | --- |
-| `code` | string | 컬렉션 코드. 예: `HOME_FEATURED`, `EDITORIAL_TOP_3` |
+| `code` | string | 컬렉션 코드. 예: `HOME_FEATURED`, `EDITORIAL_TOP_3`, `RECOMMENDATION_DAILY` |
 
 #### 200 Response
 

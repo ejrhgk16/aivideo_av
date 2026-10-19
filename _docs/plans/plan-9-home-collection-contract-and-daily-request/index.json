@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "plan_id": "plan-9-home-collection-contract-and-daily-request",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "홈 컬렉션 응답 정합화 및 데일리 요청·로그 추가",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/features/home/homeContent.ts",
+        "front/src/screens/HomeScreen.tsx",
+        "front/tests/unit/homeContent.test.ts",
+        "_docs/api/03-programming/collections.md"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-19T09:22:20.380Z",
+      "summary": "프론트 응답 타입을 백엔드 이미지·프리뷰 영상 필드에 맞추고, RECOMMENDATION_DAILY 요청과 전체 응답 로그를 기존 공통 처리에 추가했습니다. 타입 fixture와 세 코드의 URL, 응답 보존을 검증하도록 테스트 및 API 문서를 갱신했습니다. typecheck, test(11개 통과), export 모두 통과했습니다.",
+      "completed_at": "2026-10-19T09:24:37.772Z"
+    }
+  ]
+}
