@@ -1,12 +1,15 @@
 import { NotFoundException } from '@nestjs/common';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PublicCollectionService } from '../../../src/programming/public-collection.service.js';
 
 const repository = () => ({ find: vi.fn(), findOne: vi.fn() });
 
 describe('PublicCollectionService', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
   it('returns an active, scheduled collection in display order with public summaries', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
     const collectionRepository = repository();
     const collectionDramaRepository = repository();
     const dramaRepository = repository();
@@ -39,10 +42,10 @@ describe('PublicCollectionService', () => {
     dramaGenreRepository.find.mockResolvedValue([{ dramaId: 'drama-1', genreId: 1 }]);
     genreRepository.find.mockResolvedValue([{ id: 1, code: 'ROMANCE', name: '로맨스' }]);
     contentImageRepository.find.mockResolvedValue([
-      { contentType: 'DRAMA', contentId: 'drama-1', kind: 'POSTER', storageKey: 'poster.webp', displayOrder: 1 },
-      { contentType: 'DRAMA', contentId: 'drama-1', kind: 'HOME_HERO', storageKey: 'hero.webp', displayOrder: 1 },
-      { contentType: 'DRAMA', contentId: 'drama-1', kind: 'CAMPAIGN', storageKey: 'campaign-2.webp', displayOrder: 2 },
-      { contentType: 'DRAMA', contentId: 'drama-1', kind: 'CAMPAIGN', storageKey: 'campaign-1.webp', displayOrder: 1 },
+      { contentType: 'DRAMA', contentId: 'drama-1', kind: 'POSTER', storageKey: 'dramas/drama-1/images/poster/image-1.webp', displayOrder: 1 },
+      { contentType: 'DRAMA', contentId: 'drama-1', kind: 'HOME_HERO', storageKey: 'dramas/drama-1/images/home-hero/image-1.webp', displayOrder: 1 },
+      { contentType: 'DRAMA', contentId: 'drama-1', kind: 'CAMPAIGN', storageKey: 'dramas/drama-1/images/campaign/image-2.webp', displayOrder: 2 },
+      { contentType: 'DRAMA', contentId: 'drama-1', kind: 'CAMPAIGN', storageKey: 'dramas/drama-1/images/campaign/image-1.webp', displayOrder: 1 },
     ]);
     contentVideoRepository.find.mockResolvedValue([
       { contentType: 'DRAMA', contentId: 'drama-1', kind: 'PREVIEW', storageKey: 'preview-2.mp4', durationMs: 20000, displayOrder: 2 },
@@ -82,10 +85,16 @@ describe('PublicCollectionService', () => {
           publishedEpisodeCount: 2,
           freeEpisodeCount: 1,
           images: {
-            poster: 'poster.webp',
-            homeHero: 'hero.webp',
+            poster: 'dramas/drama-1/images/poster/image-1.webp',
+            homeHero: 'dramas/drama-1/images/home-hero/image-1.webp',
             detailCover: null,
-            campaigns: ['campaign-1.webp', 'campaign-2.webp'],
+            campaigns: ['dramas/drama-1/images/campaign/image-1.webp', 'dramas/drama-1/images/campaign/image-2.webp'],
+          },
+          imageUrls: {
+            poster: '/media/images/dramas/drama-1/images/poster/image-1.webp',
+            homeHero: '/media/images/dramas/drama-1/images/home-hero/image-1.webp',
+            detailCover: null,
+            campaigns: ['/media/images/dramas/drama-1/images/campaign/image-1.webp', '/media/images/dramas/drama-1/images/campaign/image-2.webp'],
           },
           previewVideos: [
             { storageKey: 'preview-1.mp4', durationMs: 15000 },

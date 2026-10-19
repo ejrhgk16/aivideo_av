@@ -27,6 +27,12 @@ test('home collection requests use the configured API base URL', async () => {
           detailCover: null,
           campaigns: ['dramas/our-last-spring/images/campaign-1.webp'],
         },
+        imageUrls: {
+          poster: null,
+          homeHero: '/media/images/dramas/example/images/home-hero/image-1.webp',
+          detailCover: null,
+          campaigns: [],
+        },
         previewVideos: [
           { storageKey: 'dramas/our-last-spring/videos/preview-1.mp4', durationMs: 30000 },
         ],

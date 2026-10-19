@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "plan_id": "plan-10-front-home-api-display",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "Backend image URLs",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/content/media-url.ts",
+        "back/src/content/local-image.controller.ts",
+        "back/src/content/content.module.ts",
+        "back/src/content/public-catalog.service.ts",
+        "back/src/programming/public-collection.service.ts",
+        "back/test/unit/content/media-url.spec.ts",
+        "back/test/unit/content/local-image.controller.spec.ts",
+        "back/test/unit/content/public-catalog.service.spec.ts",
+        "back/test/unit/programming/public-collection.service.spec.ts",
+        "_docs/api/02-content/dramas.md",
+        "_docs/api/03-programming/collections.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-19T10:08:28.712Z",
+      "summary": "Added development image URL fields to drama and collection responses, plus a development-only endpoint that serves .webp drama images from MEDIA_STORAGE_ROOT and rejects invalid paths and file types. Updated both API documents. Checks passed: back lint, 10 test files (31 tests), and build.",
+      "completed_at": "2026-10-19T10:11:26.175Z"
+    },
+    {
+      "id": "task-2",
+      "name": "Frontend API contract",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/src/common/media.ts",
+        "front/src/features/home/homeContent.ts",
+        "front/src/features/drama/dramaContent.ts",
+        "front/tests/unit/media.test.ts",
+        "front/tests/unit/homeContent.test.ts",
+        "front/tests/unit/dramaContent.test.ts",
+        "front/scripts/test-experience.cjs",
+        "front/README.md"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-19T10:11:39.939Z",
+      "summary": "Added home image URL fields, the public drama detail API type and fetch function, and URL handling for relative API images, absolute signed URLs, and null images while preserving static demo image resolution. Updated API contract tests, test registration, and README development setup guidance. Checks passed: front typecheck, test (17 tests), and export.",
+      "completed_at": "2026-10-19T10:14:44.336Z"
+    },
+    {
+      "id": "task-3",
+      "name": "Home display",
+      "status": "completed",
+      "depends_on": [
+        "task-2"
+      ],
+      "files": [
+        "front/src/screens/HomeScreen.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-19T10:14:53.942Z",
+      "summary": "Connected the featured, daily recommendation, and TOP 3 collections to the home screen, including API images, details, loading/empty/error states, UUID detail navigation, and disabled playback/save controls. Front typecheck, tests (17 passed), and export all passed.",
+      "completed_at": "2026-10-19T10:19:42.839Z"
+    },
+    {
+      "id": "task-4",
+      "name": "API drama detail",
+      "status": "completed",
+      "depends_on": [
+        "task-2"
+      ],
+      "files": [
+        "front/src/screens/DramaDetailScreen.tsx",
+        "front/src/screens/ApiDramaDetailScreen.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-19T10:15:05.410Z",
+      "summary": "API 작품 UUID는 공개 상세 API 화면으로 연결하고, 정적 카탈로그 작품 상세는 유지했습니다. API 화면에 로딩·404·요청 실패·이미지 없음·공개 회차 없음 상태와 작품 정보, 회차별 무료 여부를 표시합니다. 검증 통과: front typecheck, test (17/17), export.",
+      "completed_at": "2026-10-19T10:19:16.875Z"
+    }
+  ]
+}

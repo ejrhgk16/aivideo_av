@@ -1,3 +1,4 @@
+import { afterEach } from 'vitest';
 import { PublicCatalogService } from '../../../src/content/public-catalog.service.js';
 import { NotFoundException } from '@nestjs/common';
 import { Drama } from '../../../src/content/entities/drama.entity.js';
@@ -33,7 +34,10 @@ function queryBuilder<T>(rows: T[]) {
 }
 
 describe('PublicCatalogService', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
   it('returns published dramas ordered by latest publication with public episode counts', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
     const now = new Date('2026-10-09T00:00:00.000Z');
     const drama = Object.assign(new Drama(), {
       id: 'drama-1',
@@ -56,13 +60,13 @@ describe('PublicCatalogService', () => {
     const images = repository();
     images.findBy.mockResolvedValue([
       Object.assign(new ContentImage(), {
-        contentType: 'DRAMA', contentId: 'drama-1', kind: 'POSTER', storageKey: 'poster.jpg', displayOrder: 1,
+        contentType: 'DRAMA', contentId: 'drama-1', kind: 'POSTER', storageKey: 'dramas/drama-1/images/poster/image-1.webp', displayOrder: 1,
       }),
       Object.assign(new ContentImage(), {
-        contentType: 'DRAMA', contentId: 'drama-1', kind: 'CAMPAIGN', storageKey: 'campaign-2.jpg', displayOrder: 2,
+        contentType: 'DRAMA', contentId: 'drama-1', kind: 'CAMPAIGN', storageKey: 'dramas/drama-1/images/campaign/image-2.webp', displayOrder: 2,
       }),
       Object.assign(new ContentImage(), {
-        contentType: 'DRAMA', contentId: 'drama-1', kind: 'CAMPAIGN', storageKey: 'campaign-1.jpg', displayOrder: 1,
+        contentType: 'DRAMA', contentId: 'drama-1', kind: 'CAMPAIGN', storageKey: 'dramas/drama-1/images/campaign/image-1.webp', displayOrder: 1,
       }),
     ]);
     const videos = repository();
@@ -99,8 +103,14 @@ describe('PublicCatalogService', () => {
         episodeCount: 2,
         freeEpisodeCount: 1,
         images: {
-          poster: 'poster.jpg', homeHero: null, detailCover: null,
-          campaigns: ['campaign-1.jpg', 'campaign-2.jpg'],
+          poster: 'dramas/drama-1/images/poster/image-1.webp', homeHero: null, detailCover: null,
+          campaigns: ['dramas/drama-1/images/campaign/image-1.webp', 'dramas/drama-1/images/campaign/image-2.webp'],
+        },
+        imageUrls: {
+          poster: '/media/images/dramas/drama-1/images/poster/image-1.webp',
+          homeHero: null,
+          detailCover: null,
+          campaigns: ['/media/images/dramas/drama-1/images/campaign/image-1.webp', '/media/images/dramas/drama-1/images/campaign/image-2.webp'],
         },
         previewVideos: [
           { storageKey: 'preview-1.mp4', durationMs: 1000 },
@@ -136,6 +146,7 @@ describe('PublicCatalogService', () => {
   });
 
   it('returns a public drama detail with ordered public episodes and prices', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
     const now = new Date('2026-10-09T00:00:00.000Z');
     const dramas = repository();
     dramas.findOne.mockResolvedValue(
@@ -161,7 +172,7 @@ describe('PublicCatalogService', () => {
     const images = repository();
     images.findBy.mockResolvedValue([
       Object.assign(new ContentImage(), {
-        contentType: 'DRAMA', contentId: 'drama-1', kind: 'POSTER', storageKey: 'poster.jpg', displayOrder: 1,
+        contentType: 'DRAMA', contentId: 'drama-1', kind: 'POSTER', storageKey: 'dramas/drama-1/images/poster/image-1.webp', displayOrder: 1,
       }),
       Object.assign(new ContentImage(), {
         contentType: 'EPISODE', contentId: 'episode-1', kind: 'EPISODE_COVER', storageKey: 'episode-1.jpg', displayOrder: 1,
@@ -224,7 +235,8 @@ describe('PublicCatalogService', () => {
       synopsis: '긴 줄거리',
       productionCompany: '제작사',
       genres: [{ id: 1, code: 'MYSTERY', name: '미스터리' }],
-      images: { poster: 'poster.jpg', homeHero: null, detailCover: null, campaigns: [] },
+      images: { poster: 'dramas/drama-1/images/poster/image-1.webp', homeHero: null, detailCover: null, campaigns: [] },
+      imageUrls: { poster: '/media/images/dramas/drama-1/images/poster/image-1.webp', homeHero: null, detailCover: null, campaigns: [] },
       previewVideos: [],
       episodes: [
         {

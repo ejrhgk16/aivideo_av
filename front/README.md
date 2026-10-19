@@ -14,6 +14,8 @@ npm start
 
 미디어 base URL은 `front/.env.development`에서 설정합니다. `EXPO_PUBLIC_IMAGE_BASE_URL`과 `EXPO_PUBLIC_VIDEO_BASE_URL`에는 앱에서 접근 가능한 HTTP(S) URL을 넣어야 하며, 개발 PC의 `C:\...` 파일 경로는 사용할 수 없습니다. 예시는 `.env.example`에 있습니다.
 
+홈 컬렉션과 작품 상세 데이터는 `EXPO_PUBLIC_API_BASE_URL`의 NestJS API에서 가져옵니다. 개발 중 API는 `back/.env.development`의 `MEDIA_STORAGE_ROOT`가 가리키는 `front/media/` 파일을 `/media/images/` 경로로 제공합니다. API 응답의 상대 이미지 URL은 API 주소에 연결하고, 절대 URL(운영 signed URL 포함)은 그대로 사용합니다. 실제 기기에서 확인할 때는 `localhost` 대신 개발 PC의 LAN IP와 API 포트를 `EXPO_PUBLIC_API_BASE_URL`에 설정해야 합니다.
+
 Expo Go 또는 개발 빌드에서 QR 코드를 열어 기기로 확인합니다. Expo 57과 호환되는 실행 앱이 필요합니다.
 
 ```sh
@@ -44,7 +46,7 @@ npm run ios       # macOS + Xcode 시뮬레이터
 - 추천 탭에서 예고·1화 분위기를 세로로 넘겨보기, 본편 또는 회차 목록으로 이동
 - 재생 화면의 일시 정지·속도·위치 조절과 이전/다음 화
 
-실제 드라마 파일이 없어 포스터와 예시 자막으로 재생을 표현합니다. 광고·결제는 체험이며 실제 청구는 없습니다. 회원 동기화·운영자 업로드·NestJS API 연결·앱스토어 배포는 다음 개발 범위입니다. 창작마당은 포함하지 않습니다.
+실제 드라마 파일이 없어 포스터와 예시 자막으로 재생을 표현합니다. 광고·결제는 체험이며 실제 청구는 없습니다. 회원 동기화·운영자 업로드·재생 API·앱스토어 배포는 다음 개발 범위입니다. 창작마당은 포함하지 않습니다.
 
 ## 검증
 

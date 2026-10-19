@@ -11,6 +11,7 @@ import {
 } from './entities/index.js';
 import { PublicCatalogController } from './public-catalog.controller.js';
 import { PublicCatalogService } from './public-catalog.service.js';
+import { LocalImageController } from './local-image.controller.js';
 
 @Module({
   imports: [
@@ -24,7 +25,7 @@ import { PublicCatalogService } from './public-catalog.service.js';
       Episode,
     ]),
   ],
-  controllers: [PublicCatalogController],
+  controllers: [PublicCatalogController, LocalImageController],
   providers: [PublicCatalogService],
   exports: [PublicCatalogService],
 })

@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { AppText, Button, DramaImage, EmptyState, Icon, Page } from '@/components/ui';
+import { AppText, Button, DramaImage, Icon, Page } from '@/components/ui';
 import { getDrama } from '@/features/drama/catalog';
 import { useExperience } from '@/features/drama/ExperienceProvider';
 import { shareDrama } from '@/common/shareDrama';
 import { colors } from '@/common/theme/tokens';
+import { ApiDramaDetailScreen } from '@/screens/ApiDramaDetailScreen';
 
 export function DramaDetailScreen({ id }: { id: string }) {
   const router = useRouter();
@@ -16,7 +17,7 @@ export function DramaDetailScreen({ id }: { id: string }) {
   const tab = selectedTab ?? (params.tab === 'episodes' || params.tab === '회차' ? '회차' : '소개');
   const drama = getDrama(id);
   const back = () => router.canGoBack() ? router.back() : router.replace('/');
-  if (!drama) return <Page><EmptyState title="작품을 찾을 수 없어요" description="다른 이야기를 둘러보세요." action="홈으로" onAction={() => router.replace('/')} /></Page>;
+  if (!drama) return <ApiDramaDetailScreen id={id} />;
   const saved = state.saved.includes(id);
   const history = state.history.find((entry) => entry.id === id);
   const openEpisode = (ep: number) => router.push({ pathname: '/player/[id]', params: { id, ep } });

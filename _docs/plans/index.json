@@ -54,6 +54,12 @@
       "directory": "plan-9-home-collection-contract-and-daily-request",
       "title": "홈 컬렉션 응답 정합화 및 데일리 요청·로그 추가",
       "status": "completed"
+    },
+    {
+      "id": "plan-10-front-home-api-display",
+      "directory": "plan-10-front-home-api-display",
+      "title": "프론트 홈 API 데이터 화면 출력",
+      "status": "completed"
     }
   ]
 }

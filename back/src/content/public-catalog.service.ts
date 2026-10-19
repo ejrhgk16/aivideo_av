@@ -8,6 +8,7 @@ import { ContentVideo } from './entities/contentVideo.entity.js';
 import { Episode } from './entities/episode.entity.js';
 import { Genre } from './entities/genre.entity.js';
 import { ProductionCompany } from './entities/productionCompany.entity.js';
+import { createDramaImageUrls } from './media-url.js';
 
 const PUBLIC_STATUS = 'PUBLISHED';
 
@@ -24,6 +25,7 @@ export type DramaSummary = {
     detailCover: string | null;
     campaigns: string[];
   };
+  imageUrls: ReturnType<typeof createDramaImageUrls>;
   previewVideos: Array<{ storageKey: string; durationMs: number }>;
   episodeCount: number;
   freeEpisodeCount: number;
@@ -45,6 +47,7 @@ export type DramaDetail = {
     detailCover: string | null;
     campaigns: string[];
   };
+  imageUrls: ReturnType<typeof createDramaImageUrls>;
   previewVideos: Array<{ storageKey: string; durationMs: number }>;
   episodes: Array<{
     id: string;
@@ -61,12 +64,13 @@ function mapImages(images: ContentImage[]) {
   const sorted = [...images].sort((left, right) => left.displayOrder - right.displayOrder);
   const firstOfKind = (kind: string) => sorted.find((image) => image.kind === kind)?.storageKey ?? null;
 
-  return {
+  const imageKeys = {
     poster: firstOfKind('POSTER'),
     homeHero: firstOfKind('HOME_HERO'),
     detailCover: firstOfKind('DETAIL_COVER'),
     campaigns: sorted.filter((image) => image.kind === 'CAMPAIGN').map((image) => image.storageKey),
   };
+  return imageKeys;
 }
 
 function mapPreviewVideos(videos: ContentVideo[]) {
@@ -154,6 +158,7 @@ export class PublicCatalogService {
       const dramaVideos = videosByDrama.get(drama.id) ?? [];
       const dramaEpisodes = episodesByDrama.get(drama.id) ?? [];
       const dramaGenresForDrama = genreLinksByDrama.get(drama.id) ?? [];
+      const dramaImagesForResponse = mapImages(dramaImages);
 
       return {
         id: drama.id,
@@ -165,7 +170,8 @@ export class PublicCatalogService {
           .map((link) => genresById.get(link.genreId))
           .filter((genre): genre is Genre => genre !== undefined)
           .map(({ id, code, name }) => ({ id, code, name })),
-        images: mapImages(dramaImages),
+        images: dramaImagesForResponse,
+        imageUrls: createDramaImageUrls(dramaImagesForResponse),
         previewVideos: mapPreviewVideos(dramaVideos),
         episodeCount: dramaEpisodes.length,
         freeEpisodeCount: dramaEpisodes.filter((episode) => episode.pricePoints === 0).length,
@@ -214,6 +220,7 @@ export class PublicCatalogService {
       });
     const episodeImagesById = new Map(episodeImages.map((image) => [image.contentId, image.storageKey]));
 
+    const dramaImages = mapImages(images);
     return {
       id: drama.id,
       slug: drama.publicSlug,
@@ -225,7 +232,8 @@ export class PublicCatalogService {
         .map((link) => genresById.get(link.genreId))
         .filter((genre): genre is Genre => genre !== undefined)
         .map(({ id, code, name }) => ({ id, code, name })),
-      images: mapImages(images),
+      images: dramaImages,
+      imageUrls: createDramaImageUrls(dramaImages),
       previewVideos: mapPreviewVideos(videos),
       episodes: publicEpisodes.map(
         ({ id, episodeNumber, title, synopsis, durationMs, pricePoints }) => ({

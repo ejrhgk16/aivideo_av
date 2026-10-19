@@ -43,6 +43,12 @@
         "dramas/our-last-spring/images/campaign-1.webp"
       ]
     },
+    "imageUrls": {
+      "poster": "/media/images/dramas/00000002-0000-4000-8000-000000000001/images/poster/image-1.webp",
+      "homeHero": "/media/images/dramas/00000002-0000-4000-8000-000000000001/images/home-hero/image-1.webp",
+      "detailCover": null,
+      "campaigns": []
+    },
     "previewVideos": [
       {
         "storageKey": "dramas/our-last-spring/videos/preview-1.mp4",
@@ -67,6 +73,10 @@
 | `images.homeHero` | string \| null | 홈 히어로 이미지 storage key |
 | `images.detailCover` | string \| null | 상세 커버 이미지 storage key |
 | `images.campaigns` | string[] | 캠페인 이미지 storage key. `displayOrder` 오름차순 |
+| `imageUrls.poster` | string \| null | 개발 환경에서 사용할 이미지 URL 경로. 해당 이미지가 없거나 개발 환경이 아니면 `null` |
+| `imageUrls.homeHero` | string \| null | 홈 히어로 이미지 URL 경로 |
+| `imageUrls.detailCover` | string \| null | 상세 커버 이미지 URL 경로 |
+| `imageUrls.campaigns` | string[] | 캠페인 이미지 URL 경로. `displayOrder` 오름차순 |
 | `previewVideos` | array | 작품 프리뷰 영상. `displayOrder` 오름차순 |
 | `previewVideos[].storageKey` | string | 프리뷰 영상 storage key |
 | `previewVideos[].durationMs` | number | 프리뷰 영상 재생 시간(밀리초) |
@@ -126,6 +136,12 @@
         "dramas/our-last-spring/images/campaign-1.webp"
       ]
     },
+    "imageUrls": {
+      "poster": "/media/images/dramas/00000002-0000-4000-8000-000000000001/images/poster/image-1.webp",
+      "homeHero": "/media/images/dramas/00000002-0000-4000-8000-000000000001/images/home-hero/image-1.webp",
+      "detailCover": null,
+      "campaigns": []
+    },
     "previewVideos": [
       {
         "storageKey": "dramas/our-last-spring/videos/preview-1.mp4",
@@ -169,6 +185,10 @@
 | `images.homeHero` | string \| null | 홈 히어로 이미지 storage key |
 | `images.detailCover` | string \| null | 상세 커버 이미지 storage key |
 | `images.campaigns` | string[] | 캠페인 이미지 storage key. `displayOrder` 오름차순 |
+| `imageUrls.poster` | string \| null | 개발 환경에서 사용할 이미지 URL 경로. 해당 이미지가 없거나 개발 환경이 아니면 `null` |
+| `imageUrls.homeHero` | string \| null | 홈 히어로 이미지 URL 경로 |
+| `imageUrls.detailCover` | string \| null | 상세 커버 이미지 URL 경로 |
+| `imageUrls.campaigns` | string[] | 캠페인 이미지 URL 경로. `displayOrder` 오름차순 |
 | `previewVideos` | array | 작품 프리뷰 영상. `displayOrder` 오름차순 |
 | `previewVideos[].storageKey` | string | 프리뷰 영상 storage key |
 | `previewVideos[].durationMs` | number | 프리뷰 영상 재생 시간(밀리초) |
@@ -198,9 +218,17 @@
 - 작품은 `status = PUBLISHED`이고 `published_at`이 현재 시각 이하인 경우에만 반환한다.
 - 회차는 `status = PUBLISHED`이고 `published_at`이 `null`이 아니며 현재 시각 이하인 경우에만 반환한다.
 - 회차는 `episodeNumber` 오름차순으로 정렬한다.
-- 이미지 필드는 객체 스토리지 내부 `storageKey`를 반환하며, 접근 가능한 URL이 아니다.
+- `images`는 기존 storage key를 유지한다. `imageUrls`는 개발 환경에서 `/media/images/`로 시작하는 API 서버 기준 URL 경로를 제공한다. 이미지가 없으면 `null` 또는 빈 배열이다.
 - 이 공개 API는 사용자별 구매·해제 여부를 조회하지 않는다. 따라서 `FREE`, `LOCKED`, `ENTITLED` 접근 상태도 응답에 포함하지 않는다.
 - 사용자별 구매·해제 여부와 접근 상태는 인증된 후속 API의 범위로 정의한다.
+
+## 개발용 이미지 파일 API
+
+### GET /media/images/dramas/:dramaId/images/:kind/:filename
+
+개발 환경에서만 `MEDIA_STORAGE_ROOT` 아래 작품 이미지 파일을 응답한다. 요청은 `POSTER`, `HOME_HERO`, `DETAIL_COVER`, `CAMPAIGN` storage key에 대응하는 폴더와 `.webp` 파일로 제한한다. 영상, 다른 이미지 종류, 저장소 루트 밖의 파일은 `404 Not Found`를 반환한다. 운영 환경에는 이 로컬 파일 경로가 제공되지 않으며, 운영 이미지 URL은 추후 외부 스토리지 signed URL로 제공한다.
+
+성공 응답은 `Content-Type: image/webp`와 이미지 바이너리이며 JSON을 반환하지 않는다.
 
 ## 관련 데이터 모델
 

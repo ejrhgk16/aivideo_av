@@ -12,6 +12,12 @@ export interface HomeCollectionDrama {
     detailCover: string | null;
     campaigns: string[];
   };
+  imageUrls: {
+    poster: string | null;
+    homeHero: string | null;
+    detailCover: string | null;
+    campaigns: string[];
+  };
   previewVideos: Array<{ storageKey: string; durationMs: number }>;
   publishedEpisodeCount: number;
   freeEpisodeCount: number;

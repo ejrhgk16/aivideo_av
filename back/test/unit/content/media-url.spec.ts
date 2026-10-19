@@ -1,0 +1,32 @@
+import { describe, expect, it } from 'vitest';
+import { createDramaImageUrls } from '../../../src/content/media-url.js';
+
+describe('createDramaImageUrls', () => {
+  it('creates development URLs matching the local image endpoint', () => {
+    expect(
+      createDramaImageUrls(
+        {
+          poster: 'dramas/drama-1/images/poster/image-1.webp',
+          homeHero: 'dramas/drama-1/images/home-hero/image-2.webp',
+          detailCover: null,
+          campaigns: ['dramas/drama-1/images/campaign/image-3.webp'],
+        },
+        { NODE_ENV: 'development' },
+      ),
+    ).toEqual({
+      poster: '/media/images/dramas/drama-1/images/poster/image-1.webp',
+      homeHero: '/media/images/dramas/drama-1/images/home-hero/image-2.webp',
+      detailCover: null,
+      campaigns: ['/media/images/dramas/drama-1/images/campaign/image-3.webp'],
+    });
+  });
+
+  it('does not expose local URLs outside development', () => {
+    expect(
+      createDramaImageUrls(
+        { poster: 'poster.webp', homeHero: null, detailCover: null, campaigns: [] },
+        { NODE_ENV: 'production' },
+      ),
+    ).toEqual({ poster: null, homeHero: null, detailCover: null, campaigns: [] });
+  });
+});

@@ -1,54 +1,104 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type ImageStyle, type StyleProp, type ViewStyle } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { AppText, Button, DramaImage, Icon, Page, Poster, SectionTitle } from '@/components/ui';
+import { AppText, Button, DramaImage, EmptyState, Icon, Page, Poster, SectionTitle } from '@/components/ui';
 import { dramas, type Drama } from '@/features/drama/catalog';
 import { useExperience } from '@/features/drama/ExperienceProvider';
-import { getHomeCollection } from '@/features/home/homeContent';
+import { getHomeCollection, type HomeCollection, type HomeCollectionDrama } from '@/features/home/homeContent';
+import { resolveApiImageUrl } from '@/common/media';
 import { colors } from '@/common/theme/tokens';
 
 const tabs = ['추천', '최신', '랭킹', '장르'] as const;
 
-export function HomeScreen() {
-  useEffect(() => {
-    const collectionCodes = ['HOME_FEATURED', 'EDITORIAL_TOP_3', 'RECOMMENDATION_DAILY'];
+type CollectionStatus = 'loading' | 'loaded' | 'error';
 
-    void Promise.all(
-      collectionCodes.map(async (code) => {
-        try {
-          const collection = await getHomeCollection(code);
-          console.log(`[HomeScreen] ${code} collection`, collection);
-        } catch (error) {
-          console.error(`[HomeScreen] ${code} collection request failed`, error);
-        }
-      }),
-    );
-  }, []);
+function ApiDramaImage({ imageUrl, title, style }: { imageUrl: string | null; title: string; style: StyleProp<ImageStyle> }) {
+  return imageUrl
+    ? <Image source={{ uri: resolveApiImageUrl(imageUrl) ?? undefined }} accessibilityLabel={title + ' 표지'} contentFit="cover" transition={180} style={style} />
+    : <View accessibilityLabel={title + ' 표지 없음'} style={[style as StyleProp<ViewStyle>, styles.imagePlaceholder]} />;
+}
 
-  const router = useRouter();
-  const { width } = useWindowDimensions();
-  const { state, ready, toggleSave } = useExperience();
-  const [tab, setTab] = useState<(typeof tabs)[number]>('추천');
-  const [heroIndex, setHeroIndex] = useState(0);
-  const hero = dramas[heroIndex];
-  const heroHistory = state.history.find((entry) => entry.id === hero.id);
-  const heroSaved = state.saved.includes(hero.id);
-  const posterWidth = Math.min(Math.max((Math.min(width, 960) - 58) / 2, 140), 230);
-  const openDetail = (drama: Drama) => router.push({ pathname: '/drama/[id]', params: { id: drama.id } });
-  const play = (drama: Drama) => {
-    const history = state.history.find((entry) => entry.id === drama.id);
-    router.push({ pathname: '/player/[id]', params: { id: drama.id, ep: history?.ep ?? 1 } });
-  };
-  const openGenre = (genre: string) => router.push({ pathname: '/search', params: { genre } });
-  const ranks = <View>{dramas.map((drama) => (
-    <Pressable key={drama.id} accessibilityRole="button" accessibilityLabel={`${drama.rank}위 ${drama.title} 작품 소개`} style={styles.rankRow} onPress={() => openDetail(drama)}>
-      <AppText weight="bold" style={[styles.rankNumber, drama.rank === 1 && styles.accent]}>{drama.rank}</AppText>
-      <DramaImage drama={drama} style={styles.rankImage} />
-      <View style={styles.rankCopy}><AppText style={styles.overline}>{drama.studio}</AppText><AppText weight="semibold" style={styles.rankTitle}>{drama.title}</AppText><AppText style={styles.small}>{drama.tag} · {drama.mood} · {drama.total}부작</AppText><AppText style={styles.free}>{drama.free}화까지 무료</AppText></View>
+function collectionDramas(collection: HomeCollection | null): HomeCollectionDrama[] {
+  return [...(collection?.dramas ?? [])].sort((first, second) => first.displayOrder - second.displayOrder);
+}
+
+function ApiRankRows({ dramas: apiDramas, onPress }: { dramas: HomeCollectionDrama[]; onPress: (drama: HomeCollectionDrama) => void }) {
+  return <View>{apiDramas.map((drama, index) => (
+    <Pressable key={drama.id} accessibilityRole="button" accessibilityLabel={(index + 1) + '위 ' + drama.title + ' 작품 소개'} style={styles.rankRow} onPress={() => onPress(drama)}>
+      <AppText weight="bold" style={[styles.rankNumber, index === 0 && styles.accent]}>{index + 1}</AppText>
+      <ApiDramaImage imageUrl={drama.imageUrls.poster} title={drama.title} style={styles.rankImage} />
+      <View style={styles.rankCopy}>
+        <AppText style={styles.overline}>{drama.productionCompany?.name ?? '제작사 정보 없음'}</AppText>
+        <AppText weight="semibold" style={styles.rankTitle}>{drama.title}</AppText>
+        <AppText style={styles.small}>{drama.genres[0]?.name ?? '장르 정보 없음'} · {drama.publishedEpisodeCount}화</AppText>
+        <AppText style={styles.free}>{drama.freeEpisodeCount}화까지 무료</AppText>
+      </View>
       <Icon name="chevron-right" size={18} color={colors.muted} />
     </Pressable>
   ))}</View>;
+}
+
+function ApiPoster({ drama, width, onPress }: { drama: HomeCollectionDrama; width: number; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={drama.title + ' 작품 소개'} style={{ width, gap: 10 }}>
+      <View style={[styles.apiPoster, { height: width * 1.48 }]}>
+        <ApiDramaImage imageUrl={drama.imageUrls.poster} title={drama.title} style={StyleSheet.absoluteFill} />
+        <LinearGradient colors={['transparent', '#000000CC']} style={StyleSheet.absoluteFill} />
+        <View style={styles.apiPosterTitle}><AppText weight="bold" style={styles.apiPosterText}>{drama.title}</AppText></View>
+      </View>
+      <AppText weight="semibold" numberOfLines={1}>{drama.title}</AppText>
+      <AppText style={styles.apiMeta}>{drama.genres[0]?.name ?? '장르 정보 없음'} · {drama.freeEpisodeCount}화 무료</AppText>
+    </Pressable>
+  );
+}
+
+export function HomeScreen() {
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const { state } = useExperience();
+  const [tab, setTab] = useState<(typeof tabs)[number]>('추천');
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [featured, setFeatured] = useState<HomeCollection | null>(null);
+  const [featuredStatus, setFeaturedStatus] = useState<CollectionStatus>('loading');
+  const [daily, setDaily] = useState<HomeCollection | null>(null);
+  const [dailyStatus, setDailyStatus] = useState<CollectionStatus>('loading');
+  const [topThree, setTopThree] = useState<HomeCollection | null>(null);
+  const [topThreeStatus, setTopThreeStatus] = useState<CollectionStatus>('loading');
+
+  useEffect(() => {
+    let active = true;
+    void getHomeCollection('HOME_FEATURED').then(
+      (collection) => { if (active) { setFeatured(collection); setFeaturedStatus('loaded'); } },
+      () => { if (active) setFeaturedStatus('error'); },
+    );
+    void getHomeCollection('RECOMMENDATION_DAILY').then(
+      (collection) => { if (active) { setDaily(collection); setDailyStatus('loaded'); } },
+      () => { if (active) setDailyStatus('error'); },
+    );
+    void getHomeCollection('EDITORIAL_TOP_3').then(
+      (collection) => { if (active) { setTopThree(collection); setTopThreeStatus('loaded'); } },
+      () => { if (active) setTopThreeStatus('error'); },
+    );
+    return () => { active = false; };
+  }, []);
+
+  const featuredDramas = collectionDramas(featured);
+  const dailyDramas = collectionDramas(daily);
+  const topThreeDramas = collectionDramas(topThree);
+  const hero = featuredDramas[heroIndex];
+  const posterWidth = Math.min(Math.max((Math.min(width, 960) - 58) / 2, 140), 230);
+  const openDetail = (drama: Drama | HomeCollectionDrama) => router.push({ pathname: '/drama/[id]', params: { id: drama.id } });
+  const openGenre = (genre: string) => router.push({ pathname: '/search', params: { genre } });
+  const collectionState = (status: CollectionStatus, title: string, emptyDescription: string) => status === 'loading'
+    ? <EmptyState title={title + ' 불러오는 중'} description="잠시만 기다려 주세요." />
+    : status === 'error'
+      ? <EmptyState title={title + '을 불러오지 못했어요'} description="잠시 후 다시 확인해 주세요." />
+      : <EmptyState title={title + ' 작품이 없어요'} description={emptyDescription} />;
+  const ranks = topThreeStatus === 'loaded' && topThreeDramas.length > 0
+    ? <ApiRankRows dramas={topThreeDramas} onPress={openDetail} />
+    : collectionState(topThreeStatus, 'TOP 3', '새로운 작품을 준비하고 있어요.');
 
   return (
     <Page contentStyle={styles.page}>
@@ -62,20 +112,29 @@ export function HomeScreen() {
       <View style={styles.tabs} accessibilityRole="tablist">{tabs.map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: item === tab }} style={[styles.tab, item === tab && styles.selectedTab]} onPress={() => setTab(item)}><AppText weight={item === tab ? 'bold' : 'medium'} style={[styles.tabText, item === tab && styles.selectedText]}>{item}</AppText></Pressable>)}</View>
       {tab === '추천' ? <>
         <View style={styles.hero}>
-          <DramaImage drama={hero} style={StyleSheet.absoluteFill} contentFit="cover" contentPosition="top" />
+          {hero ? <ApiDramaImage imageUrl={hero.imageUrls.homeHero ?? hero.imageUrls.detailCover ?? hero.imageUrls.poster} title={hero.title} style={StyleSheet.absoluteFill as ImageStyle} /> : null}
           <LinearGradient pointerEvents="none" colors={['#0B0C0F00', '#0B0C0F29', '#0B0C0FE6', colors.background]} locations={[0.14, 0.35, 0.72, 1]} style={StyleSheet.absoluteFill} />
           <View style={styles.heroContent}>
-            <View style={styles.eyebrowRow}><View style={styles.liveDot} /><AppText weight="semibold" style={styles.eyebrow}>오늘의 발견  /  {hero.studio}</AppText></View>
-            <AppText style={styles.heroCopy}>{hero.copy}</AppText><AppText weight="bold" style={styles.heroTitle}>{hero.title}</AppText><AppText style={styles.heroMeta}>{hero.tag}  ·  회당 1분  ·  {hero.total}부작</AppText>
-            <View style={styles.heroActions}><Button style={styles.heroButton} disabled={!ready} label={heroHistory ? '이어서 보기' : width < 360 ? `${hero.free}화 무료로 보기` : `${hero.free}화까지 무료로 보기`} icon={<Icon name="play" size={17} color={colors.background} />} onPress={() => play(hero)} /><Pressable disabled={!ready} style={[styles.saveButton, heroSaved && styles.savedButton]} accessibilityRole="button" accessibilityLabel={heroSaved ? '저장 취소' : '작품 저장'} accessibilityState={{ selected: heroSaved }} onPress={() => toggleSave(hero.id)}><Icon name={heroSaved ? 'check' : 'plus'} size={23} color={heroSaved ? colors.accent : colors.text} /></Pressable></View>
-            <Pressable style={styles.detailLink} accessibilityRole="button" onPress={() => openDetail(hero)}><AppText style={styles.detailLinkText}>작품 소개</AppText><Icon name="arrow-up-right" size={14} color={colors.muted} /></Pressable>
+            {hero ? <>
+              <View style={styles.eyebrowRow}><View style={styles.liveDot} /><AppText weight="semibold" style={styles.eyebrow}>오늘의 발견  /  {hero.productionCompany?.name ?? '오늘의 추천'}</AppText></View>
+              <AppText style={styles.heroCopy}>{hero.shortDescription}</AppText><AppText weight="bold" style={styles.heroTitle}>{hero.title}</AppText>
+              <AppText style={styles.heroMeta}>{hero.genres[0]?.name ?? '장르 정보 없음'}  ·  {hero.publishedEpisodeCount}화 공개  ·  {hero.freeEpisodeCount}화 무료</AppText>
+              <View style={styles.heroActions}>
+                <Button style={styles.heroButton} disabled label="재생 준비 중" icon={<Icon name="play" size={17} color={colors.background} />} onPress={() => undefined} />
+                <Pressable disabled style={styles.saveButton} accessibilityRole="button" accessibilityLabel="저장 기능 준비 중" accessibilityState={{ disabled: true }}><Icon name="plus" size={23} color={colors.text} /></Pressable>
+              </View>
+              <Pressable style={styles.detailLink} accessibilityRole="button" onPress={() => openDetail(hero)}><AppText style={styles.detailLinkText}>작품 소개</AppText><Icon name="arrow-up-right" size={14} color={colors.muted} /></Pressable>
+            </> : <View style={styles.heroEmpty}>{collectionState(featuredStatus, '추천 작품', '추천 작품이 없습니다.')}</View>}
           </View>
-          <View style={styles.heroPagination}>{dramas.map((drama, index) => <Pressable key={drama.id} style={styles.heroPageButton} accessibilityRole="button" accessibilityLabel={`${drama.title} 추천 보기`} accessibilityState={{ selected: heroIndex === index }} onPress={() => setHeroIndex(index)}><View style={[styles.heroPageLine, heroIndex === index && styles.activePageLine]} /><AppText style={[styles.heroPageNumber, heroIndex === index && styles.accent]}>{String(index + 1).padStart(2, '0')}</AppText></Pressable>)}</View>
+          {featuredDramas.length > 1 ? <View style={styles.heroPagination}>{featuredDramas.map((drama, index) => <Pressable key={drama.id} style={styles.heroPageButton} accessibilityRole="button" accessibilityLabel={drama.title + ' 추천 보기'} accessibilityState={{ selected: heroIndex === index }} onPress={() => setHeroIndex(index)}><View style={[styles.heroPageLine, heroIndex === index && styles.activePageLine]} /><AppText style={[styles.heroPageNumber, heroIndex === index && styles.accent]}>{String(index + 1).padStart(2, '0')}</AppText></Pressable>)}</View> : null}
         </View>
-        <View style={styles.section}><SectionTitle eyebrow="QUICK ESCAPE" title="1분이면, 빠져드는 이야기" action="전체" onAction={() => setTab('최신')} /></View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.posterRail}>{dramas.map((drama) => <Poster key={drama.id} drama={drama} width={posterWidth} onPress={() => openDetail(drama)} />)}</ScrollView>
+        {dailyStatus === 'loaded' && dailyDramas.length > 0
+          ? <>
+            <View style={styles.section}><SectionTitle eyebrow="QUICK ESCAPE" title="1분이면, 빠져드는 이야기" action="전체" onAction={() => setTab('최신')} /></View>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.posterRail}>{dailyDramas.map((drama) => <ApiPoster key={drama.id} drama={drama} width={posterWidth} onPress={() => openDetail(drama)} />)}</ScrollView>
+          </>
+          : <View style={styles.section}><SectionTitle eyebrow="QUICK ESCAPE" title="1분이면, 빠져드는 이야기" />{collectionState(dailyStatus, '오늘의 추천', '추천 작품이 없습니다.')}</View>}
         <View style={styles.section}>
-          <Pressable style={styles.romanceBanner} accessibilityRole="button" accessibilityLabel="로맨스 작품 찾아보기" onPress={() => openGenre('로맨스')}><DramaImage drama={dramas[1]} style={StyleSheet.absoluteFill} contentPosition="top" /><LinearGradient pointerEvents="none" colors={['#0B0C0FDB', '#0B0C0F10']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} /><View style={styles.bannerContent}><AppText weight="medium" style={styles.eyebrow}>A LITTLE ROMANCE</AppText><AppText weight="bold" style={styles.bannerTitle}>{'오늘은,\n설레도 괜찮아.'}</AppText><AppText style={styles.bannerCopy}>퇴근길을 채울 로맨스 한 편</AppText><View style={styles.bannerLink}><AppText style={styles.bannerCopy}>로맨스 만나기</AppText><Icon name="arrow-up-right" size={16} color={colors.text} /></View></View></Pressable>
           <SectionTitle eyebrow="EDITOR’S PICK" title="지금 눈여겨볼 TOP 3" action="더 보기" onAction={() => setTab('랭킹')} />{ranks}
           <Pressable style={styles.previewLink} accessibilityRole="button" onPress={() => router.push('/recommend')}><View style={styles.previewIcon}><Icon name="film" color={colors.accent} size={24} /></View><View style={styles.flex}><AppText weight="semibold" style={styles.previewTitle}>어떤 이야기가 취향인가요?</AppText><AppText style={styles.small}>넘겨보며 다음 드라마를 골라보세요.</AppText></View><Icon name="arrow-right" color={colors.text} size={19} /></Pressable>
           <AppText style={styles.footer}>{'AI DRAMA · 앱 디자인 체험\n예시 작품과 포인트로 감상 흐름을 둘러보세요.'}</AppText>
@@ -94,13 +153,18 @@ const styles = StyleSheet.create({
   balance: { minHeight: 40, minWidth: 58, paddingHorizontal: 12, gap: 6, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 24, borderCurve: 'continuous' }, balanceNumber: { fontSize: 13 }, point: { color: colors.accent, fontSize: 11 },
   tabs: { flexDirection: 'row', gap: 25, paddingHorizontal: 22, marginBottom: 18 }, tab: { minHeight: 44, justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' }, selectedTab: { borderBottomColor: colors.accent }, tabText: { fontSize: 15, color: colors.muted }, selectedText: { color: colors.text },
   hero: { minHeight: 550, marginHorizontal: 14, borderRadius: 20, borderCurve: 'continuous', overflow: 'hidden', justifyContent: 'flex-end', backgroundColor: colors.surface },
+  heroEmpty: { paddingHorizontal: 22, paddingTop: 240, paddingBottom: 10 },
+  imagePlaceholder: { backgroundColor: colors.surface },
+  apiPoster: { overflow: 'hidden', borderRadius: 14, borderCurve: 'continuous', backgroundColor: colors.surface },
+  apiPosterTitle: { position: 'absolute', bottom: 16, left: 12, right: 10 },
+  apiPosterText: { fontSize: 22, lineHeight: 29, letterSpacing: -0.9 },
+  apiMeta: { fontSize: 13, lineHeight: 19, color: colors.muted },
   heroContent: { paddingHorizontal: 22, paddingTop: 240, paddingBottom: 10, gap: 12 }, eyebrowRow: { flexDirection: 'row', gap: 7, alignItems: 'center' }, liveDot: { width: 5, height: 5, borderRadius: 3, borderCurve: 'continuous', backgroundColor: colors.accent }, eyebrow: { fontSize: 9, lineHeight: 15, letterSpacing: 1.2, color: colors.text },
   heroCopy: { fontSize: 16, lineHeight: 23, color: '#E8EBE4' }, heroTitle: { fontSize: 40, lineHeight: 49, letterSpacing: -1.5 }, heroMeta: { fontSize: 11, lineHeight: 17, color: '#CAD0D0' }, heroActions: { flexDirection: 'row', gap: 8, marginTop: 7 },
   saveButton: { width: 50, minHeight: 50, borderRadius: 12, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' }, savedButton: { borderColor: '#65794A' },
   detailLink: { minHeight: 35, flexDirection: 'row', gap: 6, alignItems: 'center', alignSelf: 'flex-start' }, detailLinkText: { color: colors.muted, fontSize: 11 },
   heroPagination: { flexDirection: 'row', gap: 7, alignSelf: 'center', paddingBottom: 10 }, heroPageButton: { minWidth: 34, minHeight: 35, alignItems: 'center', justifyContent: 'center', gap: 4 }, heroPageLine: { width: 20, height: 2, backgroundColor: colors.border }, activePageLine: { width: 28, backgroundColor: colors.accent }, heroPageNumber: { fontSize: 9, color: colors.muted },
   section: { paddingHorizontal: 22, paddingTop: 30 }, posterRail: { paddingHorizontal: 22, gap: 14, paddingTop: 17, paddingBottom: 6 }, posterGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, paddingTop: 20 },
-  romanceBanner: { minHeight: 280, borderRadius: 18, borderCurve: 'continuous', overflow: 'hidden', marginBottom: 34 }, bannerContent: { padding: 24, gap: 12 }, bannerTitle: { fontSize: 29, lineHeight: 38, marginTop: 7 }, bannerCopy: { fontSize: 12, color: '#E5E8DF' }, bannerLink: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 10 },
   rankRow: { flexDirection: 'row', gap: 14, alignItems: 'center', paddingVertical: 20, borderBottomWidth: 1, borderBottomColor: colors.border }, rankNumber: { width: 26, fontSize: 31, color: colors.muted }, rankImage: { width: 60, height: 84, borderRadius: 7, borderCurve: 'continuous' }, rankCopy: { flex: 1, gap: 4 }, overline: { fontSize: 8, lineHeight: 13, letterSpacing: 1, color: colors.muted }, rankTitle: { fontSize: 16 }, small: { fontSize: 11, lineHeight: 17, color: colors.muted }, free: { fontSize: 10, color: colors.accent }, accent: { color: colors.accent },
   previewLink: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: 14, borderCurve: 'continuous', padding: 17, marginTop: 30 }, previewIcon: { width: 37, height: 46, justifyContent: 'center', alignItems: 'center' }, previewTitle: { fontSize: 14, marginBottom: 5 }, footer: { color: colors.muted, fontSize: 10, lineHeight: 17, textAlign: 'center', marginTop: 35 }, intro: { color: colors.muted, fontSize: 13, marginTop: 10, marginBottom: 10 },
   genreList: { gap: 15, marginTop: 20 }, genreTile: { minHeight: 175, borderRadius: 15, borderCurve: 'continuous', overflow: 'hidden', justifyContent: 'flex-end' }, genreContent: { padding: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, genreTitle: { fontSize: 28 },

@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { isAbsolute, relative, resolve } from 'node:path';
 import { completeTask, failTask, getHarnessStatus, getNext, isAllowedTestPath, normalizePath, readIndex } from '../../tools/harness/cli.mjs';
 
 const TEST_FILE = /(?:\.test\.(?:ts|tsx|mjs)|\.spec\.ts)$/;
@@ -91,11 +92,18 @@ function isInScope(file, allowed) {
   return allowed.has(file) || [...allowed].some((entry) => entry.endsWith('/') && file.startsWith(entry));
 }
 
+function writePath(value, repoRoot) {
+  if (!isAbsolute(value)) return normalizePath(value);
+  const file = relative(resolve(repoRoot), resolve(value));
+  if (isAbsolute(file)) throw new Error(`Path must be repository-relative: ${value}`);
+  return normalizePath(file);
+}
+
 function preFileWrite(input) {
   const repoRoot = repositoryRoot(input);
   let paths;
   try {
-    paths = filePaths(input).map(normalizePath);
+    paths = filePaths(input).map((file) => writePath(file, repoRoot));
   } catch (cause) {
     return deny(cause.message);
   }

@@ -154,8 +154,17 @@ describe('initial seed data', () => {
 
     for (const image of initialData.contentImages) {
       if (image.contentType === 'DRAMA') {
+        const kind = image.kind;
+        if (
+          kind !== 'POSTER' &&
+          kind !== 'HOME_HERO' &&
+          kind !== 'DETAIL_COVER' &&
+          kind !== 'CAMPAIGN'
+        ) {
+          throw new Error(`Unexpected drama image kind: ${kind}`);
+        }
         expect(image.storageKey).toBe(
-          createDramaImageStorageKey(image.contentId!, image.id!, image.kind!),
+          createDramaImageStorageKey(image.contentId!, image.id!, kind),
         );
       } else if (image.contentType === 'GENRE') {
         expect(image.storageKey).toBe(createGenreImageStorageKey(image.contentId!, image.id!));

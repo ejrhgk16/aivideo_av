@@ -22,7 +22,7 @@ function fixture() {
     plan_id: 'plan-1-hook',
     tasks: [{
         id: 'task-1', name: 'Hook task', status: 'pending', depends_on: [],
-        files: ['front/tests/unit/allowed.test.ts'], checks: [],
+        files: ['front/tests/unit/allowed.test.ts', 'back/test/unit/content/media-url.spec.ts'], checks: [],
       }],
   }, null, 2)}\n`);
   return repo;
@@ -53,6 +53,21 @@ test('file hook permits allowed tests and blocks source tests, web prototype, an
   assert.equal(invoke('pre-file-write', { cwd: repo, tool_input: { patch: '*** Update File: web-prototype/app.ts\n@@' } }).hookSpecificOutput.permissionDecision, 'deny');
   startTask(repo, 'plan-1-hook', 'task-1');
   assert.equal(invoke('pre-file-write', { cwd: repo, tool_input: { patch: '*** Update File: AGENTS.md\n@@' } }).hookSpecificOutput.permissionDecision, 'deny');
+});
+
+test('file hook accepts in-repository absolute paths and rejects paths outside the repository', () => {
+  const repo = fixture();
+  startTask(repo, 'plan-1-hook', 'task-1');
+
+  const allowed = join(repo, 'back', 'test', 'unit', 'content', 'media-url.spec.ts');
+  assert.deepEqual(invoke('pre-file-write', { cwd: repo, tool_input: { patch: `*** Add File: ${allowed}\n+test` } }), {});
+  assert.deepEqual(invoke('pre-file-write', { cwd: repo, tool_input: { patch: `*** Add File: ${allowed.replaceAll('\\', '/')}\n+test` } }), {});
+
+  const outOfScope = join(repo, 'front', 'src', 'other.ts');
+  assert.match(invoke('pre-file-write', { cwd: repo, tool_input: { patch: `*** Update File: ${outOfScope}\n@@` } }).hookSpecificOutput.permissionDecisionReason, /Active harness task does not declare front\/src\/other\.ts/);
+
+  const outside = join(tmpdir(), 'outside.test.ts');
+  assert.match(invoke('pre-file-write', { cwd: repo, tool_input: { patch: `*** Add File: ${outside}\n+test` } }).hookSpecificOutput.permissionDecisionReason, /Path must be repository-relative/);
 });
 
 test('bash hook blocks direct Git during an active task but permits the official finish command', () => {
