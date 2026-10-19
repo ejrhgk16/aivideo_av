@@ -169,6 +169,8 @@ const contentImages = [
   }),
 ];
 
+const episodeDurationsMs = [103125, 53453, 84084, 92459, 68610, 92593, 52500];
+
 const episodes = dramas.flatMap((drama, dramaIndex) =>
   [1, 2, 3, 4].map((episodeNumber) => ({
     id: fixedId(4, dramaIndex * 10 + episodeNumber),
@@ -176,7 +178,7 @@ const episodes = dramas.flatMap((drama, dramaIndex) =>
     episodeNumber,
     title: `${episodeNumber}화`,
     synopsis: `${drama.title} ${episodeNumber}화 이야기`,
-    durationMs: 120000 + episodeNumber * 1000,
+    durationMs: episodeDurationsMs[(dramaIndex * 4 + episodeNumber - 1) % episodeDurationsMs.length],
     pricePoints: episodeNumber === 1 ? 0 : episodeNumber * 10,
     status: 'PUBLISHED',
     publishedAt,
@@ -208,7 +210,7 @@ const contentVideos = [
         contentId: drama.id,
         kind: 'PREVIEW',
         storageKey: createDramaPreviewStorageKey(drama.id, id),
-        durationMs: 30000,
+        durationMs: 15000,
         displayOrder,
       };
     }),

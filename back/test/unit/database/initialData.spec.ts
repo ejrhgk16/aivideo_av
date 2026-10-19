@@ -125,6 +125,7 @@ describe('initial seed data', () => {
 
       expect(videos.map(({ kind }) => kind)).toEqual(['PREVIEW', 'PREVIEW']);
       expect(videos.map(({ displayOrder }) => displayOrder)).toEqual([1, 2]);
+      expect(videos.map(({ durationMs }) => durationMs)).toEqual([15000, 15000]);
     }
 
     for (const episode of initialData.episodes) {
@@ -134,6 +135,7 @@ describe('initial seed data', () => {
 
       expect(videos.map(({ kind }) => kind)).toEqual(['FULL']);
       expect(videos.every(({ storageKey }) => storageKey?.includes(episode.id!))).toBe(true);
+      expect(videos[0].durationMs).toBe(episode.durationMs);
     }
   });
 
