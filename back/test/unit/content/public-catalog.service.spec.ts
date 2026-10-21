@@ -33,6 +33,27 @@ function queryBuilder<T>(rows: T[]) {
   return builder;
 }
 
+function episodePlaybackQueryBuilder() {
+  const builder = {
+    innerJoin: vi.fn(),
+    select: vi.fn(),
+    addSelect: vi.fn(),
+    where: vi.fn(),
+    andWhere: vi.fn(),
+    orderBy: vi.fn(),
+    limit: vi.fn(),
+    getRawOne: vi.fn(),
+  };
+  builder.innerJoin.mockReturnValue(builder);
+  builder.select.mockReturnValue(builder);
+  builder.addSelect.mockReturnValue(builder);
+  builder.where.mockReturnValue(builder);
+  builder.andWhere.mockReturnValue(builder);
+  builder.orderBy.mockReturnValue(builder);
+  builder.limit.mockReturnValue(builder);
+  return builder;
+}
+
 describe('PublicCatalogService', () => {
   afterEach(() => vi.unstubAllEnvs());
 
@@ -153,19 +174,13 @@ describe('PublicCatalogService', () => {
     vi.stubEnv('NODE_ENV', 'development');
     const now = new Date('2026-10-09T00:00:00.000Z');
     const dramas = repository();
-    dramas.findOne.mockResolvedValue(Object.assign(new Drama(), {
-      id: 'drama-1', status: 'PUBLISHED', publishedAt: new Date('2026-10-08T00:00:00.000Z'),
-    }));
     const episodes = repository();
-    episodes.findOne.mockResolvedValue(Object.assign(new Episode(), {
-      id: 'episode-1', dramaId: 'drama-1', episodeNumber: 1, title: '첫 번째 이야기', durationMs: 3000,
-      status: 'PUBLISHED', publishedAt: new Date('2026-10-08T00:00:00.000Z'),
-    }));
+    const qb = episodePlaybackQueryBuilder();
+    episodes.createQueryBuilder = vi.fn().mockReturnValue(qb);
+    qb.getRawOne.mockResolvedValue({
+      storageKey: 'first.mp4', title: '첫 번째 이야기', episodeNumber: 1, durationMs: 1000,
+    });
     const videos = repository();
-    videos.findBy.mockResolvedValue([
-      Object.assign(new ContentVideo(), { contentType: 'EPISODE', contentId: 'episode-1', kind: 'FULL', storageKey: 'second.mp4', durationMs: 2000, displayOrder: 2 }),
-      Object.assign(new ContentVideo(), { contentType: 'EPISODE', contentId: 'episode-1', kind: 'FULL', storageKey: 'first.mp4', durationMs: 1000, displayOrder: 1 }),
-    ]);
     const service = new PublicCatalogService(
       dramas as never, repository() as never, repository() as never, repository() as never,
       repository() as never, videos as never, episodes as never,
@@ -177,7 +192,21 @@ describe('PublicCatalogService', () => {
       episodeNumber: 1,
       durationMs: 1000,
     });
-    expect(videos.findBy).toHaveBeenCalledWith({ contentType: 'EPISODE', contentId: 'episode-1', kind: 'FULL' });
+    expect(episodes.createQueryBuilder).toHaveBeenCalledWith('episode');
+    expect(qb.innerJoin).toHaveBeenNthCalledWith(1, Drama, 'drama', expect.stringContaining('drama.id = episode.dramaId AND drama.status = :dramaStatus AND drama.publishedAt <= :now'), {
+      dramaStatus: 'PUBLISHED', now,
+    });
+    expect(qb.innerJoin).toHaveBeenNthCalledWith(2, ContentVideo, 'video', expect.stringContaining('video.contentType = :contentType AND video.contentId = episode.id AND video.kind = :kind'), {
+      contentType: 'EPISODE', kind: 'FULL',
+    });
+    expect(qb.where).toHaveBeenCalledWith('episode.id = :episodeId', { episodeId: 'episode-1' });
+    expect(qb.andWhere).toHaveBeenCalledWith('episode.status = :episodeStatus', { episodeStatus: 'PUBLISHED' });
+    expect(qb.andWhere).toHaveBeenCalledWith('episode.publishedAt <= :now', { now });
+    expect(qb.orderBy).toHaveBeenCalledWith('video.displayOrder', 'ASC');
+    expect(qb.limit).toHaveBeenCalledWith(1);
+    expect(qb.getRawOne).toHaveBeenCalledTimes(1);
+    expect(dramas.findOne).not.toHaveBeenCalled();
+    expect(videos.findBy).not.toHaveBeenCalled();
   });
 
   it('rejects missing or unpublished playback content and episodes without a full video', async () => {
@@ -185,26 +214,23 @@ describe('PublicCatalogService', () => {
     const now = new Date('2026-10-09T00:00:00.000Z');
     const dramas = repository();
     const episodes = repository();
+    const qb = episodePlaybackQueryBuilder();
+    episodes.createQueryBuilder = vi.fn().mockReturnValue(qb);
+    qb.getRawOne.mockResolvedValue(null);
     const videos = repository();
     const service = new PublicCatalogService(
       dramas as never, repository() as never, repository() as never, repository() as never,
       repository() as never, videos as never, episodes as never,
     );
 
-    episodes.findOne.mockResolvedValue(null);
     await expect(service.getEpisodePlaybackUrl('missing', now)).rejects.toBeInstanceOf(NotFoundException);
 
-    episodes.findOne.mockResolvedValue(Object.assign(new Episode(), {
-      id: 'episode-1', dramaId: 'drama-1', status: 'PUBLISHED', publishedAt: new Date('2026-10-08T00:00:00.000Z'),
-    }));
-    dramas.findOne.mockResolvedValue(null);
     await expect(service.getEpisodePlaybackUrl('episode-1', now)).rejects.toBeInstanceOf(NotFoundException);
 
-    dramas.findOne.mockResolvedValue(Object.assign(new Drama(), {
-      id: 'drama-1', status: 'PUBLISHED', publishedAt: new Date('2026-10-08T00:00:00.000Z'),
-    }));
-    videos.findBy.mockResolvedValue([]);
     await expect(service.getEpisodePlaybackUrl('episode-1', now)).rejects.toBeInstanceOf(NotFoundException);
+    expect(qb.getRawOne).toHaveBeenCalledTimes(3);
+    expect(dramas.findOne).not.toHaveBeenCalled();
+    expect(videos.findBy).not.toHaveBeenCalled();
   });
 
   it('does not issue local playback URLs outside development', async () => {

@@ -253,34 +253,29 @@ export class PublicCatalogService {
   }
 
   private async getEpisodeVideo(episodeId: string, now: Date): Promise<{ storageKey: string; title: string | null; episodeNumber: number; durationMs: number }> {
-    const episode = await this.episodeRepository.findOne({ where: { id: episodeId, status: PUBLIC_STATUS } });
-    if (
-      !episode ||
-      episode.status !== PUBLIC_STATUS ||
-      episode.publishedAt === null ||
-      episode.publishedAt > now
-    ) {
-      throw new NotFoundException(`Episode '${episodeId}' was not found`);
-    }
+    const video = await this.episodeRepository
+      .createQueryBuilder('episode')
+      .innerJoin(Drama, 'drama', 'drama.id = episode.dramaId AND drama.status = :dramaStatus AND drama.publishedAt <= :now', {
+        dramaStatus: PUBLIC_STATUS,
+        now,
+      })
+      .innerJoin(ContentVideo, 'video', 'video.contentType = :contentType AND video.contentId = episode.id AND video.kind = :kind', {
+        contentType: 'EPISODE',
+        kind: 'FULL',
+      })
+      .select('video.storageKey', 'storageKey')
+      .addSelect('video.durationMs', 'durationMs')
+      .addSelect('episode.title', 'title')
+      .addSelect('episode.episodeNumber', 'episodeNumber')
+      .where('episode.id = :episodeId', { episodeId })
+      .andWhere('episode.status = :episodeStatus', { episodeStatus: PUBLIC_STATUS })
+      .andWhere('episode.publishedAt <= :now', { now })
+      .orderBy('video.displayOrder', 'ASC')
+      .limit(1)
+      .getRawOne<{ storageKey: string; title: string | null; episodeNumber: number; durationMs: number }>();
 
-    const drama = await this.dramaRepository.findOne({ where: { id: episode.dramaId, status: PUBLIC_STATUS } });
-    if (
-      !drama ||
-      drama.status !== PUBLIC_STATUS ||
-      drama.publishedAt === null ||
-      drama.publishedAt > now
-    ) {
-      throw new NotFoundException(`Episode '${episodeId}' was not found`);
-    }
-
-    const videos = await this.contentVideoRepository.findBy({
-      contentType: 'EPISODE',
-      contentId: episodeId,
-      kind: 'FULL',
-    });
-    const video = videos.sort((left, right) => left.displayOrder - right.displayOrder)[0];
     if (!video) throw new NotFoundException(`Episode '${episodeId}' was not found`);
-    return { storageKey: video.storageKey, title: episode.title, episodeNumber: episode.episodeNumber, durationMs: video.durationMs };
+    return video;
   }
 
   async getEpisodeVideoStorageKey(episodeId: string, now = new Date()): Promise<string> {

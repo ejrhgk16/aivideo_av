@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "plan_id": "plan-14-episode-playback-single-query",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "Fetch episode playback data with one joined query",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/content/public-catalog.service.ts",
+        "back/test/unit/content/public-catalog.service.spec.ts",
+        "_docs/api/04-playback/episodes.md",
+        "_docs/AI_DRAMA_data_model/02-content/content_videos.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-21T07:47:15.182Z",
+      "summary": "Replaced the playback lookup with one query joining episodes, dramas, and content_videos; added tests for join filters, display order, and 404 behavior; updated the API and data model docs. Lint, all 40 tests, and build passed.",
+      "completed_at": "2026-10-21T07:49:44.890Z"
+    }
+  ]
+}

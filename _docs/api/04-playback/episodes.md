@@ -18,6 +18,7 @@
 
 #### 공개 및 재생 조건
 
+- 조회는 `episodes`에서 시작해 `episodes.drama_id = dramas.id`로 작품을 조인하고, `content_videos.content_type = 'EPISODE'`, `content_videos.content_id = episodes.id`, `content_videos.kind = 'FULL'`인 영상 행을 조인한다. `content_videos.content_id`는 다형성 참조이므로 대상 종류 조건도 함께 적용한다.
 - 작품과 회차가 모두 `status = PUBLISHED`이고 `published_at`이 현재 시각 이하일 때만 URL을 발급한다.
 - 해당 회차의 `contentType = EPISODE`, `kind = FULL` 영상 중 `displayOrder`가 가장 낮은 영상을 선택한다.
 - 회차 가격이나 사용자별 구매·해제 여부를 확인하지 않는다. 공개 회차라면 가격과 무관하게 URL을 제공한다.
@@ -38,6 +39,7 @@
 `url`은 API 서버 기준 경로이며, 향후 서명 URL로 교체될 수 있다.
 `title`은 회차명이며, 회차명 데이터가 없으면 `null`이다. `episodeNumber`는 작품 내 회차 번호다.
 `durationMs`는 선택된 `FULL` 영상의 재생 시간(밀리초)이다.
+`title`과 `episodeNumber`는 `episodes`에서, `durationMs`와 개발용 파일 제공에 쓰는 `storage_key`는 조인된 `content_videos` 행에서 가져온다. 작품 공개 여부는 조인된 `dramas` 행에서 확인한다.
 
 ## 개발용 회차 영상 파일 API
 

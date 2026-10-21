@@ -27,7 +27,8 @@
       "expo-router",
       "expo-status-bar",
       "expo-image",
-      "expo-font"
+      "expo-font",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true
