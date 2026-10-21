@@ -3,9 +3,8 @@ import { PanResponder, Pressable, ScrollView, StyleSheet, useWindowDimensions, V
 import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { AppText, Button, DramaImage, EmptyState, Icon, Page, Poster, SectionTitle } from '@/components/ui';
-import { dramas, type Drama } from '@/features/drama/catalog';
-import { useExperience } from '@/features/drama/ExperienceProvider';
+import { AppText, Button, EmptyState, Icon, Page, SectionTitle } from '@/components/ui';
+import { getDramaList, type DramaSummary } from '@/features/drama/dramaContent';
 import { getHomeCollection, type HomeCollection, type HomeCollectionDrama } from '@/features/home/homeContent';
 import { resolveApiImageUrl } from '@/common/media';
 import { colors } from '@/common/theme/tokens';
@@ -25,6 +24,10 @@ function collectionDramas(collection: HomeCollection | null): HomeCollectionDram
 }
 
 function genreLabel(drama: HomeCollectionDrama): string {
+  return drama.genres.map((genre) => genre.name).join(' · ') || '장르 정보 없음';
+}
+
+function summaryGenreLabel(drama: DramaSummary): string {
   return drama.genres.map((genre) => genre.name).join(' · ') || '장르 정보 없음';
 }
 
@@ -59,7 +62,6 @@ function ApiPoster({ drama, width, onPress }: { drama: HomeCollectionDrama; widt
 export function HomeScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { state } = useExperience();
   const [tab, setTab] = useState<(typeof tabs)[number]>('추천');
   const [heroIndex, setHeroIndex] = useState(0);
   const [heroWidth, setHeroWidth] = useState(0);
@@ -70,6 +72,8 @@ export function HomeScreen() {
   const [campaign, setCampaign] = useState<HomeCollection | null>(null);
   const [topThree, setTopThree] = useState<HomeCollection | null>(null);
   const [topThreeStatus, setTopThreeStatus] = useState<CollectionStatus>('loading');
+  const [catalog, setCatalog] = useState<DramaSummary[]>([]);
+  const [catalogStatus, setCatalogStatus] = useState<CollectionStatus>('loading');
 
   useEffect(() => {
     let active = true;
@@ -89,6 +93,10 @@ export function HomeScreen() {
       (collection) => { if (active) setCampaign(collection); },
       () => undefined,
     );
+    void getDramaList().then(
+      (dramaList) => { if (active) { setCatalog(dramaList); setCatalogStatus('loaded'); } },
+      () => { if (active) setCatalogStatus('error'); },
+    );
     return () => { active = false; };
   }, []);
 
@@ -105,7 +113,7 @@ export function HomeScreen() {
     },
   }), [featuredDramas.length, heroWidth]);
   const posterWidth = Math.min(Math.max((Math.min(width, 960) - 58) / 2, 140), 230);
-  const openDetail = (drama: Drama | HomeCollectionDrama) => router.push({ pathname: '/drama/[id]', params: { id: drama.id } });
+  const openDetail = (drama: DramaSummary | HomeCollectionDrama) => router.push({ pathname: '/drama/[id]', params: { id: drama.id } });
   const openGenre = (genre: string) => router.push({ pathname: '/search', params: { genre } });
   const collectionState = (status: CollectionStatus, title: string, emptyDescription: string) => status === 'loading'
     ? <EmptyState title={title + ' 불러오는 중'} description="잠시만 기다려 주세요." />
@@ -121,7 +129,6 @@ export function HomeScreen() {
       <View style={styles.header}>
         <View style={styles.wordmark}><AppText weight="bold" style={styles.logo}>AI DRAMA</AppText><View style={styles.logoDot} /></View>
         <View style={styles.headerActions}>
-          <Pressable style={styles.balance} accessibilityRole="button" accessibilityLabel={`보유 ${state.balance}포인트, 충전하기`} onPress={() => router.push('/wallet')}><AppText weight="semibold" style={styles.balanceNumber}>{state.balance.toLocaleString()}</AppText><AppText weight="bold" style={styles.point}>P</AppText></Pressable>
           <Pressable style={styles.iconButton} accessibilityRole="button" accessibilityLabel="작품 찾기" onPress={() => router.push('/search')}><Icon name="search" size={22} color={colors.text} /></Pressable>
         </View>
       </View>
@@ -162,9 +169,8 @@ export function HomeScreen() {
         <View style={styles.section}>
           <SectionTitle eyebrow="EDITOR’S PICK" title="지금 눈여겨볼 TOP 3" action="더 보기" onAction={() => setTab('랭킹')} />{ranks}
           <Pressable style={styles.previewLink} accessibilityRole="button" onPress={() => router.push('/recommend')}><View style={styles.previewIcon}><Icon name="film" color={colors.accent} size={24} /></View><View style={styles.flex}><AppText weight="semibold" style={styles.previewTitle}>어떤 이야기가 취향인가요?</AppText><AppText style={styles.small}>넘겨보며 다음 드라마를 골라보세요.</AppText></View><Icon name="arrow-right" color={colors.text} size={19} /></Pressable>
-          <AppText style={styles.footer}>{'AI DRAMA · 앱 디자인 체험\n예시 작품과 포인트로 감상 흐름을 둘러보세요.'}</AppText>
         </View>
-      </> : tab === '최신' ? <View style={styles.section}><SectionTitle eyebrow="JUST ARRIVED" title="새로운 이야기가 도착했어요" /><View style={styles.posterGrid}>{dramas.map((drama) => <Poster key={drama.id} drama={drama} width={posterWidth} onPress={() => openDetail(drama)} />)}</View></View> : tab === '랭킹' ? <View style={styles.section}><SectionTitle eyebrow="THE TOP THREE" title="지금 눈여겨볼 TOP 3" /><AppText style={styles.intro}>편집부가 고른 이번 주의 이야기</AppText>{ranks}</View> : <View style={styles.section}><SectionTitle eyebrow="FIND YOUR MOOD" title="오늘은 어떤 이야기인가요?" /><View style={styles.genreList}>{dramas.map((drama) => <Pressable key={drama.id} style={styles.genreTile} accessibilityRole="button" accessibilityLabel={`${drama.tag} 작품 찾기`} onPress={() => openGenre(drama.tag)}><DramaImage drama={drama} style={StyleSheet.absoluteFill} contentPosition="top" /><LinearGradient pointerEvents="none" colors={['#0B0C0FDB', '#0B0C0F10']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} /><View style={styles.genreContent}><AppText weight="bold" style={styles.genreTitle}>{drama.tag}</AppText><Icon name="arrow-up-right" color={colors.text} size={23} /></View></Pressable>)}</View></View>}
+      </> : tab === '최신' ? <View style={styles.section}><SectionTitle eyebrow="JUST ARRIVED" title="새로운 이야기가 도착했어요" />{catalogStatus === 'loaded' && catalog.length > 0 ? <View style={styles.posterGrid}>{catalog.map((drama) => <Pressable key={drama.id} accessibilityRole="button" accessibilityLabel={drama.title + ' 작품 소개'} style={{ width: posterWidth, gap: 10 }} onPress={() => openDetail(drama)}><View style={[styles.apiPoster, { height: posterWidth * 1.48 }]}><ApiDramaImage imageUrl={drama.imageUrls.poster} title={drama.title} style={StyleSheet.absoluteFill} /></View><AppText weight="semibold" numberOfLines={1}>{drama.title}</AppText><AppText style={styles.apiMeta}>{summaryGenreLabel(drama)} · {drama.freeEpisodeCount}화 무료</AppText></Pressable>)}</View> : collectionState(catalogStatus, '최신 작품', '새로운 작품을 준비하고 있어요.')}</View> : tab === '랭킹' ? <View style={styles.section}><SectionTitle eyebrow="THE TOP THREE" title="지금 눈여겨볼 TOP 3" /><AppText style={styles.intro}>편집부가 고른 이번 주의 이야기</AppText>{ranks}</View> : <View style={styles.section}><SectionTitle eyebrow="FIND YOUR MOOD" title="오늘은 어떤 이야기인가요?" />{catalogStatus === 'loaded' && catalog.some((drama) => drama.genres.length > 0) ? <View style={styles.genreList}>{Array.from(new Map(catalog.flatMap((drama) => drama.genres.map((genre) => [genre.name, { genre, drama }] as const))).values()).map(({ genre, drama }) => <Pressable key={genre.id} style={styles.genreTile} accessibilityRole="button" accessibilityLabel={`${genre.name} 작품 찾기`} onPress={() => openGenre(genre.code)}><ApiDramaImage imageUrl={drama.imageUrls.posterLandscape ?? drama.imageUrls.poster} title={genre.name} style={StyleSheet.absoluteFill} /><LinearGradient pointerEvents="none" colors={['#0B0C0FDB', '#0B0C0F10']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} /><View style={styles.genreContent}><AppText weight="bold" style={styles.genreTitle}>{genre.name}</AppText><Icon name="arrow-up-right" color={colors.text} size={23} /></View></Pressable>)}</View> : collectionState(catalogStatus, '장르', '작품 장르를 준비하고 있어요.')}</View>}
     </Page>
   );
 }
@@ -175,7 +181,6 @@ const styles = StyleSheet.create({
   wordmark: { flexDirection: 'row', alignItems: 'center', gap: 5 }, logo: { fontSize: 22, letterSpacing: -1.1 },
   logoDot: { width: 5, height: 5, borderRadius: 3, borderCurve: 'continuous', backgroundColor: colors.accent, marginTop: 13 },
   headerActions: { flexDirection: 'row', gap: 8, alignItems: 'center' }, iconButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  balance: { minHeight: 40, minWidth: 58, paddingHorizontal: 12, gap: 6, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', backgroundColor: colors.surface, borderRadius: 24, borderCurve: 'continuous' }, balanceNumber: { fontSize: 13 }, point: { color: colors.accent, fontSize: 11 },
   tabs: { flexDirection: 'row', gap: 25, paddingHorizontal: 22, marginBottom: 18 }, tab: { minHeight: 44, justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' }, selectedTab: { borderBottomColor: colors.accent }, tabText: { fontSize: 15, color: colors.muted }, selectedText: { color: colors.text },
   hero: { minHeight: 550, marginHorizontal: 14, borderRadius: 20, borderCurve: 'continuous', overflow: 'hidden', justifyContent: 'flex-end', backgroundColor: colors.surface },
   heroEmpty: { paddingHorizontal: 22, paddingTop: 240, paddingBottom: 10 },
@@ -190,6 +195,6 @@ const styles = StyleSheet.create({
   section: { paddingHorizontal: 22, paddingTop: 30 }, posterRail: { paddingHorizontal: 22, gap: 14, paddingTop: 17, paddingBottom: 6 }, posterGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, paddingTop: 20 },
   rankRow: { flexDirection: 'row', gap: 8, alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border }, rankNumber: { width: 18, fontSize: 22, color: colors.muted }, rankImage: { width: 112, height: 63, borderRadius: 7, borderCurve: 'continuous' }, rankCopy: { flex: 1, minWidth: 0, gap: 3 }, overline: { fontSize: 8, lineHeight: 12, letterSpacing: 1, color: colors.muted }, rankTitle: { fontSize: 14 }, small: { fontSize: 10, lineHeight: 14, color: colors.muted }, free: { fontSize: 10, lineHeight: 14, color: colors.accent }, accent: { color: colors.accent },
   campaignBanner: { aspectRatio: 2, marginHorizontal: 22, marginTop: 30, borderRadius: 16, borderCurve: 'continuous', overflow: 'hidden', justifyContent: 'flex-end', backgroundColor: colors.surface }, campaignCopy: { paddingHorizontal: 18, paddingVertical: 15, gap: 5 }, campaignEyebrow: { fontSize: 11, color: '#E8EBE4' }, campaignTitle: { fontSize: 18, lineHeight: 24 }, campaignLink: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }, campaignLinkText: { fontSize: 11 },
-  previewLink: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: 14, borderCurve: 'continuous', padding: 17, marginTop: 30 }, previewIcon: { width: 37, height: 46, justifyContent: 'center', alignItems: 'center' }, previewTitle: { fontSize: 14, marginBottom: 5 }, footer: { color: colors.muted, fontSize: 10, lineHeight: 17, textAlign: 'center', marginTop: 35 }, intro: { color: colors.muted, fontSize: 13, marginTop: 10, marginBottom: 10 },
+  previewLink: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: 14, borderCurve: 'continuous', padding: 17, marginTop: 30 }, previewIcon: { width: 37, height: 46, justifyContent: 'center', alignItems: 'center' }, previewTitle: { fontSize: 14, marginBottom: 5 }, intro: { color: colors.muted, fontSize: 13, marginTop: 10, marginBottom: 10 },
   genreList: { gap: 15, marginTop: 20 }, genreTile: { minHeight: 175, borderRadius: 15, borderCurve: 'continuous', overflow: 'hidden', justifyContent: 'flex-end' }, genreContent: { padding: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, genreTitle: { fontSize: 28 },
 });

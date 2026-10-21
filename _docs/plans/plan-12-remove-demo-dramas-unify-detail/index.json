@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "plan_id": "plan-12-remove-demo-dramas-unify-detail",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "Unify API drama detail",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/screens/DramaDetailScreen.tsx",
+        "front/src/screens/ApiDramaDetailScreen.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-21T05:13:39.343Z",
+      "summary": "통합 상세 화면이 모든 작품 ID를 API에서 불러오도록 바꾸고 소개·회차 탭과 번호순 네모 회차 격자를 적용했습니다. 로딩·404·요청 실패·표지 없음·공개 회차 없음 상태를 처리하며, 회차 선택이나 데모 액션은 제거했습니다. ApiDramaDetailScreen.tsx를 삭제했습니다. typecheck, test(17개 통과), export를 확인했습니다.",
+      "completed_at": "2026-10-21T05:15:25.127Z"
+    },
+    {
+      "id": "task-2",
+      "name": "Use API catalog in home and search",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/features/drama/dramaContent.ts",
+        "front/src/screens/HomeScreen.tsx",
+        "front/src/screens/SearchScreen.tsx",
+        "front/tests/unit/dramaContent.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-21T05:13:51.848Z",
+      "summary": "GET /dramas?sort=latest 목록 조회와 URL·오류 단위 테스트를 추가하고, 홈 최신·장르 및 검색을 공개 API 작품 목록으로 연결했습니다. 포인트 표시를 제거하고 로딩·실패·빈 상태와 포스터 자리표시를 처리했습니다. typecheck, test(19 passed), export 모두 통과했습니다.",
+      "completed_at": "2026-10-21T05:16:43.226Z"
+    },
+    {
+      "id": "task-3",
+      "name": "Remove demo-only screen flows",
+      "status": "completed",
+      "depends_on": [
+        "task-1",
+        "task-2"
+      ],
+      "files": [
+        "front/src/screens/RecommendationScreen.tsx",
+        "front/src/screens/LibraryScreen.tsx",
+        "front/src/screens/AccountScreen.tsx",
+        "front/src/screens/PlayerScreen.tsx",
+        "front/src/screens/WalletScreen.tsx",
+        "front/src/app/_layout.tsx",
+        "front/src/app/player/[id].tsx",
+        "front/src/app/wallet.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-21T05:16:50.708Z",
+      "summary": "추천 탭을 RECOMMENDATION_DAILY API 포스터와 상세 이동으로 바꾸고, 보관함을 저장·시청 기록 API 미연결 상태로 표시했습니다. 내 정보에서 포인트·로컬 기록·데모 재생 설정을 제거하고 재생·포인트 화면과 라우트를 삭제했으며 루트 Provider 참조를 정리했습니다. typecheck, test(19개 통과), export 모두 통과했습니다.",
+      "completed_at": "2026-10-21T05:19:16.592Z"
+    },
+    {
+      "id": "task-4",
+      "name": "Delete demo catalog and assets",
+      "status": "completed",
+      "depends_on": [
+        "task-3"
+      ],
+      "files": [
+        "front/src/features/drama/catalog.ts",
+        "front/src/features/drama/ExperienceProvider.tsx",
+        "front/src/features/drama/experience.ts",
+        "front/src/common/storage/experienceStorage.ts",
+        "front/src/common/shareDrama.ts",
+        "front/src/components/ui.tsx",
+        "front/src/common/media.ts",
+        "front/tests/unit/experience.test.ts",
+        "front/tests/unit/media.test.ts",
+        "front/scripts/test-experience.cjs",
+        "front/scripts/test-front.cjs",
+        "front/package.json",
+        "front/package-lock.json",
+        "front/.env.example",
+        "front/README.md",
+        "front/media/images/signal.jpg",
+        "front/media/images/season.jpg",
+        "front/media/images/moon.jpg"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-21T05:37:09.161Z",
+      "summary": "세 데모 이미지와 정적 카탈로그·체험 상태·공유 파일이 제거됐고, API 이미지 URL 처리는 유지했습니다. 테스트 스크립트와 의존성, .env 예시 및 README를 갱신했습니다. typecheck, test(8개 통과), export가 모두 통과했습니다.",
+      "completed_at": "2026-10-21T05:37:54.733Z"
+    }
+  ]
+}

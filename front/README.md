@@ -12,9 +12,9 @@ npm ci
 npm start
 ```
 
-미디어 base URL은 `front/.env.development`에서 설정합니다. `EXPO_PUBLIC_IMAGE_BASE_URL`과 `EXPO_PUBLIC_VIDEO_BASE_URL`에는 앱에서 접근 가능한 HTTP(S) URL을 넣어야 하며, 개발 PC의 `C:\...` 파일 경로는 사용할 수 없습니다. 예시는 `.env.example`에 있습니다.
+API 주소는 `front/.env.development`에서 `EXPO_PUBLIC_API_BASE_URL`로 설정합니다. 앱에서 접근 가능한 HTTP(S) URL을 사용하고, 실제 기기에서는 `localhost` 대신 개발 PC의 LAN IP와 API 포트를 지정합니다. 예시는 `.env.example`에 있습니다.
 
-홈 컬렉션과 작품 상세 데이터는 `EXPO_PUBLIC_API_BASE_URL`의 NestJS API에서 가져옵니다. 개발 중 API는 `back/.env.development`의 `MEDIA_STORAGE_ROOT`가 가리키는 `front/media/` 파일을 `/media/images/` 경로로 제공합니다. API 응답의 상대 이미지 URL은 API 주소에 연결하고, 절대 URL(운영 signed URL 포함)은 그대로 사용합니다. 실제 기기에서 확인할 때는 `localhost` 대신 개발 PC의 LAN IP와 API 포트를 `EXPO_PUBLIC_API_BASE_URL`에 설정해야 합니다.
+홈 컬렉션, 검색, 작품 상세 데이터와 이미지는 `EXPO_PUBLIC_API_BASE_URL`의 NestJS API에서 가져옵니다. API 응답의 상대 이미지 URL은 API 주소에 연결하고, 절대 URL(운영 signed URL 포함)은 그대로 사용합니다. 개발 중 API는 `back/.env.development`의 `MEDIA_STORAGE_ROOT`가 가리키는 `front/media/` 파일을 `/media/images/` 경로로 제공합니다.
 
 Expo Go 또는 개발 빌드에서 QR 코드를 열어 기기로 확인합니다. Expo 57과 호환되는 실행 앱이 필요합니다.
 
@@ -29,24 +29,18 @@ npm run ios       # macOS + Xcode 시뮬레이터
 | 위치 | 역할 |
 | --- | --- |
 | `src/app/` | Expo Router 경로와 네비게이터 |
-| `src/screens/` | 홈·추천·검색·보관함·내 정보·상세·재생·포인트 화면 |
+| `src/screens/` | 홈·추천·검색·보관함·내 정보·상세 화면 |
 | `src/components/` | 공통 글자·버튼·포스터·페이지 |
 | `src/common/` | 공용 HTTP·저장소·환경·theme·순수 utility 코드 |
 | `src/features/` | 기능별 상태, endpoint, 타입 (`drama/`, `home/` 등) |
-| `media/images/`, `media/videos/` | 로컬 개발용 이미지·영상 파일 |
+| `media/` | 로컬 개발용 콘텐츠 미디어 파일 |
 | `assets/fonts/` | 앱에 포함되는 글꼴·라이선스 |
 
 `back`과 `web-prototype`의 의존성은 필요하지 않습니다. 기존 공개 웹 주소는 이 앱의 개발 서버나 배포 주소와 별개입니다.
 
-## 유지한 이용 흐름
+## 현재 연결 상태
 
-- 작품별 첫 7~10화 무료, 이후 회차는 확인 후 10P 차감
-- 최초 4P, 광고 체험 완료 시 10P·하루 최대 5회, 예시 포인트 충전
-- 저장한 작품, 시청 기록, 이어보기, 자막·자동 다음 화 설정을 기기에 보관
-- 추천 탭에서 예고·1화 분위기를 세로로 넘겨보기, 본편 또는 회차 목록으로 이동
-- 재생 화면의 일시 정지·속도·위치 조절과 이전/다음 화
-
-실제 드라마 파일이 없어 포스터와 예시 자막으로 재생을 표현합니다. 광고·결제는 체험이며 실제 청구는 없습니다. 회원 동기화·운영자 업로드·재생 API·앱스토어 배포는 다음 개발 범위입니다. 창작마당은 포함하지 않습니다.
+홈, 검색, 추천과 작품 상세는 공개 API 데이터를 표시합니다. 보관함과 계정별 기능은 사용자 저장·시청 API가 연결되기 전까지 사용할 수 없습니다. 재생·결제 기능은 아직 제공하지 않습니다.
 
 ## 검증
 
@@ -56,6 +50,6 @@ npm test
 npm run export
 ```
 
-`npm test`는 회차 차감·중복 차감 방지·광고 일일 한도·기록 저장 규칙을 검사합니다. `npm run export`는 Android/iOS/Web의 JavaScript 번들과 자산을 생성하며, 실제 기기 빌드나 앱스토어 제출을 대신하지 않습니다.
+`npm test`는 API 콘텐츠와 이미지 URL 처리를 검사합니다. `npm run export`는 Android/iOS/Web의 JavaScript 번들과 자산을 생성하며, 실제 기기 빌드나 앱스토어 제출을 대신하지 않습니다.
 
 글꼴은 [Pretendard 공식 저장소](https://github.com/orioncactus/pretendard)의 정적 TTF를 사용하며 라이선스는 `assets/fonts/LICENSE.txt`에 있습니다.

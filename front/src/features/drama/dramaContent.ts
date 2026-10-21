@@ -32,6 +32,32 @@ export interface DramaContent {
   }>;
 }
 
+export interface DramaSummary {
+  id: string;
+  slug: string;
+  title: string;
+  shortDescription: string;
+  productionCompany: string | null;
+  genres: Array<{ id: number; code: string; name: string }>;
+  images: {
+    poster: string | null;
+    posterLandscape: string | null;
+    homeHero: string | null;
+    detailCover: string | null;
+    campaigns: string[];
+  };
+  imageUrls: {
+    poster: string | null;
+    posterLandscape: string | null;
+    homeHero: string | null;
+    detailCover: string | null;
+    campaigns: string[];
+  };
+  previewVideos: Array<{ storageKey: string; durationMs: number }>;
+  episodeCount: number;
+  freeEpisodeCount: number;
+}
+
 function joinApiUrl(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 }
@@ -48,4 +74,18 @@ export async function getDramaContent(dramaId: string): Promise<DramaContent> {
   }
 
   return (await response.json()) as DramaContent;
+}
+
+export async function getDramaList(): Promise<DramaSummary[]> {
+  const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+  if (!baseUrl) {
+    throw new Error('EXPO_PUBLIC_API_BASE_URL must be set to fetch drama list.');
+  }
+
+  const response = await fetch(joinApiUrl(baseUrl, 'dramas?sort=latest'));
+  if (!response.ok) {
+    throw new Error(`Failed to fetch drama list: ${response.status}`);
+  }
+
+  return (await response.json()) as DramaSummary[];
 }

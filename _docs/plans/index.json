@@ -66,6 +66,12 @@
       "directory": "plan-11-front-home-multiple-genres",
       "title": "프론트 홈 다중 장르·캠페인·가로 포스터 개선",
       "status": "completed"
+    },
+    {
+      "id": "plan-12-remove-demo-dramas-unify-detail",
+      "directory": "plan-12-remove-demo-dramas-unify-detail",
+      "title": "임시 작품 제거와 API 상세 화면 통합",
+      "status": "completed"
     }
   ]
 }
