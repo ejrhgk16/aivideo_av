@@ -10,6 +10,7 @@ function AppNavigation() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="drama/[id]" />
+      <Stack.Screen name="episode/[id]" />
     </Stack>
   </View>;
 }

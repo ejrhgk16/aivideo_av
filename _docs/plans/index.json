@@ -84,6 +84,12 @@
       "directory": "plan-14-episode-playback-single-query",
       "title": "회차 재생 정보 단일 조인 조회",
       "status": "completed"
+    },
+    {
+      "id": "plan-15-front-episode-video-playback",
+      "directory": "plan-15-front-episode-video-playback",
+      "title": "프론트 회차 영상 재생",
+      "status": "completed"
     }
   ]
 }

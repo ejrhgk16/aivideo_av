@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "plan_id": "plan-15-front-episode-video-playback",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "Fetch episode playback information",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/features/playback/episodePlayback.ts",
+        "front/tests/unit/episodePlayback.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run test",
+        "npm --prefix front run typecheck"
+      ],
+      "started_at": "2026-10-21T08:20:58.480Z",
+      "summary": "Implemented typed playback fetching with encoded episode IDs and absolute URL resolution. The four new unit tests passed when run directly; declared `npm --prefix front run test` and `npm --prefix front run typecheck` also passed. Note: the existing front test script does not include the new test file.",
+      "completed_at": "2026-10-21T08:30:54.115Z"
+    },
+    {
+      "id": "task-2",
+      "name": "Connect episode playback screen",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/src/screens/EpisodePlaybackScreen.tsx",
+        "front/src/app/episode/[id].tsx",
+        "front/src/app/_layout.tsx",
+        "front/src/screens/DramaDetailScreen.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-21T08:31:18.926Z",
+      "summary": "Made every episode tile navigate by episode ID, removed the paid-episode lock icon, and added the expo-video playback route with loading, API error, and video error states plus pause-on-blur. Checks passed: typecheck, test, export.",
+      "completed_at": "2026-10-21T08:33:27.864Z"
+    }
+  ]
+}
