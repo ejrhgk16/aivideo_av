@@ -18,6 +18,11 @@ export class PublicCatalogController {
     return this.publicCatalogService.getDrama(dramaId);
   }
 
+  @Get('episodes/:episodeId/playback')
+  getEpisodePlayback(@Param('episodeId') episodeId: string) {
+    return this.publicCatalogService.getEpisodePlaybackUrl(episodeId);
+  }
+
   @Get('genres')
   listGenres() {
     return this.publicCatalogService.listGenres();

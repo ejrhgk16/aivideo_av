@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDramaImageUrls } from '../../../src/content/media-url.js';
+import { createDramaImageUrls, createEpisodePlaybackUrl } from '../../../src/content/media-url.js';
 
 describe('createDramaImageUrls', () => {
   it('creates development URLs matching the local image endpoint', () => {
@@ -30,5 +30,17 @@ describe('createDramaImageUrls', () => {
         { NODE_ENV: 'production' },
       ),
     ).toEqual({ poster: null, posterLandscape: null, homeHero: null, detailCover: null, campaigns: [] });
+  });
+});
+
+describe('createEpisodePlaybackUrl', () => {
+  it('creates a local URL for development', () => {
+    expect(createEpisodePlaybackUrl('episode-1', { NODE_ENV: 'development' })).toBe(
+      '/media/videos/episodes/episode-1',
+    );
+  });
+
+  it('does not expose a local URL outside development', () => {
+    expect(createEpisodePlaybackUrl('episode-1', { NODE_ENV: 'production' })).toBeNull();
   });
 });

@@ -64,6 +64,9 @@
 ## Windows Shell Policy
 - DO NOT attempt inline multi-line PowerShell strings or complex nested quotes.
 - ALWAYS write complex scripts into a temporary .ps1 file (using UTF-8 encoding) and execute via `powershell -ExecutionPolicy Bypass -File <script.ps1>`.
+- `rg`에 `폴더/*.확장자`를 경로로 전달하지 않는다. `rg ... 폴더 -g '*.확장자'`를 사용한다.
+- `rg` 종료 코드 1은 검색 결과 없음으로 해석하고, 경로 오류 등 실제 실패와 구분한다.
+- 결과가 없을 수 있는 검색은 예상된 빈 결과로 보고한다.
 
 ## 프로젝트 환경
 

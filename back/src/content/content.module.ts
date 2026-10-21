@@ -12,6 +12,7 @@ import {
 import { PublicCatalogController } from './public-catalog.controller.js';
 import { PublicCatalogService } from './public-catalog.service.js';
 import { LocalImageController } from './local-image.controller.js';
+import { LocalVideoController } from './local-video.controller.js';
 
 @Module({
   imports: [
@@ -25,7 +26,7 @@ import { LocalImageController } from './local-image.controller.js';
       Episode,
     ]),
   ],
-  controllers: [PublicCatalogController, LocalImageController],
+  controllers: [PublicCatalogController, LocalImageController, LocalVideoController],
   providers: [PublicCatalogService],
   exports: [PublicCatalogService],
 })

@@ -14,6 +14,14 @@ export type DramaImageUrls = {
   campaigns: string[];
 };
 
+export function createEpisodePlaybackUrl(
+  episodeId: string,
+  environment: NodeJS.ProcessEnv = process.env,
+): string | null {
+  if (environment.NODE_ENV !== 'development') return null;
+  return `/media/videos/episodes/${encodeURIComponent(episodeId)}`;
+}
+
 function localImageUrl(storageKey: string, environment: NodeJS.ProcessEnv): string | null {
   if (environment.NODE_ENV !== 'development') return null;
   return `/media/images/${storageKey.split('/').map(encodeURIComponent).join('/')}`;

@@ -72,6 +72,12 @@
       "directory": "plan-12-remove-demo-dramas-unify-detail",
       "title": "임시 작품 제거와 API 상세 화면 통합",
       "status": "completed"
+    },
+    {
+      "id": "plan-13-episode-playback-url",
+      "directory": "plan-13-episode-playback-url",
+      "title": "회차 본편 영상 URL 응답",
+      "status": "completed"
     }
   ]
 }

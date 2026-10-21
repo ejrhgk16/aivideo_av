@@ -8,7 +8,7 @@ import { ContentVideo } from './entities/contentVideo.entity.js';
 import { Episode } from './entities/episode.entity.js';
 import { Genre } from './entities/genre.entity.js';
 import { ProductionCompany } from './entities/productionCompany.entity.js';
-import { createDramaImageUrls } from './media-url.js';
+import { createDramaImageUrls, createEpisodePlaybackUrl } from './media-url.js';
 
 const PUBLIC_STATUS = 'PUBLISHED';
 
@@ -250,6 +250,48 @@ export class PublicCatalogService {
         }),
       ),
     };
+  }
+
+  private async getEpisodeVideo(episodeId: string, now: Date): Promise<{ storageKey: string; title: string | null; episodeNumber: number; durationMs: number }> {
+    const episode = await this.episodeRepository.findOne({ where: { id: episodeId, status: PUBLIC_STATUS } });
+    if (
+      !episode ||
+      episode.status !== PUBLIC_STATUS ||
+      episode.publishedAt === null ||
+      episode.publishedAt > now
+    ) {
+      throw new NotFoundException(`Episode '${episodeId}' was not found`);
+    }
+
+    const drama = await this.dramaRepository.findOne({ where: { id: episode.dramaId, status: PUBLIC_STATUS } });
+    if (
+      !drama ||
+      drama.status !== PUBLIC_STATUS ||
+      drama.publishedAt === null ||
+      drama.publishedAt > now
+    ) {
+      throw new NotFoundException(`Episode '${episodeId}' was not found`);
+    }
+
+    const videos = await this.contentVideoRepository.findBy({
+      contentType: 'EPISODE',
+      contentId: episodeId,
+      kind: 'FULL',
+    });
+    const video = videos.sort((left, right) => left.displayOrder - right.displayOrder)[0];
+    if (!video) throw new NotFoundException(`Episode '${episodeId}' was not found`);
+    return { storageKey: video.storageKey, title: episode.title, episodeNumber: episode.episodeNumber, durationMs: video.durationMs };
+  }
+
+  async getEpisodeVideoStorageKey(episodeId: string, now = new Date()): Promise<string> {
+    return (await this.getEpisodeVideo(episodeId, now)).storageKey;
+  }
+
+  async getEpisodePlaybackUrl(episodeId: string, now = new Date()): Promise<{ url: string; title: string | null; episodeNumber: number; durationMs: number }> {
+    const url = createEpisodePlaybackUrl(episodeId);
+    if (!url) throw new NotFoundException(`Episode '${episodeId}' was not found`);
+    const { title, episodeNumber, durationMs } = await this.getEpisodeVideo(episodeId, now);
+    return { url, title, episodeNumber, durationMs };
   }
 
   async listGenres(): Promise<GenreSummary[]> {

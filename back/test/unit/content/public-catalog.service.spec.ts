@@ -149,6 +149,74 @@ describe('PublicCatalogService', () => {
     expect(genres.find).toHaveBeenCalledWith({ order: { displayOrder: 'ASC' } });
   });
 
+  it('returns the development playback URL for the first full episode video', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    const now = new Date('2026-10-09T00:00:00.000Z');
+    const dramas = repository();
+    dramas.findOne.mockResolvedValue(Object.assign(new Drama(), {
+      id: 'drama-1', status: 'PUBLISHED', publishedAt: new Date('2026-10-08T00:00:00.000Z'),
+    }));
+    const episodes = repository();
+    episodes.findOne.mockResolvedValue(Object.assign(new Episode(), {
+      id: 'episode-1', dramaId: 'drama-1', episodeNumber: 1, title: '첫 번째 이야기', durationMs: 3000,
+      status: 'PUBLISHED', publishedAt: new Date('2026-10-08T00:00:00.000Z'),
+    }));
+    const videos = repository();
+    videos.findBy.mockResolvedValue([
+      Object.assign(new ContentVideo(), { contentType: 'EPISODE', contentId: 'episode-1', kind: 'FULL', storageKey: 'second.mp4', durationMs: 2000, displayOrder: 2 }),
+      Object.assign(new ContentVideo(), { contentType: 'EPISODE', contentId: 'episode-1', kind: 'FULL', storageKey: 'first.mp4', durationMs: 1000, displayOrder: 1 }),
+    ]);
+    const service = new PublicCatalogService(
+      dramas as never, repository() as never, repository() as never, repository() as never,
+      repository() as never, videos as never, episodes as never,
+    );
+
+    await expect(service.getEpisodePlaybackUrl('episode-1', now)).resolves.toEqual({
+      url: '/media/videos/episodes/episode-1',
+      title: '첫 번째 이야기',
+      episodeNumber: 1,
+      durationMs: 1000,
+    });
+    expect(videos.findBy).toHaveBeenCalledWith({ contentType: 'EPISODE', contentId: 'episode-1', kind: 'FULL' });
+  });
+
+  it('rejects missing or unpublished playback content and episodes without a full video', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    const now = new Date('2026-10-09T00:00:00.000Z');
+    const dramas = repository();
+    const episodes = repository();
+    const videos = repository();
+    const service = new PublicCatalogService(
+      dramas as never, repository() as never, repository() as never, repository() as never,
+      repository() as never, videos as never, episodes as never,
+    );
+
+    episodes.findOne.mockResolvedValue(null);
+    await expect(service.getEpisodePlaybackUrl('missing', now)).rejects.toBeInstanceOf(NotFoundException);
+
+    episodes.findOne.mockResolvedValue(Object.assign(new Episode(), {
+      id: 'episode-1', dramaId: 'drama-1', status: 'PUBLISHED', publishedAt: new Date('2026-10-08T00:00:00.000Z'),
+    }));
+    dramas.findOne.mockResolvedValue(null);
+    await expect(service.getEpisodePlaybackUrl('episode-1', now)).rejects.toBeInstanceOf(NotFoundException);
+
+    dramas.findOne.mockResolvedValue(Object.assign(new Drama(), {
+      id: 'drama-1', status: 'PUBLISHED', publishedAt: new Date('2026-10-08T00:00:00.000Z'),
+    }));
+    videos.findBy.mockResolvedValue([]);
+    await expect(service.getEpisodePlaybackUrl('episode-1', now)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('does not issue local playback URLs outside development', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    const service = new PublicCatalogService(
+      repository() as never, repository() as never, repository() as never, repository() as never,
+      repository() as never, repository() as never, repository() as never,
+    );
+
+    await expect(service.getEpisodePlaybackUrl('episode-1')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
   it('returns a public drama detail with ordered public episodes and prices', async () => {
     vi.stubEnv('NODE_ENV', 'development');
     const now = new Date('2026-10-09T00:00:00.000Z');

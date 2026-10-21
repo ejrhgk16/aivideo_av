@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "plan_id": "plan-13-episode-playback-url",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "Return episode playback URL and serve development video",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/content/public-catalog.controller.ts",
+        "back/src/content/public-catalog.service.ts",
+        "back/src/content/media-url.ts",
+        "back/src/content/local-video.controller.ts",
+        "back/src/content/content.module.ts",
+        "back/test/unit/content/public-catalog.service.spec.ts",
+        "back/test/unit/content/media-url.spec.ts",
+        "back/test/unit/content/local-video.controller.spec.ts",
+        "_docs/api/04-playback/README.md",
+        "_docs/api/04-playback/episodes.md",
+        "_docs/api/00-overview/conventions.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-21T06:27:11.294Z",
+      "summary": "Added public episode playback URL issuance with published drama/episode checks and lowest-displayOrder FULL video selection; added development-only MP4 serving with storage-root and file checks, updated API docs, and added unit coverage. `npm --prefix back run lint`, `npm --prefix back run test` (40 passed), and `npm --prefix back run build` all passed.",
+      "completed_at": "2026-10-21T06:30:42.743Z"
+    }
+  ]
+}
