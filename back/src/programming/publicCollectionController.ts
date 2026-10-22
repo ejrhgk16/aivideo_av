@@ -3,7 +3,7 @@ import { Controller, Get, Param } from '@nestjs/common';
 import {
   PublicCollectionResponse,
   PublicCollectionService,
-} from './public-collection.service.js';
+} from './publicCollectionService.js';
 
 @Controller('collections')
 export class PublicCollectionController {

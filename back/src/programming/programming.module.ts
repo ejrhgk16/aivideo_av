@@ -10,8 +10,8 @@ import { Genre } from '../content/entities/genre.entity.js';
 import { ProductionCompany } from '../content/entities/productionCompany.entity.js';
 import { CollectionDrama } from './entities/collectionDrama.entity.js';
 import { ContentCollection } from './entities/contentCollection.entity.js';
-import { PublicCollectionController } from './public-collection.controller.js';
-import { PublicCollectionService } from './public-collection.service.js';
+import { PublicCollectionController } from './publicCollectionController.js';
+import { PublicCollectionService } from './publicCollectionService.js';
 
 @Module({
   imports: [

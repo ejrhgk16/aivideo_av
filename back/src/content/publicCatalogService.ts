@@ -8,7 +8,8 @@ import { ContentVideo } from './entities/contentVideo.entity.js';
 import { Episode } from './entities/episode.entity.js';
 import { Genre } from './entities/genre.entity.js';
 import { ProductionCompany } from './entities/productionCompany.entity.js';
-import { createDramaImageUrls, createEpisodePlaybackUrl } from './media-url.js';
+import { createDramaImageUrls } from './mediaUrl.js';
+import { S3VideoUrlService } from './s3VideoUrlService.js';
 
 const PUBLIC_STATUS = 'PUBLISHED';
 
@@ -27,7 +28,7 @@ export type DramaSummary = {
     campaigns: string[];
   };
   imageUrls: ReturnType<typeof createDramaImageUrls>;
-  previewVideos: Array<{ storageKey: string; durationMs: number }>;
+  previewVideos: Array<{ id: string; storageKey: string; durationMs: number }>;
   episodeCount: number;
   freeEpisodeCount: number;
 };
@@ -50,7 +51,7 @@ export type DramaDetail = {
     campaigns: string[];
   };
   imageUrls: ReturnType<typeof createDramaImageUrls>;
-  previewVideos: Array<{ storageKey: string; durationMs: number }>;
+  previewVideos: Array<{ id: string; storageKey: string; durationMs: number }>;
   episodes: Array<{
     id: string;
     episodeNumber: number;
@@ -79,7 +80,7 @@ function mapImages(images: ContentImage[]) {
 function mapPreviewVideos(videos: ContentVideo[]) {
   return [...videos]
     .sort((left, right) => left.displayOrder - right.displayOrder)
-    .map(({ storageKey, durationMs }) => ({ storageKey, durationMs }));
+    .map(({ id, storageKey, durationMs }) => ({ id, storageKey, durationMs }));
 }
 
 export class PublicCatalogService {
@@ -98,6 +99,7 @@ export class PublicCatalogService {
     private readonly contentVideoRepository: Repository<ContentVideo>,
     @InjectRepository(Episode)
     private readonly episodeRepository: Repository<Episode>,
+    private readonly s3VideoUrlService = new S3VideoUrlService(),
   ) {}
 
   async listDramas(sort: 'latest' = 'latest', now = new Date()): Promise<DramaSummary[]> {
@@ -278,15 +280,28 @@ export class PublicCatalogService {
     return video;
   }
 
-  async getEpisodeVideoStorageKey(episodeId: string, now = new Date()): Promise<string> {
-    return (await this.getEpisodeVideo(episodeId, now)).storageKey;
+  async getEpisodePlaybackUrl(episodeId: string, now = new Date()): Promise<{ url: string; title: string | null; episodeNumber: number; durationMs: number }> {
+    if (process.env.NODE_ENV !== 'development') throw new NotFoundException(`Episode '${episodeId}' was not found`);
+    const { storageKey, title, episodeNumber, durationMs } = await this.getEpisodeVideo(episodeId, now);
+    const url = await this.s3VideoUrlService.createSignedGetUrl(storageKey);
+    return { url, title, episodeNumber, durationMs };
   }
 
-  async getEpisodePlaybackUrl(episodeId: string, now = new Date()): Promise<{ url: string; title: string | null; episodeNumber: number; durationMs: number }> {
-    const url = createEpisodePlaybackUrl(episodeId);
-    if (!url) throw new NotFoundException(`Episode '${episodeId}' was not found`);
-    const { title, episodeNumber, durationMs } = await this.getEpisodeVideo(episodeId, now);
-    return { url, title, episodeNumber, durationMs };
+  async getDramaPreviewPlaybackUrl(dramaId: string, videoId: string): Promise<{ url: string; durationMs: number }> {
+    if (process.env.NODE_ENV !== 'development') throw new NotFoundException();
+
+    const drama = await this.dramaRepository.findOne({ where: { id: dramaId, status: PUBLIC_STATUS } });
+    if (!drama || drama.publishedAt === null || drama.publishedAt > new Date()) {
+      throw new NotFoundException();
+    }
+
+    const video = await this.contentVideoRepository.findOne({
+      where: { id: videoId, contentType: 'DRAMA', contentId: dramaId, kind: 'PREVIEW' },
+    });
+    if (!video) throw new NotFoundException();
+
+    const url = await this.s3VideoUrlService.createSignedGetUrl(video.storageKey);
+    return { url, durationMs: video.durationMs };
   }
 
   async listGenres(): Promise<GenreSummary[]> {

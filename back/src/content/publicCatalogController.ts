@@ -1,5 +1,5 @@
 import { BadRequestException, Controller, Get, Param, Query } from '@nestjs/common';
-import { PublicCatalogService } from './public-catalog.service.js';
+import { PublicCatalogService } from './publicCatalogService.js';
 
 @Controller()
 export class PublicCatalogController {
@@ -21,6 +21,14 @@ export class PublicCatalogController {
   @Get('episodes/:episodeId/playback')
   getEpisodePlayback(@Param('episodeId') episodeId: string) {
     return this.publicCatalogService.getEpisodePlaybackUrl(episodeId);
+  }
+
+  @Get('dramas/:dramaId/previews/:videoId/playback')
+  getDramaPreviewPlayback(
+    @Param('dramaId') dramaId: string,
+    @Param('videoId') videoId: string,
+  ) {
+    return this.publicCatalogService.getDramaPreviewPlaybackUrl(dramaId, videoId);
   }
 
   @Get('genres')

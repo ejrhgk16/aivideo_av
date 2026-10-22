@@ -9,10 +9,9 @@ import {
   Genre,
   ProductionCompany,
 } from './entities/index.js';
-import { PublicCatalogController } from './public-catalog.controller.js';
-import { PublicCatalogService } from './public-catalog.service.js';
-import { LocalImageController } from './local-image.controller.js';
-import { LocalVideoController } from './local-video.controller.js';
+import { PublicCatalogController } from './publicCatalogController.js';
+import { PublicCatalogService } from './publicCatalogService.js';
+import { S3VideoUrlService } from './s3VideoUrlService.js';
 
 @Module({
   imports: [
@@ -26,8 +25,8 @@ import { LocalVideoController } from './local-video.controller.js';
       Episode,
     ]),
   ],
-  controllers: [PublicCatalogController, LocalImageController, LocalVideoController],
-  providers: [PublicCatalogService],
+  controllers: [PublicCatalogController],
+  providers: [PublicCatalogService, S3VideoUrlService],
   exports: [PublicCatalogService],
 })
 export class ContentModule {}

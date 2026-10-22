@@ -11,7 +11,7 @@ import { Genre } from '../content/entities/genre.entity.js';
 import { ProductionCompany } from '../content/entities/productionCompany.entity.js';
 import { CollectionDrama } from './entities/collectionDrama.entity.js';
 import { ContentCollection } from './entities/contentCollection.entity.js';
-import { createDramaImageUrls } from '../content/media-url.js';
+import { createDramaImageUrls } from '../content/mediaUrl.js';
 
 type PublicImages = {
   poster: string | null;
@@ -22,6 +22,7 @@ type PublicImages = {
 };
 
 type PublicPreviewVideo = {
+  id: string;
   storageKey: string;
   durationMs: number;
 };
@@ -209,9 +210,7 @@ export class PublicCollectionService {
             detailCover: imageByKind.get('DETAIL_COVER') ?? null,
             campaigns: campaignImages.map(({ storageKey }) => storageKey),
           }),
-          previewVideos: previewVideos.map(
-            ({ storageKey, durationMs }) => ({ storageKey, durationMs }),
-          ),
+          previewVideos: previewVideos.map(({ id, storageKey, durationMs }) => ({ id, storageKey, durationMs })),
           publishedEpisodeCount: dramaEpisodes.length,
           freeEpisodeCount: dramaEpisodes.filter(({ pricePoints }) => pricePoints === 0).length,
         },

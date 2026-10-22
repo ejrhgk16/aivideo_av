@@ -37,15 +37,15 @@ Use `DB_SYNCHRONIZE=true` only for local development. Development defaults to `t
 
 Never commit database passwords, credentials, or the actual `.env.development` and `.env.production` files.
 
-## Local media storage
+## Video playback
 
-`storageKey` values are relative object keys, not URLs or absolute paths. Configure the backend-only local root with `MEDIA_STORAGE_ROOT`:
+In development, FULL episode videos and DRAMA PREVIEW videos are returned as S3 presigned GET URLs. Configure `AWS_PROFILE`, `AWS_REGION`, and `S3_BUCKET` in the untracked `.env.development` file. The AWS SDK uses its default credential provider chain; do not store access keys in the repository. URLs expire after one hour. This playback API does not check purchase entitlement.
 
-```env
-MEDIA_STORAGE_ROOT=../front/media
-```
+## Public image storage
 
-Each runtime environment must set this value explicitly. The key generation rules live in `src/content/media-storage.ts`; use those functions for seed data and future upload flows. `front/media` is Git-ignored development storage and is not served automatically by Expo or the API.
+Image `storageKey` values are S3 object keys. The `imageUrls` fields return direct URLs for the public image key patterns configured on the development bucket. Keep `AWS_REGION` and `S3_BUCKET` configured in `.env.development`; image objects must use the key generators in `src/content/mediaStorage.ts` so only image paths match the bucket's public read policy.
+
+The allowed public image keys are `dramas/*/images/*/*.webp`, `dramas/*/episodes/*/images/*.webp`, and `genres/*/images/*.webp`. Videos and subtitles remain private; video playback uses one-hour presigned URLs. Upload image objects without public ACLs.
 
 ## Database migrations
 

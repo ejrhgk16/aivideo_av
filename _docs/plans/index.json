@@ -90,6 +90,12 @@
       "directory": "plan-15-front-episode-video-playback",
       "title": "프론트 회차 영상 재생",
       "status": "completed"
+    },
+    {
+      "id": "plan-16-s3-video-playback-backend-naming",
+      "directory": "plan-16-s3-video-playback-backend-naming",
+      "title": "개발용 S3 영상·이미지 전환 및 백엔드 코드 파일명 정리",
+      "status": "completed"
     }
   ]
 }

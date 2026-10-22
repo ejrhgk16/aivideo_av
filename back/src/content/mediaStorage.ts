@@ -1,5 +1,3 @@
-import { isAbsolute, relative, resolve, sep } from 'node:path';
-
 export type DramaImageKind =
   | 'POSTER'
   | 'POSTER_LANDSCAPE'
@@ -56,32 +54,3 @@ export function createGenreImageStorageKey(genreId: number | string, imageId: st
   return `genres/${genreId}/images/${imageId}.webp`;
 }
 
-export function getMediaStorageRoot(environment: NodeJS.ProcessEnv = process.env): string {
-  const configuredRoot = environment.MEDIA_STORAGE_ROOT?.trim();
-
-  if (!configuredRoot) {
-    throw new Error('MEDIA_STORAGE_ROOT must be configured.');
-  }
-
-  return resolve(process.cwd(), configuredRoot);
-}
-
-export function resolveMediaStoragePath(
-  storageKey: string,
-  environment: NodeJS.ProcessEnv = process.env,
-): string {
-  const root = getMediaStorageRoot(environment);
-  const mediaPath = resolve(root, storageKey);
-  const rootRelativePath = relative(root, mediaPath);
-
-  if (
-    rootRelativePath === '' ||
-    rootRelativePath === '..' ||
-    rootRelativePath.startsWith(`..${sep}`) ||
-    isAbsolute(rootRelativePath)
-  ) {
-    throw new Error('storageKey must resolve within MEDIA_STORAGE_ROOT.');
-  }
-
-  return mediaPath;
-}

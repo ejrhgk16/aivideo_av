@@ -1,11 +1,15 @@
 import { NotFoundException } from '@nestjs/common';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { PublicCollectionService } from '../../../src/programming/public-collection.service.js';
+import { PublicCollectionService } from '../../../src/programming/publicCollectionService.js';
 
 const repository = () => ({ find: vi.fn(), findOne: vi.fn() });
 
 describe('PublicCollectionService', () => {
+  beforeEach(() => {
+    vi.stubEnv('AWS_REGION', 'ap-northeast-2');
+    vi.stubEnv('S3_BUCKET', 'aivideo-dev');
+  });
   afterEach(() => vi.unstubAllEnvs());
 
   it('returns an active, scheduled collection in display order with public summaries', async () => {
@@ -49,8 +53,8 @@ describe('PublicCollectionService', () => {
       { contentType: 'DRAMA', contentId: 'drama-1', kind: 'CAMPAIGN', storageKey: 'dramas/drama-1/images/campaign/image-1.webp', displayOrder: 1 },
     ]);
     contentVideoRepository.find.mockResolvedValue([
-      { contentType: 'DRAMA', contentId: 'drama-1', kind: 'PREVIEW', storageKey: 'preview-2.mp4', durationMs: 20000, displayOrder: 2 },
-      { contentType: 'DRAMA', contentId: 'drama-1', kind: 'PREVIEW', storageKey: 'preview-1.mp4', durationMs: 15000, displayOrder: 1 },
+      { id: 'preview-2', contentType: 'DRAMA', contentId: 'drama-1', kind: 'PREVIEW', storageKey: 'preview-2.mp4', durationMs: 20000, displayOrder: 2 },
+      { id: 'preview-1', contentType: 'DRAMA', contentId: 'drama-1', kind: 'PREVIEW', storageKey: 'preview-1.mp4', durationMs: 15000, displayOrder: 1 },
     ]);
     episodeRepository.find.mockResolvedValue([
       { dramaId: 'drama-1', status: 'PUBLISHED', publishedAt, pricePoints: 0 },
@@ -93,15 +97,15 @@ describe('PublicCollectionService', () => {
             campaigns: ['dramas/drama-1/images/campaign/image-1.webp', 'dramas/drama-1/images/campaign/image-2.webp'],
           },
           imageUrls: {
-            poster: '/media/images/dramas/drama-1/images/poster/image-1.webp',
-            posterLandscape: '/media/images/dramas/drama-1/images/poster-landscape/image-4.webp',
-            homeHero: '/media/images/dramas/drama-1/images/home-hero/image-1.webp',
+            poster: 'https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/drama-1/images/poster/image-1.webp',
+            posterLandscape: 'https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/drama-1/images/poster-landscape/image-4.webp',
+            homeHero: 'https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/drama-1/images/home-hero/image-1.webp',
             detailCover: null,
-            campaigns: ['/media/images/dramas/drama-1/images/campaign/image-1.webp', '/media/images/dramas/drama-1/images/campaign/image-2.webp'],
+            campaigns: ['https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/drama-1/images/campaign/image-1.webp', 'https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/drama-1/images/campaign/image-2.webp'],
           },
           previewVideos: [
-            { storageKey: 'preview-1.mp4', durationMs: 15000 },
-            { storageKey: 'preview-2.mp4', durationMs: 20000 },
+            { id: 'preview-1', storageKey: 'preview-1.mp4', durationMs: 15000 },
+            { id: 'preview-2', storageKey: 'preview-2.mp4', durationMs: 20000 },
           ],
         }),
       ],

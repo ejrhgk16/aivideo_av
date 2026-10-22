@@ -18,7 +18,7 @@ Expo React Native client. Own `package.json` and lockfile.
 | `assets/images/` | Static screen images. |
 | `assets/icons/` | Static icons. |
 | `assets/fonts/` | Font files and licenses. |
-| `media/` | 개발용 콘텐츠 미디어 루트. 백엔드 `storageKey`는 이 디렉터리 기준 상대 경로를 사용한다. |
+| `media/` | 기존 로컬 미디어 작업 파일. 백엔드에서 이미지나 영상을 직접 제공하지 않는다. |
 | `tests/` | Frontend product tests. |
 
 ## Backend — `back/`
@@ -58,7 +58,8 @@ Preserved standalone web prototype. It is not imported or run by `front/`, and i
 
 ## Media storage
 
-- `back/src/content/media-storage.ts` is the single source for content-media `storageKey` construction.
-- The backend-only `MEDIA_STORAGE_ROOT` environment variable resolves a relative `storageKey` to a local filesystem path. Each runtime environment must set it explicitly.
-- `front/media/` is a Git-ignored local development storage root; it is not an Expo bundle asset or a public URL by itself.
-- Public URL generation and static-file serving are separate API responsibilities and are not implied by a `storageKey`.
+- `back/src/content/mediaStorage.ts` is the single source for content-media `storageKey` construction.
+- `front/media/` is a Git-ignored local workspace for media files; it is not an Expo bundle asset or a public URL by itself.
+- The `aivideo-dev` bucket exposes only the configured image key patterns through public `s3:GetObject`; video and subtitle keys remain private. API `imageUrls` values are direct S3 URLs.
+- FULL episode videos and DRAMA PREVIEW videos use private S3 objects and one-hour presigned GET URLs in development. The backend reads AWS credentials from the default provider chain and uses `AWS_REGION` and `S3_BUCKET` configuration.
+- The backend does not provide local image file routes. Public image URLs are generated from storage keys; FULL and PREVIEW playback URLs are separately signed.

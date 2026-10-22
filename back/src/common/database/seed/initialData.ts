@@ -7,7 +7,7 @@ import {
   createEpisodeSubtitleStorageKey,
   createEpisodeVideoStorageKey,
   createGenreImageStorageKey,
-} from '../../../content/media-storage.js';
+} from '../../../content/mediaStorage.js';
 import type {
   ContentImage,
   ContentVideo,

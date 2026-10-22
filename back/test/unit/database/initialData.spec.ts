@@ -6,7 +6,7 @@ import {
   createEpisodeSubtitleStorageKey,
   createEpisodeVideoStorageKey,
   createGenreImageStorageKey,
-} from '../../../src/content/media-storage.js';
+} from '../../../src/content/mediaStorage.js';
 
 describe('initial seed data', () => {
   it('contains the planned number of catalog and commerce rows', () => {

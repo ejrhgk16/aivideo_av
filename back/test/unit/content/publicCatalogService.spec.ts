@@ -1,5 +1,5 @@
-import { afterEach } from 'vitest';
-import { PublicCatalogService } from '../../../src/content/public-catalog.service.js';
+import { afterEach, beforeEach } from 'vitest';
+import { PublicCatalogService } from '../../../src/content/publicCatalogService.js';
 import { NotFoundException } from '@nestjs/common';
 import { Drama } from '../../../src/content/entities/drama.entity.js';
 import { DramaGenre } from '../../../src/content/entities/dramaGenre.entity.js';
@@ -55,6 +55,10 @@ function episodePlaybackQueryBuilder() {
 }
 
 describe('PublicCatalogService', () => {
+  beforeEach(() => {
+    vi.stubEnv('AWS_REGION', 'ap-northeast-2');
+    vi.stubEnv('S3_BUCKET', 'aivideo-dev');
+  });
   afterEach(() => vi.unstubAllEnvs());
 
   it('returns published dramas ordered by latest publication with public episode counts', async () => {
@@ -96,10 +100,10 @@ describe('PublicCatalogService', () => {
     const videos = repository();
     videos.findBy.mockResolvedValue([
       Object.assign(new ContentVideo(), {
-        contentType: 'DRAMA', contentId: 'drama-1', kind: 'PREVIEW', storageKey: 'preview-2.mp4', durationMs: 2000, displayOrder: 2,
+        id: 'preview-2', contentType: 'DRAMA', contentId: 'drama-1', kind: 'PREVIEW', storageKey: 'preview-2.mp4', durationMs: 2000, displayOrder: 2,
       }),
       Object.assign(new ContentVideo(), {
-        contentType: 'DRAMA', contentId: 'drama-1', kind: 'PREVIEW', storageKey: 'preview-1.mp4', durationMs: 1000, displayOrder: 1,
+        id: 'preview-1', contentType: 'DRAMA', contentId: 'drama-1', kind: 'PREVIEW', storageKey: 'preview-1.mp4', durationMs: 1000, displayOrder: 1,
       }),
     ]);
     const episodes = repository();
@@ -131,15 +135,15 @@ describe('PublicCatalogService', () => {
           campaigns: ['dramas/drama-1/images/campaign/image-1.webp', 'dramas/drama-1/images/campaign/image-2.webp'],
         },
         imageUrls: {
-          poster: '/media/images/dramas/drama-1/images/poster/image-1.webp',
-          posterLandscape: '/media/images/dramas/drama-1/images/poster-landscape/image-4.webp',
+          poster: 'https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/drama-1/images/poster/image-1.webp',
+          posterLandscape: 'https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/drama-1/images/poster-landscape/image-4.webp',
           homeHero: null,
           detailCover: null,
-          campaigns: ['/media/images/dramas/drama-1/images/campaign/image-1.webp', '/media/images/dramas/drama-1/images/campaign/image-2.webp'],
+          campaigns: ['https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/drama-1/images/campaign/image-1.webp', 'https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/drama-1/images/campaign/image-2.webp'],
         },
         previewVideos: [
-          { storageKey: 'preview-1.mp4', durationMs: 1000 },
-          { storageKey: 'preview-2.mp4', durationMs: 2000 },
+        { id: 'preview-1', storageKey: 'preview-1.mp4', durationMs: 1000 },
+          { id: 'preview-2', storageKey: 'preview-2.mp4', durationMs: 2000 },
         ],
       }),
     ]);
@@ -181,17 +185,19 @@ describe('PublicCatalogService', () => {
       storageKey: 'first.mp4', title: '첫 번째 이야기', episodeNumber: 1, durationMs: 1000,
     });
     const videos = repository();
+    const s3 = { createSignedGetUrl: vi.fn().mockResolvedValue('https://s3.example/full') };
     const service = new PublicCatalogService(
       dramas as never, repository() as never, repository() as never, repository() as never,
-      repository() as never, videos as never, episodes as never,
+      repository() as never, videos as never, episodes as never, s3 as never,
     );
 
     await expect(service.getEpisodePlaybackUrl('episode-1', now)).resolves.toEqual({
-      url: '/media/videos/episodes/episode-1',
+      url: 'https://s3.example/full',
       title: '첫 번째 이야기',
       episodeNumber: 1,
       durationMs: 1000,
     });
+    expect(s3.createSignedGetUrl).toHaveBeenCalledWith('first.mp4');
     expect(episodes.createQueryBuilder).toHaveBeenCalledWith('episode');
     expect(qb.innerJoin).toHaveBeenNthCalledWith(1, Drama, 'drama', expect.stringContaining('drama.id = episode.dramaId AND drama.status = :dramaStatus AND drama.publishedAt <= :now'), {
       dramaStatus: 'PUBLISHED', now,
@@ -241,6 +247,61 @@ describe('PublicCatalogService', () => {
     );
 
     await expect(service.getEpisodePlaybackUrl('episode-1')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('returns an S3 playback URL for a published drama preview', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    const dramas = repository();
+    dramas.findOne.mockResolvedValue(Object.assign(new Drama(), {
+      id: 'drama-1', status: 'PUBLISHED', publishedAt: new Date('2026-01-01T00:00:00Z'),
+    }));
+    const videos = repository();
+    videos.findOne.mockResolvedValue(Object.assign(new ContentVideo(), {
+      id: 'preview-1', contentType: 'DRAMA', contentId: 'drama-1', kind: 'PREVIEW',
+      storageKey: 'dramas/drama-1/preview/preview-1.mp4', durationMs: 30000,
+    }));
+    const s3 = { createSignedGetUrl: vi.fn().mockResolvedValue('https://s3.example/preview') };
+    const service = new PublicCatalogService(
+      dramas as never, repository() as never, repository() as never, repository() as never,
+      repository() as never, videos as never, repository() as never, s3 as never,
+    );
+
+    await expect(service.getDramaPreviewPlaybackUrl('drama-1', 'preview-1')).resolves.toEqual({
+      url: 'https://s3.example/preview', durationMs: 30000,
+    });
+    expect(videos.findOne).toHaveBeenCalledWith({
+      where: { id: 'preview-1', contentType: 'DRAMA', contentId: 'drama-1', kind: 'PREVIEW' },
+    });
+    expect(s3.createSignedGetUrl).toHaveBeenCalledWith('dramas/drama-1/preview/preview-1.mp4');
+  });
+
+  it('rejects missing, unpublished, mismatched, and non-development previews', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    const dramas = repository();
+    const videos = repository();
+    const service = new PublicCatalogService(
+      dramas as never, repository() as never, repository() as never, repository() as never,
+      repository() as never, videos as never, repository() as never,
+    );
+
+    dramas.findOne.mockResolvedValue(null);
+    await expect(service.getDramaPreviewPlaybackUrl('missing', 'preview-1')).rejects.toBeInstanceOf(NotFoundException);
+    expect(videos.findOne).not.toHaveBeenCalled();
+
+    dramas.findOne.mockResolvedValue(Object.assign(new Drama(), {
+      id: 'drama-1', status: 'PUBLISHED', publishedAt: new Date(Date.now() + 60_000),
+    }));
+    await expect(service.getDramaPreviewPlaybackUrl('drama-1', 'preview-1')).rejects.toBeInstanceOf(NotFoundException);
+
+    dramas.findOne.mockResolvedValue(Object.assign(new Drama(), {
+      id: 'drama-1', status: 'PUBLISHED', publishedAt: new Date('2026-01-01T00:00:00Z'),
+    }));
+    videos.findOne.mockResolvedValue(null);
+    await expect(service.getDramaPreviewPlaybackUrl('drama-1', 'wrong-kind')).rejects.toBeInstanceOf(NotFoundException);
+
+    vi.stubEnv('NODE_ENV', 'production');
+    await expect(service.getDramaPreviewPlaybackUrl('drama-1', 'preview-1')).rejects.toBeInstanceOf(NotFoundException);
+    expect(videos.findOne).toHaveBeenCalledTimes(1);
   });
 
   it('returns a public drama detail with ordered public episodes and prices', async () => {
@@ -337,7 +398,7 @@ describe('PublicCatalogService', () => {
       productionCompany: '제작사',
       genres: [{ id: 1, code: 'MYSTERY', name: '미스터리' }],
       images: { poster: 'dramas/drama-1/images/poster/image-1.webp', posterLandscape: 'dramas/drama-1/images/poster-landscape/image-4.webp', homeHero: null, detailCover: null, campaigns: [] },
-      imageUrls: { poster: '/media/images/dramas/drama-1/images/poster/image-1.webp', posterLandscape: '/media/images/dramas/drama-1/images/poster-landscape/image-4.webp', homeHero: null, detailCover: null, campaigns: [] },
+      imageUrls: { poster: 'https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/drama-1/images/poster/image-1.webp', posterLandscape: 'https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/drama-1/images/poster-landscape/image-4.webp', homeHero: null, detailCover: null, campaigns: [] },
       previewVideos: [],
       episodes: [
         {

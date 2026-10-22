@@ -1,0 +1,134 @@
+{
+  "version": 1,
+  "plan_id": "plan-16-s3-video-playback-backend-naming",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "S3 FULL and PREVIEW playback",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/package.json",
+        "back/package-lock.json",
+        "back/.env.development",
+        "back/README.md",
+        "back/src/content/s3VideoUrlService.ts",
+        "back/src/content/content.module.ts",
+        "back/src/content/public-catalog.controller.ts",
+        "back/src/content/public-catalog.service.ts",
+        "back/src/content/media-url.ts",
+        "back/src/content/local-video.controller.ts",
+        "back/src/content/entities/dramaImage.entity.ts",
+        "back/src/content/entities/episodeVideo.entity.ts",
+        "back/src/content/entities/index.ts",
+        "back/src/programming/public-collection.service.ts",
+        "back/test/unit/content/s3VideoUrlService.spec.ts",
+        "back/test/unit/content/public-catalog.service.spec.ts",
+        "back/test/unit/content/media-url.spec.ts",
+        "back/test/unit/content/local-video.controller.spec.ts",
+        "back/test/unit/programming/public-collection.service.spec.ts",
+        "_docs/ARCHITECTURE.md",
+        "_docs/AI_DRAMA_data_model/02-content/content_videos.md",
+        "_docs/api/00-overview/conventions.md",
+        "_docs/api/02-content/dramas.md",
+        "_docs/api/03-programming/collections.md",
+        "_docs/api/04-playback/episodes.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-22T06:48:10.546Z",
+      "summary": "승인된 빈 파일 4개를 경로 검증 후 삭제했습니다. task-1 변경 상태를 확인했고 lint, test(11개 파일·39개 테스트), build가 모두 통과했습니다.",
+      "completed_at": "2026-10-22T06:49:55.555Z"
+    },
+    {
+      "id": "task-2",
+      "name": "Public S3 images and local image removal",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/.env.development",
+        "back/README.md",
+        "back/src/content/media-url.ts",
+        "back/src/content/media-storage.ts",
+        "back/src/content/content.module.ts",
+        "back/src/content/local-image.controller.ts",
+        "back/test/unit/content/public-catalog.service.spec.ts",
+        "back/test/unit/content/media-url.spec.ts",
+        "back/test/unit/content/media-storage.spec.ts",
+        "back/test/unit/content/local-image.controller.spec.ts",
+        "back/test/unit/programming/public-collection.service.spec.ts",
+        "_docs/ARCHITECTURE.md",
+        "_docs/AI_DRAMA_data_model/02-content/content_images.md",
+        "_docs/AI_DRAMA_data_model/02-content/episode_subtitles.md",
+        "_docs/api/00-overview/conventions.md",
+        "_docs/api/02-content/dramas.md",
+        "_docs/api/03-programming/collections.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-22T09:09:19.643Z",
+      "summary": "사용자가 승인한 두 경로만 안전성을 확인한 뒤 삭제했습니다. lint, test(10개 파일·32개 테스트), build가 모두 통과했습니다. 기존 AWS 검증 결과: 이미지 익명 GET 200, 영상 익명 GET 403.",
+      "completed_at": "2026-10-22T09:10:33.997Z"
+    },
+    {
+      "id": "task-3",
+      "name": "Backend code filename camelCase",
+      "status": "completed",
+      "depends_on": [
+        "task-2"
+      ],
+      "files": [
+        "back/src/content/public-catalog.service.ts",
+        "back/src/content/publicCatalogService.ts",
+        "back/src/content/public-catalog.controller.ts",
+        "back/src/content/publicCatalogController.ts",
+        "back/src/content/media-url.ts",
+        "back/src/content/mediaUrl.ts",
+        "back/src/content/media-storage.ts",
+        "back/src/content/mediaStorage.ts",
+        "back/test/unit/content/public-catalog.service.spec.ts",
+        "back/test/unit/content/publicCatalogService.spec.ts",
+        "back/test/unit/content/media-url.spec.ts",
+        "back/test/unit/content/mediaUrl.spec.ts",
+        "back/test/unit/content/media-storage.spec.ts",
+        "back/test/unit/content/mediaStorage.spec.ts",
+        "back/src/programming/public-collection.service.ts",
+        "back/src/programming/publicCollectionService.ts",
+        "back/src/programming/public-collection.controller.ts",
+        "back/src/programming/publicCollectionController.ts",
+        "back/test/unit/programming/public-collection.service.spec.ts",
+        "back/test/unit/programming/publicCollectionService.spec.ts",
+        "back/src/common/database/migrations/20261005000000-initAiDrama.ts",
+        "back/src/common/database/migrations/20261005000000InitAiDrama.ts",
+        "back/src/common/database/migrations/20261015000000-replaceContentMedia.ts",
+        "back/src/common/database/migrations/20261015000000ReplaceContentMedia.ts",
+        "back/src/common/database/migrations/20261016000000-updateMediaStorageKeys.ts",
+        "back/src/common/database/migrations/20261016000000UpdateMediaStorageKeys.ts",
+        "back/src/common/database/migrations/20261019000000-addLandscapePoster.ts",
+        "back/src/common/database/migrations/20261019000000AddLandscapePoster.ts",
+        "back/src/content/content.module.ts",
+        "back/src/programming/programming.module.ts",
+        "back/src/common/database/seed/initialData.ts",
+        "back/test/unit/database/initialData.spec.ts",
+        "back/README.md",
+        "_docs/ARCHITECTURE.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-22T09:10:50.107Z",
+      "summary": "14개 백엔드 파일명을 camelCase로 변경하고 import 및 지정 문서 경로를 갱신했습니다. 마이그레이션 클래스명과 SQL은 유지했습니다. lint, test(10개 파일·32개 테스트), build가 모두 통과했습니다.",
+      "completed_at": "2026-10-22T09:13:10.328Z"
+    }
+  ]
+}
