@@ -1,4 +1,4 @@
-import { Check, Column, Entity, Index, PrimaryColumn } from 'typeorm';
+import { Check, Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 
 @Entity({ name: 'point_purchase_orders' })
@@ -10,14 +10,17 @@ import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 @Check('chk_point_purchase_orders_points_positive', 'points > 0')
 @Check('chk_point_purchase_orders_price_krw_positive', 'price_krw > 0')
 export class PointPurchaseOrder extends AuditedEntity {
-  @PrimaryColumn({ type: 'char', length: 36 })
-  id!: string;
+  @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
+  id!: number;
 
-  @Column({ name: 'user_id', type: 'char', length: 36 })
-  userId!: string;
+  @Column({ type: 'char', length: 36, unique: true })
+  uuid!: string;
 
-  @Column({ name: 'point_product_id', type: 'char', length: 36 })
-  pointProductId!: string;
+  @Column({ name: 'user_id', type: 'int', unsigned: true })
+  userId!: number;
+
+  @Column({ name: 'point_product_id', type: 'int', unsigned: true })
+  pointProductId!: number;
 
   @Column({ type: 'int' })
   points!: number;
@@ -47,8 +50,8 @@ export class PointPurchaseOrder extends AuditedEntity {
 
   @Column({
     name: 'award_transaction_id',
-    type: 'char',
-    length: 36,
+    type: 'int',
+    unsigned: true,
     nullable: true,
     unique: true,
   })

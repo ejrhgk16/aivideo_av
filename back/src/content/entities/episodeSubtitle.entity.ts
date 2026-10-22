@@ -1,4 +1,4 @@
-import { Check, Column, Entity, Index, PrimaryColumn, Unique } from 'typeorm';
+import { Check, Column, Entity, Index, PrimaryGeneratedColumn, Unique } from 'typeorm';
 
 import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 
@@ -7,11 +7,14 @@ import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 @Index('idx_episode_subtitles_episode_id', ['episodeId'])
 @Check("format IN ('VTT', 'SRT')")
 export class EpisodeSubtitle extends AuditedEntity {
-  @PrimaryColumn({ type: 'char', length: 36 })
-  id!: string;
+  @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
+  id!: number;
 
-  @Column({ name: 'episode_id', type: 'char', length: 36 })
-  episodeId!: string;
+  @Column({ type: 'char', length: 36, unique: true })
+  uuid!: string;
+
+  @Column({ name: 'episode_id', type: 'int', unsigned: true })
+  episodeId!: number;
 
   @Column({ name: 'language_code', type: 'varchar', length: 10, default: 'ko' })
   languageCode!: string;

@@ -1,4 +1,4 @@
-import { Check, Column, Entity, Index, PrimaryColumn } from 'typeorm';
+import { Check, Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 
@@ -7,8 +7,11 @@ import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 @Check("account_type IN ('GUEST', 'MEMBER', 'OPERATOR', 'PARTNER')")
 @Check("status IN ('ACTIVE', 'SUSPENDED', 'WITHDRAWN')")
 export class User extends AuditedEntity {
-  @PrimaryColumn({ type: 'char', length: 36 })
-  id!: string;
+  @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
+  id!: number;
+
+  @Column({ type: 'char', length: 36, unique: true })
+  uuid!: string;
 
   @Column({ name: 'account_type', type: 'varchar', length: 16 })
   accountType!: string;
@@ -21,8 +24,8 @@ export class User extends AuditedEntity {
 
   @Column({
     name: 'production_company_id',
-    type: 'char',
-    length: 36,
+    type: 'int',
+    unsigned: true,
     nullable: true,
   })
   productionCompanyId!: string | null;

@@ -10,7 +10,7 @@
 
 | 이름 | 필수 | 타입 | 설명 |
 | --- | --- | --- | --- |
-| `episodeId` | 예 | string | 재생할 회차 식별자 |
+| `episodeId` | 예 | string | 재생할 회차 UUID. 작품 상세 응답의 회차 `uuid` 값 사용 |
 
 #### 인증
 
@@ -18,7 +18,7 @@
 
 #### 공개 및 재생 조건
 
-- 조회는 `episodes`에서 시작해 `episodes.drama_id = dramas.id`로 작품을 조인하고, `content_videos.content_type = 'EPISODE'`, `content_videos.content_id = episodes.id`, `content_videos.kind = 'FULL'`인 영상 행을 조인한다. `content_videos.content_id`는 다형성 참조이므로 대상 종류 조건도 함께 적용한다.
+- 요청의 `episodeId` UUID로 회차를 조회한 뒤 내부 숫자 키를 사용해 `episodes.drama_id = dramas.id`로 작품을 조인하고, `content_videos.content_type = 'EPISODE'`, `content_videos.content_id = episodes.id`, `content_videos.kind = 'FULL'`인 영상 행을 조인한다. 이 관계 컬럼은 모두 자동 증가 정수 키 비교다. `content_videos.content_id`는 다형성 참조이므로 대상 종류 조건도 함께 적용한다.
 - 작품과 회차가 모두 `status = PUBLISHED`이고 `published_at`이 현재 시각 이하일 때만 URL을 발급한다.
 - 해당 회차의 `contentType = EPISODE`, `kind = FULL` 영상 중 `displayOrder`가 가장 낮은 영상을 선택한다.
 - 회차 가격이나 사용자별 구매·해제 여부를 확인하지 않는다. 공개 회차라면 가격과 무관하게 URL을 제공한다.

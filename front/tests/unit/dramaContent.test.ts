@@ -9,7 +9,7 @@ test('drama list requests the latest public catalog and returns the API response
   const originalFetch = globalThis.fetch;
   const requestedUrls: string[] = [];
   const responseBody = [{
-    id: '00000002-0000-4000-8000-000000000001',
+    uuid: '00000002-0000-4000-8000-000000000001',
     slug: 'our-last-spring',
     title: '우리의 마지막 봄',
     shortDescription: '서로의 비밀을 간직한 두 사람의 봄날 로맨스',
@@ -60,7 +60,7 @@ test('drama detail requests use the configured API base URL and return the API c
   const originalFetch = globalThis.fetch;
   const requestedUrls: string[] = [];
   const responseBody = {
-    id: '00000002-0000-4000-8000-000000000001',
+    uuid: '00000002-0000-4000-8000-000000000001',
     slug: 'our-last-spring',
     title: '우리의 마지막 봄',
     shortDescription: '서로의 비밀을 간직한 두 사람의 봄날 로맨스',
@@ -81,9 +81,9 @@ test('drama detail requests use the configured API base URL and return the API c
       detailCover: null,
       campaigns: [],
     },
-    previewVideos: [{ storageKey: 'dramas/our-last-spring/videos/preview-1.mp4', durationMs: 30000 }],
+    previewVideos: [{ uuid: '00000002-0000-4000-8000-000000000201', storageKey: 'dramas/our-last-spring/videos/preview-1.mp4', durationMs: 30000 }],
     episodes: [{
-      id: '00000002-0000-4000-8000-000000000101',
+      uuid: '00000002-0000-4000-8000-000000000101',
       episodeNumber: 1,
       title: '다시 만난 봄',
       synopsis: '우연한 재회가 시작된다.',
@@ -100,7 +100,7 @@ test('drama detail requests use the configured API base URL and return the API c
   }) as typeof fetch;
 
   try {
-    const result = await getDramaContent(responseBody.id);
+    const result = await getDramaContent(responseBody.uuid);
 
     assert.deepEqual(requestedUrls, ['http://localhost:3000/dramas/00000002-0000-4000-8000-000000000001']);
     assert.deepEqual(result, responseBody);

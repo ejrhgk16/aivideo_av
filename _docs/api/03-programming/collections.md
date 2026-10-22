@@ -28,12 +28,12 @@
   "dramas": [
     {
       "displayOrder": 1,
-      "id": "00000002-0000-4000-8000-000000000001",
+      "uuid": "00000002-0000-4000-8000-000000000001",
       "slug": "our-last-spring",
       "title": "우리의 마지막 봄",
       "shortDescription": "서로의 비밀을 간직한 두 사람의 봄날 로맨스",
       "productionCompany": {
-        "id": "00000001-0000-4000-8000-000000000001",
+        "uuid": "00000001-0000-4000-8000-000000000001",
         "name": "라이트하우스 스튜디오"
       },
       "genres": [
@@ -61,7 +61,7 @@
       },
       "previewVideos": [
         {
-          "id": "00000002-0000-4000-8000-000000000201",
+          "uuid": "00000002-0000-4000-8000-000000000201",
           "storageKey": "dramas/our-last-spring/videos/preview-1.mp4",
           "durationMs": 30000
         }
@@ -79,8 +79,8 @@
 | `title` | string | 컬렉션 제목 |
 | `description` | string \| null | 컬렉션 설명 |
 | `dramas[].displayOrder` | number | 컬렉션 안의 노출 순서 |
-| `dramas[].id`, `slug`, `title`, `shortDescription` | string | 작품 기본 정보 |
-| `dramas[].productionCompany` | object \| null | 제작사 식별자와 이름 |
+| `dramas[].uuid`, `slug`, `title`, `shortDescription` | string | 작품 기본 정보. `uuid`는 작품 상세 경로의 `dramaId`에 사용 |
+| `dramas[].productionCompany` | object \| null | 제작사의 공개 UUID와 이름 |
 | `dramas[].genres` | array | 연결된 장르 목록 |
 | `dramas[].images.poster` | string \| null | 포스터 storage key |
 | `dramas[].images.posterLandscape` | string \| null | 가로 포스터 storage key |
@@ -94,7 +94,7 @@
 | `dramas[].imageUrls.campaigns` | string[] | 캠페인 공개 S3 URL. `display_order` 오름차순 |
 | `dramas[].previewVideos` | array | 작품 프리뷰 영상 목록. `display_order` 오름차순 |
 | `dramas[].previewVideos[].storageKey` | string | 프리뷰 영상 storage key |
-| `dramas[].previewVideos[].id` | string | 프리뷰 영상 식별자. 프리뷰 재생 API의 `videoId`로 사용 |
+| `dramas[].previewVideos[].uuid` | string | 프리뷰 영상 공개 식별자. 프리뷰 재생 API의 `videoId`로 사용 |
 | `dramas[].previewVideos[].durationMs` | number | 프리뷰 영상 재생 시간(ms) |
 | `dramas[].publishedEpisodeCount` | number | 공개된 회차 수 |
 | `dramas[].freeEpisodeCount` | number | 공개 회차 중 무료 회차 수 |
@@ -118,7 +118,7 @@
 - 연결된 작품과 회차는 `PUBLISHED`이고 `published_at`이 현재 시각 이하일 때만 노출한다.
 - 작품은 `display_order` 오름차순으로 반환한다.
 - `HOME_CAMPAIGN`은 홈 캠페인 배너에 사용할 작품과 `campaigns` 이미지 목록을 반환한다.
-- `images`의 storage key는 유지하고, `imageUrls`에는 공개 S3 URL을 반환한다. 공개 읽기는 `dramas/*/images/*/*.webp`, `dramas/*/episodes/*/images/*.webp`, `genres/*/images/*.webp` 키에만 허용한다. `previewVideos`에는 재생 API 경로 구성을 위한 영상 `id`, 저장소 `storageKey`, 재생 시간 `durationMs`를 반환한다.
+- `images`의 storage key는 유지하고, `imageUrls`에는 공개 S3 URL을 반환한다. 공개 읽기는 `dramas/*/images/*/*.webp`, `dramas/*/episodes/*/images/*.webp`, `genres/*/images/*.webp` 키에만 허용한다. 응답에는 자동 증가 숫자 `id`를 노출하지 않는다. `previewVideos`에는 재생 API 경로에 전달할 영상 `uuid`, 저장소 `storageKey`, 재생 시간 `durationMs`를 반환한다. 숫자 `id`는 내부 관계와 조인에 사용하고 장르 응답의 숫자 `id`는 유지한다.
 
 `POSTER_LANDSCAPE` 이미지 키는 `poster-landscape` 디렉터리에서 제공한다.
 

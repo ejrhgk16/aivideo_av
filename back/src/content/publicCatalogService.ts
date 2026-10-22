@@ -14,7 +14,7 @@ import { S3VideoUrlService } from './s3VideoUrlService.js';
 const PUBLIC_STATUS = 'PUBLISHED';
 
 export type DramaSummary = {
-  id: string;
+  uuid: string;
   slug: string;
   title: string;
   shortDescription: string;
@@ -28,7 +28,7 @@ export type DramaSummary = {
     campaigns: string[];
   };
   imageUrls: ReturnType<typeof createDramaImageUrls>;
-  previewVideos: Array<{ id: string; storageKey: string; durationMs: number }>;
+  previewVideos: Array<{ uuid: string; storageKey: string; durationMs: number }>;
   episodeCount: number;
   freeEpisodeCount: number;
 };
@@ -36,7 +36,7 @@ export type DramaSummary = {
 export type GenreSummary = Pick<Genre, 'id' | 'code' | 'name'> & { tileImage: string | null };
 
 export type DramaDetail = {
-  id: string;
+  uuid: string;
   slug: string;
   title: string;
   shortDescription: string;
@@ -51,9 +51,9 @@ export type DramaDetail = {
     campaigns: string[];
   };
   imageUrls: ReturnType<typeof createDramaImageUrls>;
-  previewVideos: Array<{ id: string; storageKey: string; durationMs: number }>;
+  previewVideos: Array<{ uuid: string; storageKey: string; durationMs: number }>;
   episodes: Array<{
-    id: string;
+    uuid: string;
     episodeNumber: number;
     title: string | null;
     synopsis: string | null;
@@ -80,7 +80,7 @@ function mapImages(images: ContentImage[]) {
 function mapPreviewVideos(videos: ContentVideo[]) {
   return [...videos]
     .sort((left, right) => left.displayOrder - right.displayOrder)
-    .map(({ id, storageKey, durationMs }) => ({ id, storageKey, durationMs }));
+    .map(({ uuid, storageKey, durationMs }) => ({ uuid, storageKey, durationMs }));
 }
 
 export class PublicCatalogService {
@@ -130,25 +130,25 @@ export class PublicCatalogService {
 
     const companiesById = new Map(companies.map((company) => [company.id, company.name]));
     const genresById = new Map(genres.map((genre) => [genre.id, genre]));
-    const genreLinksByDrama = new Map<string, DramaGenre[]>();
+    const genreLinksByDrama = new Map<number, DramaGenre[]>();
     for (const link of dramaGenres) {
       const links = genreLinksByDrama.get(link.dramaId) ?? [];
       links.push(link);
       genreLinksByDrama.set(link.dramaId, links);
     }
-    const imagesByDrama = new Map<string, ContentImage[]>();
+    const imagesByDrama = new Map<number, ContentImage[]>();
     for (const image of images) {
       const dramaImages = imagesByDrama.get(image.contentId) ?? [];
       dramaImages.push(image);
       imagesByDrama.set(image.contentId, dramaImages);
     }
-    const videosByDrama = new Map<string, ContentVideo[]>();
+    const videosByDrama = new Map<number, ContentVideo[]>();
     for (const video of videos) {
       const dramaVideos = videosByDrama.get(video.contentId) ?? [];
       dramaVideos.push(video);
       videosByDrama.set(video.contentId, dramaVideos);
     }
-    const episodesByDrama = new Map<string, Episode[]>();
+    const episodesByDrama = new Map<number, Episode[]>();
     for (const episode of episodes) {
       if (episode.status !== PUBLIC_STATUS || episode.publishedAt === null || episode.publishedAt > now) {
         continue;
@@ -166,7 +166,7 @@ export class PublicCatalogService {
       const dramaImagesForResponse = mapImages(dramaImages);
 
       return {
-        id: drama.id,
+        uuid: drama.uuid,
         slug: drama.publicSlug,
         title: drama.title,
         shortDescription: drama.shortDescription,
@@ -186,7 +186,7 @@ export class PublicCatalogService {
 
   async getDrama(dramaId: string, now = new Date()): Promise<DramaDetail> {
     const drama = await this.dramaRepository.findOne({
-      where: { id: dramaId, status: PUBLIC_STATUS },
+      where: { uuid: dramaId, status: PUBLIC_STATUS },
     });
 
     if (
@@ -227,7 +227,7 @@ export class PublicCatalogService {
 
     const dramaImages = mapImages(images);
     return {
-      id: drama.id,
+      uuid: drama.uuid,
       slug: drama.publicSlug,
       title: drama.title,
       shortDescription: drama.shortDescription,
@@ -241,8 +241,8 @@ export class PublicCatalogService {
       imageUrls: createDramaImageUrls(dramaImages),
       previewVideos: mapPreviewVideos(videos),
       episodes: publicEpisodes.map(
-        ({ id, episodeNumber, title, synopsis, durationMs, pricePoints }) => ({
-          id,
+        ({ id, uuid, episodeNumber, title, synopsis, durationMs, pricePoints }) => ({
+          uuid,
           episodeNumber,
           title,
           synopsis,
@@ -269,7 +269,7 @@ export class PublicCatalogService {
       .addSelect('video.durationMs', 'durationMs')
       .addSelect('episode.title', 'title')
       .addSelect('episode.episodeNumber', 'episodeNumber')
-      .where('episode.id = :episodeId', { episodeId })
+      .where('episode.uuid = :episodeUuid', { episodeUuid: episodeId })
       .andWhere('episode.status = :episodeStatus', { episodeStatus: PUBLIC_STATUS })
       .andWhere('episode.publishedAt <= :now', { now })
       .orderBy('video.displayOrder', 'ASC')
@@ -290,13 +290,13 @@ export class PublicCatalogService {
   async getDramaPreviewPlaybackUrl(dramaId: string, videoId: string): Promise<{ url: string; durationMs: number }> {
     if (process.env.NODE_ENV !== 'development') throw new NotFoundException();
 
-    const drama = await this.dramaRepository.findOne({ where: { id: dramaId, status: PUBLIC_STATUS } });
+    const drama = await this.dramaRepository.findOne({ where: { uuid: dramaId, status: PUBLIC_STATUS } });
     if (!drama || drama.publishedAt === null || drama.publishedAt > new Date()) {
       throw new NotFoundException();
     }
 
     const video = await this.contentVideoRepository.findOne({
-      where: { id: videoId, contentType: 'DRAMA', contentId: dramaId, kind: 'PREVIEW' },
+      where: { uuid: videoId, contentType: 'DRAMA', contentId: drama.id, kind: 'PREVIEW' },
     });
     if (!video) throw new NotFoundException();
 
@@ -315,7 +315,7 @@ export class PublicCatalogService {
       id,
       code,
       name,
-      tileImage: tileImagesByGenre.get(String(id)) ?? null,
+      tileImage: tileImagesByGenre.get(id) ?? null,
     }));
   }
 }

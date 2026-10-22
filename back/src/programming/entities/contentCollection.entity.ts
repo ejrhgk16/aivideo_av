@@ -1,4 +1,4 @@
-import { Check, Column, Entity, PrimaryColumn, Unique } from 'typeorm';
+import { Check, Column, Entity, PrimaryGeneratedColumn, Unique } from 'typeorm';
 
 import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 
@@ -9,8 +9,11 @@ import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
   `kind IN ('HOME', 'EDITORIAL_RANKING', 'RECOMMENDATION_FEED')`,
 )
 export class ContentCollection extends AuditedEntity {
-  @PrimaryColumn({ type: 'char', length: 36 })
-  id!: string;
+  @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
+  id!: number;
+
+  @Column({ type: 'char', length: 36, unique: true })
+  uuid!: string;
 
   @Column({ type: 'varchar', length: 50 })
   code!: string;

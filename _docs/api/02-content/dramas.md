@@ -27,7 +27,7 @@
 ```json
 [
   {
-    "id": "00000002-0000-4000-8000-000000000001",
+    "uuid": "00000002-0000-4000-8000-000000000001",
     "slug": "our-last-spring",
     "title": "우리의 마지막 봄",
     "shortDescription": "서로의 비밀을 간직한 두 사람의 봄날 로맨스",
@@ -53,7 +53,7 @@
     },
     "previewVideos": [
       {
-        "id": "00000002-0000-4000-8000-000000000201",
+        "uuid": "00000002-0000-4000-8000-000000000201",
         "storageKey": "dramas/our-last-spring/videos/preview-1.mp4",
         "durationMs": 30000
       }
@@ -66,7 +66,7 @@
 
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
-| `id` | string | 작품 식별자 |
+| `uuid` | string | 작품 공개 식별자. 작품 상세 경로의 `dramaId`에 사용 |
 | `slug` | string | 공개 URL에 사용할 작품 slug |
 | `title` | string | 작품명 |
 | `shortDescription` | string | 카드·홈용 짧은 소개 |
@@ -84,7 +84,7 @@
 | `imageUrls.campaigns` | string[] | 캠페인 공개 S3 URL. `displayOrder` 오름차순 |
 | `previewVideos` | array | 작품 프리뷰 영상. `displayOrder` 오름차순 |
 | `previewVideos[].storageKey` | string | 프리뷰 영상 storage key |
-| `previewVideos[].id` | string | 프리뷰 영상 식별자. 프리뷰 재생 API의 `videoId`로 사용 |
+| `previewVideos[].uuid` | string | 프리뷰 영상 공개 식별자. 프리뷰 재생 API의 `videoId`로 사용 |
 | `previewVideos[].durationMs` | number | 프리뷰 영상 재생 시간(밀리초) |
 | `episodeCount` | number | 공개된 회차 수 |
 | `freeEpisodeCount` | number | 공개 회차 중 `pricePoints = 0`인 회차 수 |
@@ -113,7 +113,7 @@
 
 | 이름 | 필수 | 타입 | 설명 |
 | --- | --- | --- | --- |
-| `dramaId` | 예 | string | 조회할 작품 식별자 |
+| `dramaId` | 예 | string | 조회할 작품 UUID. 작품 목록의 `uuid` 값 사용 |
 
 #### 인증
 
@@ -125,7 +125,7 @@
 
 ```json
 {
-  "id": "00000002-0000-4000-8000-000000000001",
+  "uuid": "00000002-0000-4000-8000-000000000001",
   "slug": "our-last-spring",
   "title": "우리의 마지막 봄",
   "shortDescription": "서로의 비밀을 간직한 두 사람의 봄날 로맨스",
@@ -152,14 +152,14 @@
     },
     "previewVideos": [
       {
-        "id": "00000002-0000-4000-8000-000000000201",
+        "uuid": "00000002-0000-4000-8000-000000000201",
         "storageKey": "dramas/our-last-spring/videos/preview-1.mp4",
         "durationMs": 30000
       }
     ],
   "episodes": [
     {
-      "id": "00000002-0000-4000-8000-000000000101",
+      "uuid": "00000002-0000-4000-8000-000000000101",
       "episodeNumber": 1,
       "title": "다시 만난 봄",
       "synopsis": "우연한 재회가 시작된다.",
@@ -167,7 +167,7 @@
       "pricePoints": 0
     },
     {
-      "id": "00000002-0000-4000-8000-000000000102",
+      "uuid": "00000002-0000-4000-8000-000000000102",
       "episodeNumber": 2,
       "title": "숨겨둔 편지",
       "synopsis": null,
@@ -180,7 +180,7 @@
 
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
-| `id` | string | 작품 식별자 |
+| `uuid` | string | 작품 공개 식별자 |
 | `slug` | string | 공개 URL에 사용할 작품 slug |
 | `title` | string | 작품명 |
 | `shortDescription` | string | 카드·홈용 짧은 소개 |
@@ -202,10 +202,10 @@
 | `imageUrls.campaigns` | string[] | 캠페인 공개 S3 URL. `displayOrder` 오름차순 |
 | `previewVideos` | array | 작품 프리뷰 영상. `displayOrder` 오름차순 |
 | `previewVideos[].storageKey` | string | 프리뷰 영상 storage key |
-| `previewVideos[].id` | string | 프리뷰 영상 식별자. 프리뷰 재생 API의 `videoId`로 사용 |
+| `previewVideos[].uuid` | string | 프리뷰 영상 공개 식별자. 프리뷰 재생 API의 `videoId`로 사용 |
 | `previewVideos[].durationMs` | number | 프리뷰 영상 재생 시간(밀리초) |
 | `episodes` | array | 공개된 회차 목록 |
-| `episodes[].id` | string | 회차 식별자 |
+| `episodes[].uuid` | string | 회차 공개 식별자. 회차 재생 API 경로의 `episodeId`에 사용 |
 | `episodes[].episodeNumber` | number | 회차 번호 |
 | `episodes[].title` | string \| null | 회차명 |
 | `episodes[].synopsis` | string \| null | 회차 소개 |
@@ -240,7 +240,7 @@
 
 개발 환경에서 공개 작품에 속한 `content_type = DRAMA`, `kind = PREVIEW` 영상의 S3 객체에 대해 3600초 유효한 서명 GET URL을 반환한다. 작품 또는 프리뷰가 없거나 공개 조건을 만족하지 않으면, 또는 개발 환경이 아니면 `404 Not Found`를 반환한다. 인증과 구매 여부는 확인하지 않는다.
 
-성공 응답은 `{ "url": "https://...", "durationMs": 30000 }`이며 URL은 S3의 절대 서명 URL이다. 프리뷰 `id`는 작품 목록·상세 응답의 `previewVideos[].id`에서 확인한다.
+성공 응답은 `{ "url": "https://...", "durationMs": 30000 }`이며 URL은 S3의 절대 서명 URL이다. 경로의 `dramaId`는 작품 UUID, `videoId`는 작품 목록·상세 응답의 `previewVideos[].uuid`에서 전달한다.
 
 ## 관련 데이터 모델
 

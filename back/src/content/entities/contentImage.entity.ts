@@ -1,4 +1,4 @@
-import { Check, Column, Entity, Index, PrimaryColumn, Unique } from 'typeorm';
+import { Check, Column, Entity, Index, PrimaryGeneratedColumn, Unique } from 'typeorm';
 
 import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 
@@ -16,14 +16,17 @@ import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
   "kind IN ('POSTER','POSTER_LANDSCAPE','HOME_HERO','DETAIL_COVER','CAMPAIGN','GENRE_TILE','EPISODE_COVER')",
 )
 export class ContentImage extends AuditedEntity {
-  @PrimaryColumn({ type: 'char', length: 36 })
-  id!: string;
+  @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
+  id!: number;
+
+  @Column({ type: 'char', length: 36, unique: true })
+  uuid!: string;
 
   @Column({ name: 'content_type', type: 'varchar', length: 16 })
   contentType!: string;
 
-  @Column({ name: 'content_id', type: 'char', length: 36 })
-  contentId!: string;
+  @Column({ name: 'content_id', type: 'int', unsigned: true })
+  contentId!: number;
 
   @Column({ type: 'varchar', length: 16 })
   kind!: string;

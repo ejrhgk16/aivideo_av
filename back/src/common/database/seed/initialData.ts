@@ -24,19 +24,34 @@ import type {
 } from '../../../programming/entities/index.js';
 import type { AdRewardOffer, PointProduct } from '../../../economy/entities/index.js';
 
+type UuidRow<T> = Omit<DeepPartial<T>, 'id'> & { uuid: string };
+
 export interface InitialSeedData {
-  productionCompanies: Array<DeepPartial<ProductionCompany>>;
+  productionCompanies: Array<UuidRow<ProductionCompany>>;
   genres: Array<DeepPartial<Genre>>;
-  dramas: Array<DeepPartial<Drama>>;
-  dramaGenres: Array<DeepPartial<DramaGenre>>;
-  contentImages: Array<DeepPartial<ContentImage>>;
-  episodes: Array<DeepPartial<Episode>>;
-  contentVideos: Array<DeepPartial<ContentVideo>>;
-  episodeSubtitles: Array<DeepPartial<EpisodeSubtitle>>;
-  contentCollections: Array<DeepPartial<ContentCollection>>;
-  collectionDramas: Array<DeepPartial<CollectionDrama>>;
-  pointProducts: Array<DeepPartial<PointProduct>>;
-  adRewardOffers: Array<DeepPartial<AdRewardOffer>>;
+  dramas: Array<
+    Omit<UuidRow<Drama>, 'productionCompanyId'> & { productionCompanyUuid: string }
+  >;
+  dramaGenres: Array<Omit<DeepPartial<DramaGenre>, 'dramaId'> & { dramaUuid: string }>;
+  contentImages: Array<
+    Omit<UuidRow<ContentImage>, 'contentId'> & { contentUuid: string }
+  >;
+  episodes: Array<Omit<UuidRow<Episode>, 'dramaId'> & { dramaUuid: string }>;
+  contentVideos: Array<
+    Omit<UuidRow<ContentVideo>, 'contentId'> & { contentUuid: string }
+  >;
+  episodeSubtitles: Array<
+    Omit<UuidRow<EpisodeSubtitle>, 'episodeId'> & { episodeUuid: string }
+  >;
+  contentCollections: Array<UuidRow<ContentCollection>>;
+  collectionDramas: Array<
+    Omit<DeepPartial<CollectionDrama>, 'collectionId' | 'dramaId'> & {
+      collectionUuid: string;
+      dramaUuid: string;
+    }
+  >;
+  pointProducts: Array<UuidRow<PointProduct>>;
+  adRewardOffers: Array<UuidRow<AdRewardOffer>>;
 }
 
 const fixedId = (namespace: number, sequence: number) =>
@@ -45,9 +60,9 @@ const fixedId = (namespace: number, sequence: number) =>
 const publishedAt = new Date('2025-01-01T00:00:00.000Z');
 
 const productionCompanies = [
-  { id: fixedId(1, 1), name: '라이트하우스 스튜디오', status: 'ACTIVE' },
-  { id: fixedId(1, 2), name: '문라이트 픽처스', status: 'ACTIVE' },
-  { id: fixedId(1, 3), name: '오로라 콘텐츠', status: 'ACTIVE' },
+  { uuid: fixedId(1, 1), name: '라이트하우스 스튜디오', status: 'ACTIVE' },
+  { uuid: fixedId(1, 2), name: '문라이트 픽처스', status: 'ACTIVE' },
+  { uuid: fixedId(1, 3), name: '오로라 콘텐츠', status: 'ACTIVE' },
 ];
 
 const genres = [
@@ -61,8 +76,8 @@ const genres = [
 
 const dramas = [
   {
-    id: fixedId(2, 1),
-    productionCompanyId: fixedId(1, 1),
+    uuid: fixedId(2, 1),
+    productionCompanyUuid: fixedId(1, 1),
     publicSlug: 'our-last-spring',
     title: '우리의 마지막 봄',
     shortDescription: '서로의 비밀을 간직한 두 사람의 봄날 로맨스',
@@ -71,8 +86,8 @@ const dramas = [
     publishedAt,
   },
   {
-    id: fixedId(2, 2),
-    productionCompanyId: fixedId(1, 2),
+    uuid: fixedId(2, 2),
+    productionCompanyUuid: fixedId(1, 2),
     publicSlug: 'midnight-letter',
     title: '자정의 편지',
     shortDescription: '매일 자정 도착하는 발신인 없는 편지',
@@ -81,8 +96,8 @@ const dramas = [
     publishedAt,
   },
   {
-    id: fixedId(2, 3),
-    productionCompanyId: fixedId(1, 3),
+    uuid: fixedId(2, 3),
+    productionCompanyUuid: fixedId(1, 3),
     publicSlug: 'second-take',
     title: '두 번째 테이크',
     shortDescription: '서툴지만 유쾌한 신인 배우들의 성장기',
@@ -91,8 +106,8 @@ const dramas = [
     publishedAt,
   },
   {
-    id: fixedId(2, 4),
-    productionCompanyId: fixedId(1, 1),
+    uuid: fixedId(2, 4),
+    productionCompanyUuid: fixedId(1, 1),
     publicSlug: 'moonlit-garden',
     title: '달빛 정원',
     shortDescription: '달이 뜨면 열리는 비밀스러운 정원',
@@ -101,8 +116,8 @@ const dramas = [
     publishedAt,
   },
   {
-    id: fixedId(2, 5),
-    productionCompanyId: fixedId(1, 2),
+    uuid: fixedId(2, 5),
+    productionCompanyUuid: fixedId(1, 2),
     publicSlug: 'the-quiet-room',
     title: '고요한 방',
     shortDescription: '아무도 말하지 않는 방에서 시작된 사건',
@@ -113,56 +128,56 @@ const dramas = [
 ];
 
 const dramaGenres = [
-  { dramaId: dramas[0].id, genreId: 1 },
-  { dramaId: dramas[0].id, genreId: 6 },
-  { dramaId: dramas[1].id, genreId: 2 },
-  { dramaId: dramas[1].id, genreId: 5 },
-  { dramaId: dramas[2].id, genreId: 3 },
-  { dramaId: dramas[2].id, genreId: 6 },
-  { dramaId: dramas[3].id, genreId: 4 },
-  { dramaId: dramas[3].id, genreId: 1 },
-  { dramaId: dramas[4].id, genreId: 2 },
-  { dramaId: dramas[4].id, genreId: 5 },
+  { dramaUuid: dramas[0].uuid, genreId: 1 },
+  { dramaUuid: dramas[0].uuid, genreId: 6 },
+  { dramaUuid: dramas[1].uuid, genreId: 2 },
+  { dramaUuid: dramas[1].uuid, genreId: 5 },
+  { dramaUuid: dramas[2].uuid, genreId: 3 },
+  { dramaUuid: dramas[2].uuid, genreId: 6 },
+  { dramaUuid: dramas[3].uuid, genreId: 4 },
+  { dramaUuid: dramas[3].uuid, genreId: 1 },
+  { dramaUuid: dramas[4].uuid, genreId: 2 },
+  { dramaUuid: dramas[4].uuid, genreId: 5 },
 ];
 
 const contentImages = [
   ...dramas.flatMap((drama, dramaIndex) => [
     ...(['POSTER', 'HOME_HERO', 'DETAIL_COVER'] as const).map((kind, kindIndex) => {
-      const id = fixedId(3, dramaIndex * 10 + kindIndex + 1);
+      const uuid = fixedId(3, dramaIndex * 10 + kindIndex + 1);
 
       return {
-        id,
+        uuid,
         contentType: 'DRAMA',
-        contentId: drama.id,
+        contentUuid: drama.uuid,
         kind,
-        storageKey: createDramaImageStorageKey(drama.id, id, kind),
+        storageKey: createDramaImageStorageKey(drama.uuid, uuid, kind),
         altText: `${drama.title} ${kind.toLowerCase()} 이미지`,
         displayOrder: 1,
       };
     }),
     ...[1, 2].map((displayOrder) => {
-      const id = fixedId(3, dramaIndex * 10 + 4 + displayOrder);
+      const uuid = fixedId(3, dramaIndex * 10 + 4 + displayOrder);
 
       return {
-        id,
+        uuid,
         contentType: 'DRAMA',
-        contentId: drama.id,
+        contentUuid: drama.uuid,
         kind: 'CAMPAIGN',
-        storageKey: createDramaImageStorageKey(drama.id, id, 'CAMPAIGN'),
+        storageKey: createDramaImageStorageKey(drama.uuid, uuid, 'CAMPAIGN'),
         altText: `${drama.title} 캠페인 이미지 ${displayOrder}`,
         displayOrder,
       };
     }),
   ]),
   ...genres.map((genre, genreIndex) => {
-    const id = fixedId(3, 51 + genreIndex);
+    const uuid = fixedId(3, 51 + genreIndex);
 
     return {
-      id,
+      uuid,
       contentType: 'GENRE',
-      contentId: String(genre.id),
+      contentUuid: String(genre.id),
       kind: 'GENRE_TILE',
-      storageKey: createGenreImageStorageKey(genre.id, id),
+      storageKey: createGenreImageStorageKey(genre.id, uuid),
       altText: `${genre.name} 장르 이미지`,
       displayOrder: 1,
     };
@@ -170,14 +185,14 @@ const contentImages = [
 ];
 
 const landscapePosters = dramas.map((drama, dramaIndex) => {
-  const id = fixedId(3, dramaIndex * 10 + 7);
+  const uuid = fixedId(3, dramaIndex * 10 + 7);
 
   return {
-    id,
+    uuid,
     contentType: 'DRAMA',
-    contentId: drama.id,
+    contentUuid: drama.uuid,
     kind: 'POSTER_LANDSCAPE',
-    storageKey: createDramaImageStorageKey(drama.id, id, 'POSTER_LANDSCAPE'),
+    storageKey: createDramaImageStorageKey(drama.uuid, uuid, 'POSTER_LANDSCAPE'),
     altText: `${drama.title} 가로 포스터 이미지`,
     displayOrder: 1,
   };
@@ -187,8 +202,8 @@ const episodeDurationsMs = [103125, 53453, 84084, 92459, 68610, 92593, 52500];
 
 const episodes = dramas.flatMap((drama, dramaIndex) =>
   [1, 2, 3, 4].map((episodeNumber) => ({
-    id: fixedId(4, dramaIndex * 10 + episodeNumber),
-    dramaId: drama.id,
+    uuid: fixedId(4, dramaIndex * 10 + episodeNumber),
+    dramaUuid: drama.uuid,
     episodeNumber,
     title: `${episodeNumber}화`,
     synopsis: `${drama.title} ${episodeNumber}화 이야기`,
@@ -200,14 +215,14 @@ const episodes = dramas.flatMap((drama, dramaIndex) =>
 );
 
 const contentImagesForEpisodes = episodes.map((episode, episodeIndex) => {
-  const id = fixedId(3, 61 + episodeIndex);
+  const uuid = fixedId(3, 61 + episodeIndex);
 
   return {
-    id,
+    uuid,
     contentType: 'EPISODE',
-    contentId: episode.id,
+    contentUuid: episode.uuid,
     kind: 'EPISODE_COVER',
-    storageKey: createEpisodeImageStorageKey(episode.dramaId, episode.id, id),
+    storageKey: createEpisodeImageStorageKey(episode.dramaUuid, episode.uuid, uuid),
     altText: `${episode.title} 커버 이미지`,
     displayOrder: 1,
   };
@@ -216,28 +231,28 @@ const contentImagesForEpisodes = episodes.map((episode, episodeIndex) => {
 const contentVideos = [
   ...dramas.flatMap((drama, dramaIndex) =>
     [1, 2].map((displayOrder) => {
-      const id = fixedId(5, dramaIndex * 10 + displayOrder);
+      const uuid = fixedId(5, dramaIndex * 10 + displayOrder);
 
       return {
-        id,
+        uuid,
         contentType: 'DRAMA',
-        contentId: drama.id,
+        contentUuid: drama.uuid,
         kind: 'PREVIEW',
-        storageKey: createDramaPreviewStorageKey(drama.id, id),
+        storageKey: createDramaPreviewStorageKey(drama.uuid, uuid),
         durationMs: 15000,
         displayOrder,
       };
     }),
   ),
   ...episodes.map((episode, episodeIndex) => {
-    const id = fixedId(5, 51 + episodeIndex);
+    const uuid = fixedId(5, 51 + episodeIndex);
 
     return {
-      id,
+      uuid,
       contentType: 'EPISODE',
-      contentId: episode.id,
+      contentUuid: episode.uuid,
       kind: 'FULL',
-      storageKey: createEpisodeVideoStorageKey(episode.dramaId, episode.id, id),
+      storageKey: createEpisodeVideoStorageKey(episode.dramaUuid, episode.uuid, uuid),
       durationMs: episode.durationMs,
       displayOrder: 1,
     };
@@ -249,13 +264,13 @@ const episodeSubtitles = episodes.map((episode, index) => {
   const format = 'VTT';
 
   return {
-    id: fixedId(6, index + 1),
-    episodeId: episode.id,
+    uuid: fixedId(6, index + 1),
+    episodeUuid: episode.uuid,
     languageCode,
     format,
     storageKey: createEpisodeSubtitleStorageKey(
-      episode.dramaId,
-      episode.id,
+      episode.dramaUuid,
+      episode.uuid,
       languageCode,
       format,
     ),
@@ -264,7 +279,7 @@ const episodeSubtitles = episodes.map((episode, index) => {
 
 const contentCollections = [
   {
-    id: fixedId(7, 1),
+    uuid: fixedId(7, 1),
     code: 'HOME_FEATURED',
     title: '오늘의 추천',
     description: '지금 만나보세요',
@@ -272,7 +287,7 @@ const contentCollections = [
     isActive: true,
   },
   {
-    id: fixedId(7, 2),
+    uuid: fixedId(7, 2),
     code: 'EDITORIAL_TOP_3',
     title: '이번 주 TOP 3',
     description: '편집부가 고른 인기 작품',
@@ -280,7 +295,7 @@ const contentCollections = [
     isActive: true,
   },
   {
-    id: fixedId(7, 3),
+    uuid: fixedId(7, 3),
     code: 'RECOMMENDATION_DAILY',
     title: '짧게 즐기는 추천',
     description: '새로운 이야기를 발견해 보세요',
@@ -288,7 +303,7 @@ const contentCollections = [
     isActive: true,
   },
   {
-    id: fixedId(7, 4),
+    uuid: fixedId(7, 4),
     code: 'HOME_CAMPAIGN',
     title: '로맨스 만나기',
     description: '퇴근길을 채울 로맨스 한 편',
@@ -299,29 +314,29 @@ const contentCollections = [
 
 const collectionDramas = [
   ...dramas.map((drama, index) => ({
-    collectionId: contentCollections[0].id,
-    dramaId: drama.id,
+    collectionUuid: contentCollections[0].uuid,
+    dramaUuid: drama.uuid,
     displayOrder: index + 1,
     startsAt: null,
     endsAt: null,
   })),
   ...dramas.slice(0, 3).map((drama, index) => ({
-    collectionId: contentCollections[1].id,
-    dramaId: drama.id,
+    collectionUuid: contentCollections[1].uuid,
+    dramaUuid: drama.uuid,
     displayOrder: index + 1,
     startsAt: null,
     endsAt: null,
   })),
   ...dramas.map((drama, index) => ({
-    collectionId: contentCollections[2].id,
-    dramaId: drama.id,
+    collectionUuid: contentCollections[2].uuid,
+    dramaUuid: drama.uuid,
     displayOrder: index + 1,
     startsAt: null,
     endsAt: null,
   })),
   {
-    collectionId: contentCollections[3].id,
-    dramaId: dramas[0].id,
+    collectionUuid: contentCollections[3].uuid,
+    dramaUuid: dramas[0].uuid,
     displayOrder: 1,
     startsAt: null,
     endsAt: null,
@@ -329,14 +344,14 @@ const collectionDramas = [
 ];
 
 const pointProducts = [
-  { id: fixedId(8, 1), code: 'POINTS_100', points: 100, priceKrw: 1000, isActive: true },
-  { id: fixedId(8, 2), code: 'POINTS_550', points: 550, priceKrw: 5000, isActive: true },
-  { id: fixedId(8, 3), code: 'POINTS_1200', points: 1200, priceKrw: 10000, isActive: true },
+  { uuid: fixedId(8, 1), code: 'POINTS_100', points: 100, priceKrw: 1000, isActive: true },
+  { uuid: fixedId(8, 2), code: 'POINTS_550', points: 550, priceKrw: 5000, isActive: true },
+  { uuid: fixedId(8, 3), code: 'POINTS_1200', points: 1200, priceKrw: 10000, isActive: true },
 ];
 
 const adRewardOffers = [
-  { id: fixedId(9, 1), code: 'AD_REWARD_DEFAULT', rewardPoints: 20, dailyLimit: 5, isActive: true },
-  { id: fixedId(9, 2), code: 'AD_REWARD_BONUS', rewardPoints: 50, dailyLimit: 2, isActive: true },
+  { uuid: fixedId(9, 1), code: 'AD_REWARD_DEFAULT', rewardPoints: 20, dailyLimit: 5, isActive: true },
+  { uuid: fixedId(9, 2), code: 'AD_REWARD_BONUS', rewardPoints: 50, dailyLimit: 2, isActive: true },
 ];
 
 export const initialData: InitialSeedData = {

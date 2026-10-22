@@ -9,11 +9,11 @@ import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 ])
 @Check('CHK_collection_dramas_display_order', 'display_order > 0')
 export class CollectionDrama extends AuditedEntity {
-  @PrimaryColumn({ name: 'collection_id', type: 'char', length: 36 })
-  collectionId!: string;
+  @PrimaryColumn({ name: 'collection_id', type: 'int', unsigned: true })
+  collectionId!: number;
 
-  @PrimaryColumn({ name: 'drama_id', type: 'char', length: 36 })
-  dramaId!: string;
+  @PrimaryColumn({ name: 'drama_id', type: 'int', unsigned: true })
+  dramaId!: number;
 
   @Column({ name: 'display_order', type: 'smallint' })
   displayOrder!: number;

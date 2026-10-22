@@ -1,4 +1,4 @@
-import { Check, Column, Entity, Index, PrimaryColumn } from 'typeorm';
+import { Check, Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 
 @Entity({ name: 'ad_reward_claims' })
@@ -13,14 +13,17 @@ import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
   "status IN ('STARTED','COMPLETED','ABANDONED','REJECTED')",
 )
 export class AdRewardClaim extends AuditedEntity {
-  @PrimaryColumn({ type: 'char', length: 36 })
-  id!: string;
+  @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
+  id!: number;
 
-  @Column({ name: 'user_id', type: 'char', length: 36 })
-  userId!: string;
+  @Column({ type: 'char', length: 36, unique: true })
+  uuid!: string;
 
-  @Column({ name: 'ad_reward_offer_id', type: 'char', length: 36 })
-  adRewardOfferId!: string;
+  @Column({ name: 'user_id', type: 'int', unsigned: true })
+  userId!: number;
+
+  @Column({ name: 'ad_reward_offer_id', type: 'int', unsigned: true })
+  adRewardOfferId!: number;
 
   @Column({ type: 'varchar', length: 16 })
   status!: string;
@@ -39,8 +42,8 @@ export class AdRewardClaim extends AuditedEntity {
 
   @Column({
     name: 'reward_transaction_id',
-    type: 'char',
-    length: 36,
+    type: 'int',
+    unsigned: true,
     nullable: true,
     unique: true,
   })

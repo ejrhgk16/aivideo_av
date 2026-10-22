@@ -65,8 +65,9 @@ describe('PublicCatalogService', () => {
     vi.stubEnv('NODE_ENV', 'development');
     const now = new Date('2026-10-09T00:00:00.000Z');
     const drama = Object.assign(new Drama(), {
-      id: 'drama-1',
-      productionCompanyId: 'company-1',
+      id: 1,
+      uuid: '00000000-0000-4000-8000-000000000001',
+      productionCompanyId: 10,
       publicSlug: 'first-drama',
       title: '첫 작품',
       shortDescription: '짧은 소개',
@@ -77,40 +78,40 @@ describe('PublicCatalogService', () => {
     const dramas = repository();
     dramas.createQueryBuilder = vi.fn().mockReturnValue(qb);
     const companies = repository();
-    companies.findBy.mockResolvedValue([Object.assign(new ProductionCompany(), { id: 'company-1', name: '제작사' })]);
+    companies.findBy.mockResolvedValue([Object.assign(new ProductionCompany(), { id: 10, uuid: '00000000-0000-4000-8000-000000000010', name: '제작사' })]);
     const dramaGenres = repository();
-    dramaGenres.findBy.mockResolvedValue([Object.assign(new DramaGenre(), { dramaId: 'drama-1', genreId: 1 })]);
+    dramaGenres.findBy.mockResolvedValue([Object.assign(new DramaGenre(), { dramaId: 1, genreId: 1 })]);
     const genres = repository();
     genres.find.mockResolvedValue([Object.assign(new Genre(), { id: 1, code: 'MYSTERY', name: '미스터리', displayOrder: 1 })]);
     const images = repository();
     images.findBy.mockResolvedValue([
       Object.assign(new ContentImage(), {
-        contentType: 'DRAMA', contentId: 'drama-1', kind: 'POSTER', storageKey: 'dramas/drama-1/images/poster/image-1.webp', displayOrder: 1,
+        contentType: 'DRAMA', contentId: 1, kind: 'POSTER', storageKey: 'dramas/drama-1/images/poster/image-1.webp', displayOrder: 1,
       }),
       Object.assign(new ContentImage(), {
-        contentType: 'DRAMA', contentId: 'drama-1', kind: 'POSTER_LANDSCAPE', storageKey: 'dramas/drama-1/images/poster-landscape/image-4.webp', displayOrder: 1,
+        contentType: 'DRAMA', contentId: 1, kind: 'POSTER_LANDSCAPE', storageKey: 'dramas/drama-1/images/poster-landscape/image-4.webp', displayOrder: 1,
       }),
       Object.assign(new ContentImage(), {
-        contentType: 'DRAMA', contentId: 'drama-1', kind: 'CAMPAIGN', storageKey: 'dramas/drama-1/images/campaign/image-2.webp', displayOrder: 2,
+        contentType: 'DRAMA', contentId: 1, kind: 'CAMPAIGN', storageKey: 'dramas/drama-1/images/campaign/image-2.webp', displayOrder: 2,
       }),
       Object.assign(new ContentImage(), {
-        contentType: 'DRAMA', contentId: 'drama-1', kind: 'CAMPAIGN', storageKey: 'dramas/drama-1/images/campaign/image-1.webp', displayOrder: 1,
+        contentType: 'DRAMA', contentId: 1, kind: 'CAMPAIGN', storageKey: 'dramas/drama-1/images/campaign/image-1.webp', displayOrder: 1,
       }),
     ]);
     const videos = repository();
     videos.findBy.mockResolvedValue([
       Object.assign(new ContentVideo(), {
-        id: 'preview-2', contentType: 'DRAMA', contentId: 'drama-1', kind: 'PREVIEW', storageKey: 'preview-2.mp4', durationMs: 2000, displayOrder: 2,
+        id: 21, uuid: '00000000-0000-4000-8000-000000000021', contentType: 'DRAMA', contentId: 1, kind: 'PREVIEW', storageKey: 'preview-2.mp4', durationMs: 2000, displayOrder: 2,
       }),
       Object.assign(new ContentVideo(), {
-        id: 'preview-1', contentType: 'DRAMA', contentId: 'drama-1', kind: 'PREVIEW', storageKey: 'preview-1.mp4', durationMs: 1000, displayOrder: 1,
+        id: 20, uuid: '00000000-0000-4000-8000-000000000020', contentType: 'DRAMA', contentId: 1, kind: 'PREVIEW', storageKey: 'preview-1.mp4', durationMs: 1000, displayOrder: 1,
       }),
     ]);
     const episodes = repository();
     episodes.findBy.mockResolvedValue([
-      Object.assign(new Episode(), { dramaId: 'drama-1', status: 'PUBLISHED', publishedAt: new Date('2026-10-01'), pricePoints: 0 }),
-      Object.assign(new Episode(), { dramaId: 'drama-1', status: 'PUBLISHED', publishedAt: new Date('2026-10-02'), pricePoints: 10 }),
-      Object.assign(new Episode(), { dramaId: 'drama-1', status: 'SCHEDULED', publishedAt: new Date('2026-10-10'), pricePoints: 0 }),
+      Object.assign(new Episode(), { dramaId: 1, status: 'PUBLISHED', publishedAt: new Date('2026-10-01'), pricePoints: 0 }),
+      Object.assign(new Episode(), { dramaId: 1, status: 'PUBLISHED', publishedAt: new Date('2026-10-02'), pricePoints: 10 }),
+      Object.assign(new Episode(), { dramaId: 1, status: 'SCHEDULED', publishedAt: new Date('2026-10-10'), pricePoints: 0 }),
     ]);
 
     const service = new PublicCatalogService(
@@ -125,7 +126,7 @@ describe('PublicCatalogService', () => {
 
     await expect(service.listDramas('latest', now)).resolves.toEqual([
       expect.objectContaining({
-        id: 'drama-1',
+        uuid: '00000000-0000-4000-8000-000000000001',
         slug: 'first-drama',
         productionCompany: '제작사',
         episodeCount: 2,
@@ -142,8 +143,8 @@ describe('PublicCatalogService', () => {
           campaigns: ['https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/drama-1/images/campaign/image-1.webp', 'https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/drama-1/images/campaign/image-2.webp'],
         },
         previewVideos: [
-        { id: 'preview-1', storageKey: 'preview-1.mp4', durationMs: 1000 },
-          { id: 'preview-2', storageKey: 'preview-2.mp4', durationMs: 2000 },
+        { uuid: '00000000-0000-4000-8000-000000000020', storageKey: 'preview-1.mp4', durationMs: 1000 },
+          { uuid: '00000000-0000-4000-8000-000000000021', storageKey: 'preview-2.mp4', durationMs: 2000 },
         ],
       }),
     ]);
@@ -191,7 +192,7 @@ describe('PublicCatalogService', () => {
       repository() as never, videos as never, episodes as never, s3 as never,
     );
 
-    await expect(service.getEpisodePlaybackUrl('episode-1', now)).resolves.toEqual({
+    await expect(service.getEpisodePlaybackUrl('00000000-0000-4000-8000-000000000030', now)).resolves.toEqual({
       url: 'https://s3.example/full',
       title: '첫 번째 이야기',
       episodeNumber: 1,
@@ -205,7 +206,7 @@ describe('PublicCatalogService', () => {
     expect(qb.innerJoin).toHaveBeenNthCalledWith(2, ContentVideo, 'video', expect.stringContaining('video.contentType = :contentType AND video.contentId = episode.id AND video.kind = :kind'), {
       contentType: 'EPISODE', kind: 'FULL',
     });
-    expect(qb.where).toHaveBeenCalledWith('episode.id = :episodeId', { episodeId: 'episode-1' });
+    expect(qb.where).toHaveBeenCalledWith('episode.uuid = :episodeUuid', { episodeUuid: '00000000-0000-4000-8000-000000000030' });
     expect(qb.andWhere).toHaveBeenCalledWith('episode.status = :episodeStatus', { episodeStatus: 'PUBLISHED' });
     expect(qb.andWhere).toHaveBeenCalledWith('episode.publishedAt <= :now', { now });
     expect(qb.orderBy).toHaveBeenCalledWith('video.displayOrder', 'ASC');
@@ -253,11 +254,11 @@ describe('PublicCatalogService', () => {
     vi.stubEnv('NODE_ENV', 'development');
     const dramas = repository();
     dramas.findOne.mockResolvedValue(Object.assign(new Drama(), {
-      id: 'drama-1', status: 'PUBLISHED', publishedAt: new Date('2026-01-01T00:00:00Z'),
+      id: 1, uuid: '00000000-0000-4000-8000-000000000001', status: 'PUBLISHED', publishedAt: new Date('2026-01-01T00:00:00Z'),
     }));
     const videos = repository();
     videos.findOne.mockResolvedValue(Object.assign(new ContentVideo(), {
-      id: 'preview-1', contentType: 'DRAMA', contentId: 'drama-1', kind: 'PREVIEW',
+      id: 20, uuid: '00000000-0000-4000-8000-000000000020', contentType: 'DRAMA', contentId: 1, kind: 'PREVIEW',
       storageKey: 'dramas/drama-1/preview/preview-1.mp4', durationMs: 30000,
     }));
     const s3 = { createSignedGetUrl: vi.fn().mockResolvedValue('https://s3.example/preview') };
@@ -266,11 +267,11 @@ describe('PublicCatalogService', () => {
       repository() as never, videos as never, repository() as never, s3 as never,
     );
 
-    await expect(service.getDramaPreviewPlaybackUrl('drama-1', 'preview-1')).resolves.toEqual({
+    await expect(service.getDramaPreviewPlaybackUrl('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000020')).resolves.toEqual({
       url: 'https://s3.example/preview', durationMs: 30000,
     });
     expect(videos.findOne).toHaveBeenCalledWith({
-      where: { id: 'preview-1', contentType: 'DRAMA', contentId: 'drama-1', kind: 'PREVIEW' },
+      where: { uuid: '00000000-0000-4000-8000-000000000020', contentType: 'DRAMA', contentId: 1, kind: 'PREVIEW' },
     });
     expect(s3.createSignedGetUrl).toHaveBeenCalledWith('dramas/drama-1/preview/preview-1.mp4');
   });
@@ -289,18 +290,18 @@ describe('PublicCatalogService', () => {
     expect(videos.findOne).not.toHaveBeenCalled();
 
     dramas.findOne.mockResolvedValue(Object.assign(new Drama(), {
-      id: 'drama-1', status: 'PUBLISHED', publishedAt: new Date(Date.now() + 60_000),
+      id: 1, uuid: '00000000-0000-4000-8000-000000000001', status: 'PUBLISHED', publishedAt: new Date(Date.now() + 60_000),
     }));
-    await expect(service.getDramaPreviewPlaybackUrl('drama-1', 'preview-1')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getDramaPreviewPlaybackUrl('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000020')).rejects.toBeInstanceOf(NotFoundException);
 
     dramas.findOne.mockResolvedValue(Object.assign(new Drama(), {
-      id: 'drama-1', status: 'PUBLISHED', publishedAt: new Date('2026-01-01T00:00:00Z'),
+      id: 1, uuid: '00000000-0000-4000-8000-000000000001', status: 'PUBLISHED', publishedAt: new Date('2026-01-01T00:00:00Z'),
     }));
     videos.findOne.mockResolvedValue(null);
-    await expect(service.getDramaPreviewPlaybackUrl('drama-1', 'wrong-kind')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getDramaPreviewPlaybackUrl('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000020')).rejects.toBeInstanceOf(NotFoundException);
 
     vi.stubEnv('NODE_ENV', 'production');
-    await expect(service.getDramaPreviewPlaybackUrl('drama-1', 'preview-1')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getDramaPreviewPlaybackUrl('00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-000000000020')).rejects.toBeInstanceOf(NotFoundException);
     expect(videos.findOne).toHaveBeenCalledTimes(1);
   });
 
@@ -310,8 +311,9 @@ describe('PublicCatalogService', () => {
     const dramas = repository();
     dramas.findOne.mockResolvedValue(
       Object.assign(new Drama(), {
-        id: 'drama-1',
-        productionCompanyId: 'company-1',
+        id: 1,
+        uuid: '00000000-0000-4000-8000-000000000001',
+        productionCompanyId: 10,
         publicSlug: 'first-drama',
         title: '첫 작품',
         shortDescription: '짧은 소개',
@@ -322,22 +324,22 @@ describe('PublicCatalogService', () => {
     );
     const companies = repository();
     companies.findOne.mockResolvedValue(
-      Object.assign(new ProductionCompany(), { id: 'company-1', name: '제작사' }),
+      Object.assign(new ProductionCompany(), { id: 10, uuid: '00000000-0000-4000-8000-000000000010', name: '제작사' }),
     );
     const dramaGenres = repository();
-    dramaGenres.findBy.mockResolvedValue([Object.assign(new DramaGenre(), { dramaId: 'drama-1', genreId: 1 })]);
+    dramaGenres.findBy.mockResolvedValue([Object.assign(new DramaGenre(), { dramaId: 1, genreId: 1 })]);
     const genres = repository();
     genres.find.mockResolvedValue([Object.assign(new Genre(), { id: 1, code: 'MYSTERY', name: '미스터리' })]);
     const images = repository();
     images.findBy.mockResolvedValue([
       Object.assign(new ContentImage(), {
-        contentType: 'DRAMA', contentId: 'drama-1', kind: 'POSTER', storageKey: 'dramas/drama-1/images/poster/image-1.webp', displayOrder: 1,
+        contentType: 'DRAMA', contentId: 1, kind: 'POSTER', storageKey: 'dramas/drama-1/images/poster/image-1.webp', displayOrder: 1,
       }),
       Object.assign(new ContentImage(), {
-        contentType: 'DRAMA', contentId: 'drama-1', kind: 'POSTER_LANDSCAPE', storageKey: 'dramas/drama-1/images/poster-landscape/image-4.webp', displayOrder: 1,
+        contentType: 'DRAMA', contentId: 1, kind: 'POSTER_LANDSCAPE', storageKey: 'dramas/drama-1/images/poster-landscape/image-4.webp', displayOrder: 1,
       }),
       Object.assign(new ContentImage(), {
-        contentType: 'EPISODE', contentId: 'episode-1', kind: 'EPISODE_COVER', storageKey: 'episode-1.jpg', displayOrder: 1,
+        contentType: 'EPISODE', contentId: 31, kind: 'EPISODE_COVER', storageKey: 'episode-1.jpg', displayOrder: 1,
       }),
     ]);
     const videos = repository();
@@ -345,8 +347,9 @@ describe('PublicCatalogService', () => {
     const episodes = repository();
     episodes.findBy.mockResolvedValue([
       Object.assign(new Episode(), {
-        id: 'episode-2',
-        dramaId: 'drama-1',
+        id: 32,
+        uuid: '00000000-0000-4000-8000-000000000032',
+        dramaId: 1,
         episodeNumber: 2,
         title: '2화',
         synopsis: '두 번째',
@@ -356,8 +359,9 @@ describe('PublicCatalogService', () => {
         publishedAt: new Date('2026-10-02'),
       }),
       Object.assign(new Episode(), {
-        id: 'episode-hidden',
-        dramaId: 'drama-1',
+        id: 33,
+        uuid: '00000000-0000-4000-8000-000000000033',
+        dramaId: 1,
         episodeNumber: 3,
         title: '3화',
         synopsis: null,
@@ -367,8 +371,9 @@ describe('PublicCatalogService', () => {
         publishedAt: new Date('2026-10-10'),
       }),
       Object.assign(new Episode(), {
-        id: 'episode-1',
-        dramaId: 'drama-1',
+        id: 31,
+        uuid: '00000000-0000-4000-8000-000000000031',
+        dramaId: 1,
         episodeNumber: 1,
         title: '1화',
         synopsis: '첫 번째',
@@ -389,8 +394,8 @@ describe('PublicCatalogService', () => {
       episodes as never,
     );
 
-    await expect(service.getDrama('drama-1', now)).resolves.toEqual({
-      id: 'drama-1',
+    await expect(service.getDrama('00000000-0000-4000-8000-000000000001', now)).resolves.toEqual({
+      uuid: '00000000-0000-4000-8000-000000000001',
       slug: 'first-drama',
       title: '첫 작품',
       shortDescription: '짧은 소개',
@@ -402,7 +407,7 @@ describe('PublicCatalogService', () => {
       previewVideos: [],
       episodes: [
         {
-          id: 'episode-1',
+          uuid: '00000000-0000-4000-8000-000000000031',
           episodeNumber: 1,
           title: '1화',
           synopsis: '첫 번째',
@@ -411,7 +416,7 @@ describe('PublicCatalogService', () => {
           image: 'episode-1.jpg',
         },
         {
-          id: 'episode-2',
+          uuid: '00000000-0000-4000-8000-000000000032',
           episodeNumber: 2,
           title: '2화',
           synopsis: '두 번째',
@@ -421,7 +426,9 @@ describe('PublicCatalogService', () => {
         },
       ],
     });
-    expect(dramas.findOne).toHaveBeenCalledWith({ where: { id: 'drama-1', status: 'PUBLISHED' } });
+    expect(dramas.findOne).toHaveBeenCalledWith({ where: { uuid: '00000000-0000-4000-8000-000000000001', status: 'PUBLISHED' } });
+    expect(images.findBy).toHaveBeenNthCalledWith(2, expect.objectContaining({ contentType: 'EPISODE', kind: 'EPISODE_COVER' }));
+    expect(images.findBy.mock.calls[1][0].contentId._value).toEqual([31, 32]);
   });
 
   it('rejects a missing, unpublished, or not-yet-published drama', async () => {
@@ -442,20 +449,22 @@ describe('PublicCatalogService', () => {
 
     dramas.findOne.mockResolvedValue(
       Object.assign(new Drama(), {
-        id: 'drama-1',
+        id: 1,
+        uuid: '00000000-0000-4000-8000-000000000001',
         status: 'DRAFT',
         publishedAt: new Date('2026-10-08T00:00:00.000Z'),
       }),
     );
-    await expect(service.getDrama('drama-1', now)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getDrama('00000000-0000-4000-8000-000000000001', now)).rejects.toBeInstanceOf(NotFoundException);
 
     dramas.findOne.mockResolvedValue(
       Object.assign(new Drama(), {
-        id: 'drama-1',
+        id: 1,
+        uuid: '00000000-0000-4000-8000-000000000001',
         status: 'PUBLISHED',
         publishedAt: new Date('2026-10-10T00:00:00.000Z'),
       }),
     );
-    await expect(service.getDrama('drama-1', now)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getDrama('00000000-0000-4000-8000-000000000001', now)).rejects.toBeInstanceOf(NotFoundException);
   });
 });

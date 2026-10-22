@@ -1,10 +1,10 @@
 export interface HomeCollectionDrama {
   displayOrder: number;
-  id: string;
+  uuid: string;
   slug: string;
   title: string;
   shortDescription: string;
-  productionCompany: { id: string; name: string } | null;
+  productionCompany: { uuid: string; name: string } | null;
   genres: Array<{ id: number; code: string; name: string }>;
   images: {
     poster: string | null;
@@ -20,7 +20,7 @@ export interface HomeCollectionDrama {
     detailCover: string | null;
     campaigns: string[];
   };
-  previewVideos: Array<{ storageKey: string; durationMs: number }>;
+  previewVideos: Array<{ uuid: string; storageKey: string; durationMs: number }>;
   publishedEpisodeCount: number;
   freeEpisodeCount: number;
 }

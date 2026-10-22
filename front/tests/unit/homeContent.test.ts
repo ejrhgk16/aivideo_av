@@ -15,11 +15,11 @@ test('home collection requests use the configured API base URL', async () => {
     dramas: [
       {
         displayOrder: 1,
-        id: '00000002-0000-4000-8000-000000000001',
+        uuid: '00000002-0000-4000-8000-000000000001',
         slug: 'our-last-spring',
         title: '우리의 마지막 봄',
         shortDescription: '서로의 비밀을 간직한 두 사람의 봄날 로맨스',
-        productionCompany: null,
+        productionCompany: { uuid: '00000001-0000-4000-8000-000000000001', name: '라이트하우스 스튜디오' },
         genres: [{ id: 1, code: 'ROMANCE', name: '로맨스' }],
         images: {
           poster: null,
@@ -36,7 +36,7 @@ test('home collection requests use the configured API base URL', async () => {
           campaigns: [],
         },
         previewVideos: [
-          { storageKey: 'dramas/our-last-spring/videos/preview-1.mp4', durationMs: 30000 },
+          { uuid: '00000002-0000-4000-8000-000000000201', storageKey: 'dramas/our-last-spring/videos/preview-1.mp4', durationMs: 30000 },
         ],
         publishedEpisodeCount: 4,
         freeEpisodeCount: 1,

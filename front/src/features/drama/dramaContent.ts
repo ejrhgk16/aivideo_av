@@ -1,5 +1,5 @@
 export interface DramaContent {
-  id: string;
+  uuid: string;
   slug: string;
   title: string;
   shortDescription: string;
@@ -20,9 +20,9 @@ export interface DramaContent {
     detailCover: string | null;
     campaigns: string[];
   };
-  previewVideos: Array<{ storageKey: string; durationMs: number }>;
+  previewVideos: Array<{ uuid: string; storageKey: string; durationMs: number }>;
   episodes: Array<{
-    id: string;
+    uuid: string;
     episodeNumber: number;
     title: string | null;
     synopsis: string | null;
@@ -33,7 +33,7 @@ export interface DramaContent {
 }
 
 export interface DramaSummary {
-  id: string;
+  uuid: string;
   slug: string;
   title: string;
   shortDescription: string;
@@ -53,7 +53,7 @@ export interface DramaSummary {
     detailCover: string | null;
     campaigns: string[];
   };
-  previewVideos: Array<{ storageKey: string; durationMs: number }>;
+  previewVideos: Array<{ uuid: string; storageKey: string; durationMs: number }>;
   episodeCount: number;
   freeEpisodeCount: number;
 }

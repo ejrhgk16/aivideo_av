@@ -30,8 +30,8 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
   }, []);
 
   const dramas = [...(collection?.dramas ?? [])].sort((first, second) => {
-    if (first.id === initialId) return -1;
-    if (second.id === initialId) return 1;
+    if (first.uuid === initialId) return -1;
+    if (second.uuid === initialId) return 1;
     return first.displayOrder - second.displayOrder;
   });
   const openDetail = (id: string) => router.push({ pathname: '/drama/[id]', params: { id } });
@@ -41,7 +41,7 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
     {status === 'loading' ? <EmptyState title="추천 작품 불러오는 중" description="잠시만 기다려 주세요." />
       : status === 'error' ? <EmptyState title="추천 작품을 불러오지 못했어요" description="잠시 후 다시 확인해 주세요." />
         : dramas.length === 0 ? <EmptyState title="오늘의 추천 작품이 없어요" description="새로운 작품을 준비하고 있어요." />
-          : <View style={styles.grid}>{dramas.map((drama) => <Pressable key={drama.id} accessibilityRole="button" accessibilityLabel={`${drama.title} 작품 소개`} style={{ width: posterWidth, gap: 10 }} onPress={() => openDetail(drama.id)}>
+          : <View style={styles.grid}>{dramas.map((drama) => <Pressable key={drama.uuid} accessibilityRole="button" accessibilityLabel={`${drama.title} 작품 소개`} style={{ width: posterWidth, gap: 10 }} onPress={() => openDetail(drama.uuid)}>
             <View style={[styles.poster, { height: posterWidth * 1.48 }]}>
               {imageFor(drama) ? <Image source={{ uri: imageFor(drama) ?? undefined }} accessibilityLabel={`${drama.title} 표지`} contentFit="cover" style={StyleSheet.absoluteFill} /> : <View accessibilityLabel={`${drama.title} 표지 없음`} style={styles.placeholder} />}
             </View>

@@ -96,6 +96,12 @@
       "directory": "plan-16-s3-video-playback-backend-naming",
       "title": "개발용 S3 영상·이미지 전환 및 백엔드 코드 파일명 정리",
       "status": "completed"
+    },
+    {
+      "id": "plan-17-uuid-public-int-internal-keys",
+      "directory": "plan-17-uuid-public-int-internal-keys",
+      "title": "공개 UUID 유지와 내부 정수 기본키 전환",
+      "status": "completed"
     }
   ]
 }

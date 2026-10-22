@@ -3,7 +3,7 @@ import {
   Column,
   Entity,
   Index,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   Unique,
 } from 'typeorm';
 
@@ -15,22 +15,25 @@ import {
   "acquisition_type IN ('POINT_PURCHASE','ADMIN_GRANT','REFUND_RESTORE')",
 )
 export class EpisodeEntitlement {
-  @PrimaryColumn({ type: 'char', length: 36 })
-  id!: string;
+  @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
+  id!: number;
 
-  @Column({ name: 'user_id', type: 'char', length: 36 })
-  userId!: string;
+  @Column({ type: 'char', length: 36, unique: true })
+  uuid!: string;
 
-  @Column({ name: 'episode_id', type: 'char', length: 36 })
-  episodeId!: string;
+  @Column({ name: 'user_id', type: 'int', unsigned: true })
+  userId!: number;
+
+  @Column({ name: 'episode_id', type: 'int', unsigned: true })
+  episodeId!: number;
 
   @Column({ name: 'acquisition_type', type: 'varchar', length: 20 })
   acquisitionType!: string;
 
   @Column({
     name: 'unlock_transaction_id',
-    type: 'char',
-    length: 36,
+    type: 'int',
+    unsigned: true,
     nullable: true,
     unique: true,
   })

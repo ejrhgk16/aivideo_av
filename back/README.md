@@ -33,7 +33,7 @@ $ npm install
 
 ## Database environment
 
-Use `DB_SYNCHRONIZE=true` only for local development. Development defaults to `true` when the variable is omitted. Keep `DB_SYNCHRONIZE=false` in production; enabling it in production is rejected by the database configuration. Apply schema changes in production through migrations.
+Use `DB_SYNCHRONIZE=true` only for local development. Development defaults to `true` when the variable is omitted. Set `DB_SYNCHRONIZE=false` for migration rehearsals and keep it `false` in production; enabling it in production is rejected by the database configuration. Apply schema changes through migrations.
 
 Never commit database passwords, credentials, or the actual `.env.development` and `.env.production` files.
 
@@ -48,6 +48,10 @@ Image `storageKey` values are S3 object keys. The `imageUrls` fields return dire
 The allowed public image keys are `dramas/*/images/*/*.webp`, `dramas/*/episodes/*/images/*.webp`, and `genres/*/images/*.webp`. Videos and subtitles remain private; video playback uses one-hour presigned URLs. Upload image objects without public ACLs.
 
 ## Database migrations
+
+Before applying a migration that changes primary or relationship keys, create a restorable database backup and verify that it can be restored. Rehearse the migration on a separate MySQL test database restored from that backup. Before and after migration, compare row counts and preserved UUID values for every affected table, verify that parent-child relationships still resolve to the same records, and confirm that media `storage_key` values are unchanged. Also rehearse rollback and reapplication on the test database.
+
+MySQL DDL statements implicitly commit, so a failed migration is not guaranteed to roll back as one transaction. Do not treat a partially applied migration as rolled back: stop, inspect the schema, and restore the verified backup if recovery is needed. Run the migration only after the isolated rehearsal and data comparisons succeed, then verify the migrated schema and application against the target database.
 
 After building the application and setting `NODE_ENV=production` with the production environment variables, inspect and apply pending migrations during deployment:
 

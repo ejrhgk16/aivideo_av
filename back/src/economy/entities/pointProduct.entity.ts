@@ -1,12 +1,15 @@
-import { Check, Column, Entity, PrimaryColumn } from 'typeorm';
+import { Check, Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 
 @Entity({ name: 'point_products' })
 @Check('chk_point_products_points_positive', 'points > 0')
 @Check('chk_point_products_price_krw_positive', 'price_krw > 0')
 export class PointProduct extends AuditedEntity {
-  @PrimaryColumn({ type: 'char', length: 36 })
-  id!: string;
+  @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
+  id!: number;
+
+  @Column({ type: 'char', length: 36, unique: true })
+  uuid!: string;
 
   @Column({ type: 'varchar', length: 50, unique: true })
   code!: string;

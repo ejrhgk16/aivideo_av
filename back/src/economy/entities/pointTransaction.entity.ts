@@ -1,4 +1,4 @@
-import { Check, Column, Entity, Index, PrimaryColumn } from 'typeorm';
+import { Check, Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity({ name: 'point_transactions' })
 @Index('idx_point_transactions_wallet_created_at', [
@@ -12,11 +12,14 @@ import { Check, Column, Entity, Index, PrimaryColumn } from 'typeorm';
 @Check('chk_point_transactions_amount_nonzero', 'amount <> 0')
 @Check('chk_point_transactions_balance_after_non_negative', 'balance_after >= 0')
 export class PointTransaction {
-  @PrimaryColumn({ type: 'char', length: 36 })
-  id!: string;
+  @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
+  id!: number;
 
-  @Column({ name: 'wallet_user_id', type: 'char', length: 36 })
-  walletUserId!: string;
+  @Column({ type: 'char', length: 36, unique: true })
+  uuid!: string;
+
+  @Column({ name: 'wallet_user_id', type: 'int', unsigned: true })
+  walletUserId!: number;
 
   @Column({ name: 'transaction_type', type: 'varchar', length: 24 })
   transactionType!: string;

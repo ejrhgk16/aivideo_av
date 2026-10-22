@@ -71,7 +71,7 @@ export function DramaDetailScreen({ id }: { id: string }) {
         {drama.productionCompany ? <View style={styles.production}><AppText style={styles.productionLabel}>제작사</AppText><AppText weight="medium" style={styles.productionValue}>{drama.productionCompany}</AppText></View> : null}
       </View> : <View style={styles.episodes}>
         {episodes.length === 0 ? <AppText style={styles.emptyEpisodes}>공개된 회차가 아직 없어요.</AppText> : <View style={styles.episodeGrid}>{episodes.map((episode) => (
-          <Pressable key={episode.id} style={styles.episode} accessibilityRole="button" accessibilityLabel={`${episode.episodeNumber}화 ${episode.pricePoints === 0 ? '무료' : `${episode.pricePoints}포인트`}`} onPress={() => router.push({ pathname: '/episode/[id]', params: { id: episode.id } })}>
+          <Pressable key={episode.uuid} style={styles.episode} accessibilityRole="button" accessibilityLabel={`${episode.episodeNumber}화 ${episode.pricePoints === 0 ? '무료' : `${episode.pricePoints}포인트`}`} onPress={() => router.push({ pathname: '/episode/[id]', params: { id: episode.uuid } })}>
             <AppText weight="medium" style={styles.episodeNumber}>{episode.episodeNumber}화</AppText>
             {episode.pricePoints === 0 ? <AppText style={styles.freeLabel}>무료</AppText> : <AppText style={styles.priceLabel}>{episode.pricePoints}P</AppText>}
           </Pressable>

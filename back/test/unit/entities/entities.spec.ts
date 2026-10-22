@@ -2,10 +2,27 @@ import 'reflect-metadata';
 import { getMetadataArgsStorage } from 'typeorm';
 
 import {
+  AdRewardClaim,
+  AdRewardOffer,
+  ContentCollection,
   ContentImage,
   ContentVideo,
   DramaGenre,
   Episode,
+  EpisodeEntitlement,
+  EpisodeSubtitle,
+  PointProduct,
+  PointPurchaseOrder,
+  PointTransaction,
+  ProductionCompany,
+  Drama,
+  User,
+  UserPreference,
+  CollectionDrama,
+  UserPreviewFeedState,
+  UserSavedDrama,
+  UserWatchProgress,
+  Wallet,
   aiDramaEntities,
 } from '../../../src/common/database/entities.js';
 
@@ -35,6 +52,22 @@ const expectedTableNames = new Set([
 ]);
 
 const metadataStorage = getMetadataArgsStorage();
+const uuidEntities = [
+  User,
+  ProductionCompany,
+  Drama,
+  ContentImage,
+  ContentVideo,
+  Episode,
+  EpisodeSubtitle,
+  ContentCollection,
+  PointTransaction,
+  EpisodeEntitlement,
+  PointProduct,
+  PointPurchaseOrder,
+  AdRewardOffer,
+  AdRewardClaim,
+];
 
 describe('AI DRAMA entity registry', () => {
   it('registers exactly the documented table set once', () => {
@@ -93,6 +126,79 @@ describe('AI DRAMA entity registry', () => {
         expression: 'display_order > 0',
       }),
     );
+  });
+
+  it('uses unsigned generated primary keys and unique UUID columns', () => {
+    for (const entity of uuidEntities) {
+      expect(metadataStorage.columns).toContainEqual(
+        expect.objectContaining({
+          target: entity,
+          propertyName: 'id',
+          options: expect.objectContaining({
+            primary: true,
+            type: 'int',
+            unsigned: true,
+          }),
+        }),
+      );
+      expect(metadataStorage.generations).toContainEqual(
+        expect.objectContaining({ target: entity, propertyName: 'id', strategy: 'increment' }),
+      );
+      expect(metadataStorage.columns).toContainEqual(
+        expect.objectContaining({
+          target: entity,
+          propertyName: 'uuid',
+          options: expect.objectContaining({
+            type: 'char',
+            length: 36,
+            unique: true,
+          }),
+        }),
+      );
+    }
+  });
+
+  it('uses unsigned integer columns for migrated parent references', () => {
+    const references = [
+      [User, 'productionCompanyId'],
+      [UserPreference, 'userId'],
+      [Drama, 'productionCompanyId'],
+      [DramaGenre, 'dramaId'],
+      [ContentImage, 'contentId'],
+      [ContentVideo, 'contentId'],
+      [Episode, 'dramaId'],
+      [EpisodeSubtitle, 'episodeId'],
+      [CollectionDrama, 'collectionId'],
+      [CollectionDrama, 'dramaId'],
+      [UserPreviewFeedState, 'userId'],
+      [UserPreviewFeedState, 'collectionId'],
+      [UserPreviewFeedState, 'dramaId'],
+      [UserSavedDrama, 'userId'],
+      [UserSavedDrama, 'dramaId'],
+      [UserWatchProgress, 'userId'],
+      [UserWatchProgress, 'episodeId'],
+      [Wallet, 'userId'],
+      [PointTransaction, 'walletUserId'],
+      [EpisodeEntitlement, 'userId'],
+      [EpisodeEntitlement, 'episodeId'],
+      [EpisodeEntitlement, 'unlockTransactionId'],
+      [PointPurchaseOrder, 'userId'],
+      [PointPurchaseOrder, 'pointProductId'],
+      [PointPurchaseOrder, 'awardTransactionId'],
+      [AdRewardClaim, 'userId'],
+      [AdRewardClaim, 'adRewardOfferId'],
+      [AdRewardClaim, 'rewardTransactionId'],
+    ] as const;
+
+    for (const [target, propertyName] of references) {
+      expect(metadataStorage.columns).toContainEqual(
+        expect.objectContaining({
+          target,
+          propertyName,
+          options: expect.objectContaining({ type: 'int', unsigned: true }),
+        }),
+      );
+    }
   });
 
   it('does not register object relations for the documented entities', () => {

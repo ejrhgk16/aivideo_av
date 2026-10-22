@@ -1,4 +1,4 @@
-import { Check, Column, Entity, PrimaryColumn, Unique } from 'typeorm';
+import { Check, Column, Entity, PrimaryGeneratedColumn, Unique } from 'typeorm';
 
 import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 
@@ -6,8 +6,11 @@ import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 @Unique('uq_production_companies_name', ['name'])
 @Check("status IN ('ACTIVE', 'INACTIVE')")
 export class ProductionCompany extends AuditedEntity {
-  @PrimaryColumn({ type: 'char', length: 36 })
-  id!: string;
+  @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
+  id!: number;
+
+  @Column({ type: 'char', length: 36, unique: true })
+  uuid!: string;
 
   @Column({ type: 'varchar', length: 100 })
   name!: string;

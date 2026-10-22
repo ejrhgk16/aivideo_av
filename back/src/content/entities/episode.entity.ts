@@ -1,4 +1,4 @@
-import { Check, Column, Entity, Index, PrimaryColumn, Unique } from 'typeorm';
+import { Check, Column, Entity, Index, PrimaryGeneratedColumn, Unique } from 'typeorm';
 
 import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 
@@ -13,11 +13,14 @@ import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 @Check('price_points >= 0')
 @Check("status IN ('DRAFT', 'REVIEW', 'SCHEDULED', 'PUBLISHED', 'HIDDEN')")
 export class Episode extends AuditedEntity {
-  @PrimaryColumn({ type: 'char', length: 36 })
-  id!: string;
+  @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
+  id!: number;
 
-  @Column({ name: 'drama_id', type: 'char', length: 36 })
-  dramaId!: string;
+  @Column({ type: 'char', length: 36, unique: true })
+  uuid!: string;
+
+  @Column({ name: 'drama_id', type: 'int', unsigned: true })
+  dramaId!: number;
 
   @Column({ name: 'episode_number', type: 'int' })
   episodeNumber!: number;
