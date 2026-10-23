@@ -48,10 +48,15 @@ Use these document structures.
 ## 작업
 {작업 목표 요약}
 
-{구현 지시와 주요 로직코드}
+{구현 지시}
+
+### 주요 로직 코드 또는 변경 예시
+{실질적인 로직을 구현하는 task: 핵심 상태·이벤트·데이터 흐름과 호출 지점을 보여주는 fenced code block. 핵심 동작을 TODO나 주석으로 대체하지 않는다. 한 줄 수정·선언·설정·문서 변경처럼 코드 흐름을 설명할 필요가 없는 task: 코드 블록을 강제하지 말고 변경할 파일과 정확한 값·문구 또는 전후 차이, 변경 이유를 적는다. 새 로직이 없다면 그 사실을 명시한다.}
 ```
 
 각 task 문서는 해당 worker에게 전달할 정확한 파일 범위, 검증 명령, 완료 조건을 `## 작업` 아래에 함께 명시한다.
+
+Before running `validate`, reopen every new `task-*.md` and check that substantive logic tasks include their main logic code, while small or non-code tasks state the exact edit and why no new logic is needed. Compare the content with the declared `files`, scope, and completion criteria. Fix omissions before reporting the plan complete. `validate` checks the plan indexes, not task Markdown content; a passing result does not satisfy this review.
 
 The root `_docs/plans/index.json` entry uses this shape:
 

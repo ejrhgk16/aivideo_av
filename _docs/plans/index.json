@@ -108,6 +108,12 @@
       "directory": "plan-18-development-s3-access-key-docs",
       "title": "개발용 S3 access key 설정 문서화",
       "status": "completed"
+    },
+    {
+      "id": "plan-19-fullscreen-episode-playback",
+      "directory": "plan-19-fullscreen-episode-playback",
+      "title": "회차 영상 전체 화면 재생과 통합 터치 컨트롤",
+      "status": "completed"
     }
   ]
 }

@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "plan_id": "plan-19-fullscreen-episode-playback",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "Fullscreen episode player",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/screens/EpisodePlaybackScreen.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-23T08:03:43.768Z",
+      "summary": "Updated EpisodePlaybackScreen.tsx with full-screen contain video, safe-area back/title and custom playback, seek, and auto-hide controls. Typecheck, tests (8 passed), and Expo export passed. Android/iOS touch behavior still needs manual device verification.",
+      "completed_at": "2026-10-23T08:05:34.204Z"
+    }
+  ]
+}

@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
-import { AppText, Button, EmptyState, Icon, Page } from '@/components/ui';
+import Slider from '@react-native-community/slider';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppText, EmptyState, Icon, Page } from '@/components/ui';
 import { colors } from '@/common/theme/tokens';
 import { getEpisodePlayback, type EpisodePlayback } from '@/features/playback/episodePlayback';
 
@@ -49,6 +52,33 @@ function PlaybackVideo({ playback, onBack }: { playback: EpisodePlayback; onBack
     videoPlayer.play();
   });
   const [videoFailed, setVideoFailed] = useState(player.status === 'error');
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(player.playing);
+  const [position, setPosition] = useState(player.currentTime);
+  const [duration, setDuration] = useState(player.duration);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seeking = useRef(false);
+  const insets = useSafeAreaInsets();
+
+  const clearHideTimer = useCallback(() => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = null;
+  }, []);
+
+  const showControls = useCallback(() => {
+    clearHideTimer();
+    setControlsVisible(true);
+    hideTimer.current = setTimeout(() => setControlsVisible(false), 3000);
+  }, [clearHideTimer]);
+
+  const toggleControls = useCallback(() => {
+    if (controlsVisible) {
+      clearHideTimer();
+      setControlsVisible(false);
+    } else {
+      showControls();
+    }
+  }, [clearHideTimer, controlsVisible, showControls]);
 
   useFocusEffect(useCallback(() => () => player.pause(), [player]));
   useEffect(() => {
@@ -57,20 +87,87 @@ function PlaybackVideo({ playback, onBack }: { playback: EpisodePlayback; onBack
     });
     return () => subscription.remove();
   }, [player]);
+  useEffect(() => {
+    player.timeUpdateEventInterval = 0.5;
+    const time = player.addListener('timeUpdate', ({ currentTime }) => {
+      if (!seeking.current) setPosition(currentTime);
+    });
+    const source = player.addListener('sourceLoad', ({ duration: videoDuration }) => setDuration(videoDuration));
+    const playing = player.addListener('playingChange', ({ isPlaying: playingNow }) => setIsPlaying(playingNow));
+    return () => {
+      time.remove();
+      source.remove();
+      playing.remove();
+    };
+  }, [player]);
+  useEffect(() => {
+    showControls();
+    return clearHideTimer;
+  }, [clearHideTimer, showControls]);
 
-  return <Page scroll={false} contentStyle={styles.page}>
-    <View style={styles.header}>
-      <Button label="뒤로 가기" variant="ghost" icon={<Icon name="chevron-left" size={20} />} onPress={onBack} style={styles.back} />
-      <AppText weight="semibold" style={styles.title}>{playback.title || `${playback.episodeNumber}화`}</AppText>
-    </View>
-    {videoFailed ? <EmptyState title="영상을 재생할 수 없어요" description="잠시 후 다시 시도해 주세요." action="뒤로 가기" onAction={onBack} /> : <VideoView player={player} nativeControls style={styles.video} />}
-  </Page>;
+  const formatTime = (seconds: number) => {
+    const whole = Math.floor(Math.max(0, seconds));
+    return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
+  };
+
+  return <View style={styles.fullscreen}>
+    <StatusBar hidden />
+    {videoFailed ? <View style={styles.error}><EmptyState title="영상을 재생할 수 없어요" description="잠시 후 다시 시도해 주세요." action="뒤로 가기" onAction={onBack} /></View> : <>
+      <VideoView player={player} nativeControls={false} contentFit="contain" style={[StyleSheet.absoluteFill, styles.video]} />
+      <Pressable style={StyleSheet.absoluteFill} onPress={toggleControls} accessibilityLabel="재생 컨트롤 표시 또는 숨기기" />
+      {controlsVisible && <>
+        <View style={[styles.topControls, { paddingTop: insets.top + 8 }]}>
+          <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="뒤로 가기" style={styles.back}>
+            <Icon name="chevron-left" color="#fff" />
+          </Pressable>
+          <AppText weight="semibold" numberOfLines={1} style={styles.title}>{playback.title || `${playback.episodeNumber}화`}</AppText>
+        </View>
+        <Pressable
+          style={styles.playPause}
+          accessibilityRole="button"
+          accessibilityLabel={isPlaying ? '일시정지' : '재생'}
+          onPress={() => {
+            if (isPlaying) player.pause(); else player.play();
+            showControls();
+          }}
+        >
+          <Icon name={isPlaying ? 'pause' : 'play'} size={34} color="#fff" />
+        </Pressable>
+        <View style={[styles.bottomControls, { paddingBottom: insets.bottom + 8 }]}>
+          <AppText style={styles.time}>{formatTime(position)} / {formatTime(duration)}</AppText>
+          <Slider
+            minimumValue={0}
+            maximumValue={Math.max(duration, 1)}
+            value={position}
+            disabled={duration <= 0}
+            minimumTrackTintColor={colors.accent}
+            maximumTrackTintColor="rgba(255,255,255,0.45)"
+            thumbTintColor={colors.accent}
+            onSlidingStart={() => {
+              seeking.current = true;
+              clearHideTimer();
+            }}
+            onValueChange={setPosition}
+            onSlidingComplete={(value) => {
+              player.currentTime = value;
+              seeking.current = false;
+              showControls();
+            }}
+          />
+        </View>
+      </>}
+    </>}
+  </View>;
 }
 
 const styles = StyleSheet.create({
-  page: { flex: 1, justifyContent: 'center', gap: 16 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  back: { minHeight: 44, paddingHorizontal: 8 },
-  title: { flex: 1, fontSize: 16 },
-  video: { width: '100%', aspectRatio: 16 / 9, backgroundColor: colors.surface, borderRadius: 10, overflow: 'hidden' },
+  fullscreen: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
+  video: { width: '100%', height: '100%' },
+  error: { flex: 1, justifyContent: 'center', padding: 22 },
+  topControls: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingBottom: 28, backgroundColor: 'rgba(0,0,0,0.45)' },
+  back: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  title: { flex: 1, fontSize: 16, color: '#fff' },
+  playPause: { alignSelf: 'center', width: 68, height: 68, borderRadius: 34, backgroundColor: 'rgba(0,0,0,0.48)', alignItems: 'center', justifyContent: 'center' },
+  bottomControls: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 28, backgroundColor: 'rgba(0,0,0,0.5)' },
+  time: { color: '#fff', fontSize: 13 },
 });
