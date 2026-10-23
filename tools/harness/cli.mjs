@@ -400,7 +400,7 @@ export function finishPlan(repoRoot = process.cwd(), planId, message) {
 
   if (dirty.length > 0) {
     git(repoRoot, ['add', '--all']);
-    git(repoRoot, ['commit', '-m', message || `chore(harness): finish ${plan.id}`], { stdio: 'inherit' });
+    git(repoRoot, ['commit', '-m', message || `finish ${plan.id}`], { stdio: 'inherit' });
   }
   git(repoRoot, ['push', 'origin', 'dev'], { stdio: 'inherit' });
   return { plan: plan.id, committed: dirty.length > 0, pushed: true };

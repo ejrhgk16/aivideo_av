@@ -125,7 +125,7 @@ test('finish checks product paths but commits all non-ignored dirty files', () =
   assert.match(git(repo, 'show', '--format=', '--name-only', 'HEAD'), /outside\.txt/);
   assert.match(git(repo, 'show', '--format=', '--name-only', 'HEAD'), /undeclared\.mjs/);
   assert.match(git(repo, 'check-ignore', '-v', '_docs/AI_DRAMA_data_model/ignored.md'), /AI_DRAMA_data_model/);
-  assert.match(git(remote, 'log', '--oneline', 'dev'), /finish plan-1-test/);
+  assert.equal(git(remote, 'log', '-1', '--format=%s', 'dev'), 'finish plan-1-test');
   assert.deepEqual(finishPlan(repo, 'plan-1-test'), { plan: 'plan-1-test', committed: false, pushed: true });
 });
 
