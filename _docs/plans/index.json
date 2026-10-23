@@ -114,6 +114,12 @@
       "directory": "plan-19-fullscreen-episode-playback",
       "title": "회차 영상 전체 화면 재생과 통합 터치 컨트롤",
       "status": "completed"
+    },
+    {
+      "id": "plan-20-episode-playback-progress",
+      "directory": "plan-20-episode-playback-progress",
+      "title": "회차 재생 시간 표시와 탐색 복구",
+      "status": "completed"
     }
   ]
 }

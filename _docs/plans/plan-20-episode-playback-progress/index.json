@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "plan_id": "plan-20-episode-playback-progress",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "Restore episode playback progress and seeking",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/screens/EpisodePlaybackScreen.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-23T08:47:48.849Z",
+      "summary": "Updated front/src/screens/EpisodePlaybackScreen.tsx to read finite video duration when the player is ready and during periodic time updates, retain sourceLoad for native playback, ignore invalid current times, and give the slider full width. Checks passed: typecheck, test (8 passed), export (web/iOS/Android). Browser and device playback interaction was not manually verified.",
+      "completed_at": "2026-10-23T08:48:56.661Z"
+    }
+  ]
+}

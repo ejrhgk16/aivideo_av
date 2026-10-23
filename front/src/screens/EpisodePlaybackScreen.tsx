@@ -84,15 +84,23 @@ function PlaybackVideo({ playback, onBack }: { playback: EpisodePlayback; onBack
   useEffect(() => {
     const subscription = player.addListener('statusChange', ({ status }) => {
       if (status === 'error') setVideoFailed(true);
+      if (status === 'readyToPlay') {
+        const videoDuration = player.duration;
+        if (Number.isFinite(videoDuration) && videoDuration > 0) setDuration(videoDuration);
+      }
     });
     return () => subscription.remove();
   }, [player]);
   useEffect(() => {
     player.timeUpdateEventInterval = 0.5;
     const time = player.addListener('timeUpdate', ({ currentTime }) => {
-      if (!seeking.current) setPosition(currentTime);
+      const videoDuration = player.duration;
+      if (Number.isFinite(videoDuration) && videoDuration > 0) setDuration(videoDuration);
+      if (!seeking.current && Number.isFinite(currentTime)) setPosition(currentTime);
     });
-    const source = player.addListener('sourceLoad', ({ duration: videoDuration }) => setDuration(videoDuration));
+    const source = player.addListener('sourceLoad', ({ duration: videoDuration }) => {
+      if (Number.isFinite(videoDuration) && videoDuration > 0) setDuration(videoDuration);
+    });
     const playing = player.addListener('playingChange', ({ isPlaying: playingNow }) => setIsPlaying(playingNow));
     return () => {
       time.remove();
@@ -136,6 +144,7 @@ function PlaybackVideo({ playback, onBack }: { playback: EpisodePlayback; onBack
         <View style={[styles.bottomControls, { paddingBottom: insets.bottom + 8 }]}>
           <AppText style={styles.time}>{formatTime(position)} / {formatTime(duration)}</AppText>
           <Slider
+            style={{ width: '100%' }}
             minimumValue={0}
             maximumValue={Math.max(duration, 1)}
             value={position}
