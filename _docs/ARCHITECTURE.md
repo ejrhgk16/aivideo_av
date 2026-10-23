@@ -61,5 +61,5 @@ Preserved standalone web prototype. It is not imported or run by `front/`, and i
 - `back/src/content/mediaStorage.ts` is the single source for content-media `storageKey` construction.
 - `front/media/` is a Git-ignored local workspace for media files; it is not an Expo bundle asset or a public URL by itself.
 - The `aivideo-dev` bucket exposes only the configured image key patterns through public `s3:GetObject`; video and subtitle keys remain private. API `imageUrls` values are direct S3 URLs.
-- FULL episode videos and DRAMA PREVIEW videos use private S3 objects and one-hour presigned GET URLs in development. The backend reads AWS credentials from the default provider chain and uses `AWS_REGION` and `S3_BUCKET` configuration.
+- FULL episode videos and DRAMA PREVIEW videos use private S3 objects and one-hour presigned GET URLs in development only. Development configures `AWS_REGION`, `S3_BUCKET`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` in the Git-ignored `back/.env.development`; the AWS SDK default credential provider chain reads the environment credentials. Production playback remains unavailable.
 - The backend does not provide local image file routes. Public image URLs are generated from storage keys; FULL and PREVIEW playback URLs are separately signed.

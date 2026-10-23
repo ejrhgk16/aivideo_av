@@ -39,7 +39,7 @@ Never commit database passwords, credentials, or the actual `.env.development` a
 
 ## Video playback
 
-In development, FULL episode videos and DRAMA PREVIEW videos are returned as S3 presigned GET URLs. Configure `AWS_PROFILE`, `AWS_REGION`, and `S3_BUCKET` in the untracked `.env.development` file. The AWS SDK uses its default credential provider chain; do not store access keys in the repository. URLs expire after one hour. This playback API does not check purchase entitlement.
+In development, FULL episode videos and DRAMA PREVIEW videos are returned as S3 presigned GET URLs. Configure `AWS_REGION`, `S3_BUCKET`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` in the Git-ignored `.env.development` file. The AWS SDK uses its default credential provider chain, which reads the configured access key from environment variables. Keep the actual key values only in `.env.development`; never commit them. URLs expire after one hour. This playback API does not check purchase entitlement and is unavailable outside development.
 
 ## Public image storage
 

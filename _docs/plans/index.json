@@ -102,6 +102,12 @@
       "directory": "plan-17-uuid-public-int-internal-keys",
       "title": "공개 UUID 유지와 내부 정수 기본키 전환",
       "status": "completed"
+    },
+    {
+      "id": "plan-18-development-s3-access-key-docs",
+      "directory": "plan-18-development-s3-access-key-docs",
+      "title": "개발용 S3 access key 설정 문서화",
+      "status": "completed"
     }
   ]
 }

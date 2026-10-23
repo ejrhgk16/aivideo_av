@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "plan_id": "plan-18-development-s3-access-key-docs",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "개발 S3 인증 문서 정합화",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/README.md",
+        "_docs/ARCHITECTURE.md"
+      ],
+      "checks": [
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-23T07:27:59.300Z",
+      "summary": "Updated back/README.md and _docs/ARCHITECTURE.md to document development S3 credentials in the Git-ignored back/.env.development file, removed the AWS_PROFILE instruction, and kept production playback marked unavailable. Checks passed: npm --prefix back run test (11 files, 36 tests) and npm --prefix back run build.",
+      "completed_at": "2026-10-23T07:28:52.513Z"
+    }
+  ]
+}

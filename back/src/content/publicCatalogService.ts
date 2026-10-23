@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { Inject, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Drama } from './entities/drama.entity.js';
@@ -99,6 +99,7 @@ export class PublicCatalogService {
     private readonly contentVideoRepository: Repository<ContentVideo>,
     @InjectRepository(Episode)
     private readonly episodeRepository: Repository<Episode>,
+    @Inject(S3VideoUrlService)
     private readonly s3VideoUrlService = new S3VideoUrlService(),
   ) {}
 
