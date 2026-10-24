@@ -11,6 +11,7 @@ function AppNavigation() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="drama/[id]" />
       <Stack.Screen name="episode/[id]" />
+      <Stack.Screen name="points" />
     </Stack>
   </View>;
 }

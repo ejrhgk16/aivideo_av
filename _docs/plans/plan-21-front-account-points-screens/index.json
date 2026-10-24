@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "plan_id": "plan-21-front-account-points-screens",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "Connect account and points screens",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/screens/AccountScreen.tsx",
+        "front/src/screens/PointsScreen.tsx",
+        "front/src/app/points.tsx",
+        "front/src/app/_layout.tsx",
+        "front/README.md"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-24T08:36:10.628Z",
+      "summary": "Replaced the My Info screen with the approved guest profile and menu layout, connected points charge/history routes with read-only unavailable states, registered the points route, and updated the README. Typecheck, tests (8 passed), and Expo export passed. Screen interactions were not manually checked on a device or in a browser.",
+      "completed_at": "2026-10-24T08:38:41.516Z"
+    },
+    {
+      "id": "task-2",
+      "name": "Keep account dialog content stable while closing",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/src/screens/AccountScreen.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-24T10:32:49.092Z",
+      "summary": "Separated modal visibility from the selected dialog content. Closing by button or Android back now hides the modal while retaining its content through the fade, preventing the app-info flash. Typecheck, tests (8 passed), and Expo export passed. Device interaction was not manually checked.",
+      "completed_at": "2026-10-24T10:33:56.113Z"
+    }
+  ]
+}

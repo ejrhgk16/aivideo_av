@@ -120,6 +120,12 @@
       "directory": "plan-20-episode-playback-progress",
       "title": "회차 재생 시간 표시와 탐색 복구",
       "status": "completed"
+    },
+    {
+      "id": "plan-21-front-account-points-screens",
+      "directory": "plan-21-front-account-points-screens",
+      "title": "프론트 내 정보·포인트 화면 연결",
+      "status": "completed"
     }
   ]
 }
