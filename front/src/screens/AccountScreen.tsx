@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { AppText, Button, Icon, Page, SectionTitle } from '@/components/ui';
+import { AppTopBar } from '@/components/AppTopBar';
 import { colors } from '@/common/theme/tokens';
 
 type AccountDialog = 'settings' | 'help' | 'about' | null;
@@ -16,7 +17,7 @@ export function AccountScreen() {
   };
   const closeDialog = () => setDialogVisible(false);
 
-  return <Page contentStyle={styles.page}>
+  return <Page header={<AppTopBar />} contentStyle={styles.page}>
     <SectionTitle title="나의 작은 영화관" eyebrow="MY SPACE" />
     <View style={styles.profile}>
       <View style={styles.avatar}><Icon name="user" size={27} color={colors.accent} /></View>

@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AppText, Button, EmptyState, Icon, Page, SectionTitle } from '@/components/ui';
+import { AppTopBar } from '@/components/AppTopBar';
 import { getDramaList, type DramaSummary } from '@/features/drama/dramaContent';
 import { getHomeCollection, type HomeCollection, type HomeCollectionDrama } from '@/features/home/homeContent';
 import { resolveApiImageUrl } from '@/common/media';
@@ -125,13 +126,7 @@ export function HomeScreen() {
     : collectionState(topThreeStatus, 'TOP 3', '새로운 작품을 준비하고 있어요.');
 
   return (
-    <Page contentStyle={styles.page}>
-      <View style={styles.header}>
-        <View style={styles.wordmark}><AppText weight="bold" style={styles.logo}>AI DRAMA</AppText><View style={styles.logoDot} /></View>
-        <View style={styles.headerActions}>
-          <Pressable style={styles.iconButton} accessibilityRole="button" accessibilityLabel="작품 찾기" onPress={() => router.push('/search')}><Icon name="search" size={22} color={colors.text} /></Pressable>
-        </View>
-      </View>
+    <Page header={<AppTopBar />} contentStyle={styles.page}>
       <View style={styles.tabs} accessibilityRole="tablist">{tabs.map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: item === tab }} style={[styles.tab, item === tab && styles.selectedTab]} onPress={() => setTab(item)}><AppText weight={item === tab ? 'bold' : 'medium'} style={[styles.tabText, item === tab && styles.selectedText]}>{item}</AppText></Pressable>)}</View>
       {tab === '추천' ? <>
         <View style={styles.hero} onLayout={(event) => setHeroWidth(event.nativeEvent.layout.width)} {...heroResponder.panHandlers}>
@@ -177,10 +172,6 @@ export function HomeScreen() {
 
 const styles = StyleSheet.create({
   page: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 28, gap: 0 }, flex: { flex: 1 }, heroButton: { flex: 1, paddingHorizontal: 12 },
-  header: { paddingHorizontal: 22, height: 68, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  wordmark: { flexDirection: 'row', alignItems: 'center', gap: 5 }, logo: { fontSize: 22, letterSpacing: -1.1 },
-  logoDot: { width: 5, height: 5, borderRadius: 3, borderCurve: 'continuous', backgroundColor: colors.accent, marginTop: 13 },
-  headerActions: { flexDirection: 'row', gap: 8, alignItems: 'center' }, iconButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   tabs: { flexDirection: 'row', gap: 25, paddingHorizontal: 22, marginBottom: 18 }, tab: { minHeight: 44, justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' }, selectedTab: { borderBottomColor: colors.accent }, tabText: { fontSize: 15, color: colors.muted }, selectedText: { color: colors.text },
   hero: { minHeight: 550, marginHorizontal: 14, borderRadius: 20, borderCurve: 'continuous', overflow: 'hidden', justifyContent: 'flex-end', backgroundColor: colors.surface },
   heroEmpty: { paddingHorizontal: 22, paddingTop: 240, paddingBottom: 10 },

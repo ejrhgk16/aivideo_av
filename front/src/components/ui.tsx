@@ -30,11 +30,12 @@ export function Button({ label, onPress, variant = 'primary', disabled, icon, st
   );
 }
 
-export function Page({ children, scroll = true, style, contentStyle }: {
-  children: ReactNode; scroll?: boolean; style?: StyleProp<ViewStyle>; contentStyle?: StyleProp<ViewStyle>;
+export function Page({ children, header, scroll = true, style, contentStyle }: {
+  children: ReactNode; header?: ReactNode; scroll?: boolean; style?: StyleProp<ViewStyle>; contentStyle?: StyleProp<ViewStyle>;
 }) {
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={[styles.page, style]}>
+      {header}
       {scroll ? <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, contentStyle]}>{children}</ScrollView>
         : <View style={[styles.content, { flex: 1 }, contentStyle]}>{children}</View>}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { AppText, EmptyState, Page, SectionTitle } from '@/components/ui';
+import { AppTopBar } from '@/components/AppTopBar';
 import { colors } from '@/common/theme/tokens';
 
 type LibraryTab = '저장한 작품' | '시청 기록';
@@ -12,7 +13,7 @@ export function LibraryScreen() {
   useEffect(() => setSelectedTab(null), [params.tab]);
   const tab = selectedTab ?? (params.tab === 'history' || params.tab === '시청 기록' ? '시청 기록' : '저장한 작품');
 
-  return <Page contentStyle={styles.page}>
+  return <Page header={<AppTopBar />} contentStyle={styles.page}>
     <SectionTitle eyebrow="MY COLLECTION" title="보관함" />
     <View style={styles.tabs} accessibilityRole="tablist">
       {(['저장한 작품', '시청 기록'] as const).map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} style={[styles.tab, tab === item && styles.activeTab]} onPress={() => setSelectedTab(item)}><AppText weight={tab === item ? 'semibold' : 'regular'} style={[styles.tabLabel, tab === item && styles.activeLabel]}>{item}</AppText></Pressable>)}

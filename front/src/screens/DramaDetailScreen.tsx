@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AppText, EmptyState, Icon, Page } from '@/components/ui';
+import { EpisodeUnlockDialog } from '@/components/EpisodeUnlockDialog';
 import { resolveApiImageUrl } from '@/common/media';
 import { colors } from '@/common/theme/tokens';
 import { getDramaContent, type DramaContent } from '@/features/drama/dramaContent';
@@ -16,6 +17,7 @@ export function DramaDetailScreen({ id }: { id: string }) {
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [imageFailed, setImageFailed] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'소개' | '회차' | null>(null);
+  const [lockedEpisode, setLockedEpisode] = useState<DramaContent['episodes'][number] | null>(null);
   const tab = selectedTab ?? (params.tab === 'episodes' || params.tab === '회차' ? '회차' : '소개');
 
   useEffect(() => {
@@ -51,6 +53,13 @@ export function DramaDetailScreen({ id }: { id: string }) {
   const coverUrl = resolveApiImageUrl(drama.imageUrls.detailCover);
   const genres = drama.genres.map((genre) => genre.name).join(' · ');
   const episodes = [...drama.episodes].sort((a, b) => a.episodeNumber - b.episodeNumber);
+  const openEpisode = (episode: DramaContent['episodes'][number]) => {
+    if (episode.pricePoints > 0) {
+      setLockedEpisode(episode);
+      return;
+    }
+    router.push({ pathname: '/episode/[id]', params: { id: episode.uuid, dramaId: drama.uuid, dramaTitle: drama.title } });
+  };
 
   return (
     <Page contentStyle={styles.page}>
@@ -68,15 +77,29 @@ export function DramaDetailScreen({ id }: { id: string }) {
       <View style={styles.tabs} accessibilityRole="tablist">{(['소개', '회차'] as const).map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} style={[styles.tab, tab === item && styles.activeTab]} onPress={() => setSelectedTab(item)}><AppText weight={tab === item ? 'semibold' : 'regular'} style={[styles.tabLabel, tab === item && styles.activeTabLabel]}>{item === '소개' ? '작품 소개' : `전체 회차  ${episodes.length}`}</AppText></Pressable>)}</View>
       {tab === '소개' ? <View style={styles.section}>
         <AppText style={styles.synopsis}>{drama.synopsis || drama.shortDescription}</AppText>
+        <Pressable disabled accessibilityRole="button" accessibilityLabel="분위기 미리보기, 준비 중" accessibilityState={{ disabled: true }} style={styles.previewButton}>
+          <Icon name="film" size={18} color={colors.text} />
+          <AppText weight="semibold" style={styles.previewButtonText}>분위기 미리보기</AppText>
+          <Icon name="arrow-up-right" size={16} color={colors.text} />
+        </Pressable>
         {drama.productionCompany ? <View style={styles.production}><AppText style={styles.productionLabel}>제작사</AppText><AppText weight="medium" style={styles.productionValue}>{drama.productionCompany}</AppText></View> : null}
       </View> : <View style={styles.episodes}>
         {episodes.length === 0 ? <AppText style={styles.emptyEpisodes}>공개된 회차가 아직 없어요.</AppText> : <View style={styles.episodeGrid}>{episodes.map((episode) => (
-          <Pressable key={episode.uuid} style={styles.episode} accessibilityRole="button" accessibilityLabel={`${episode.episodeNumber}화 ${episode.pricePoints === 0 ? '무료' : `${episode.pricePoints}포인트`}`} onPress={() => router.push({ pathname: '/episode/[id]', params: { id: episode.uuid } })}>
+          <Pressable key={episode.uuid} style={styles.episode} accessibilityRole="button" accessibilityLabel={`${episode.episodeNumber}화 ${episode.pricePoints === 0 ? '무료' : `${episode.pricePoints}포인트`}`} onPress={() => openEpisode(episode)}>
             <AppText weight="medium" style={styles.episodeNumber}>{episode.episodeNumber}화</AppText>
             {episode.pricePoints === 0 ? <AppText style={styles.freeLabel}>무료</AppText> : <AppText style={styles.priceLabel}>{episode.pricePoints}P</AppText>}
           </Pressable>
         ))}</View>}
       </View>}
+      <EpisodeUnlockDialog
+        episode={lockedEpisode}
+        dramaTitle={drama.title}
+        onClose={() => setLockedEpisode(null)}
+        onCharge={() => {
+          setLockedEpisode(null);
+          router.push('/points');
+        }}
+      />
     </Page>
   );
 }
@@ -100,6 +123,8 @@ const styles = StyleSheet.create({
   activeTabLabel: { color: colors.text },
   section: { gap: 14, paddingTop: 3 },
   synopsis: { fontSize: 14, lineHeight: 25, color: '#C2C7CD' },
+  previewButton: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 15, marginTop: 9, backgroundColor: colors.elevated, borderWidth: 1, borderColor: colors.border, borderRadius: 11, borderCurve: 'continuous' },
+  previewButtonText: { flex: 1, fontSize: 12, lineHeight: 18 },
   production: { flexDirection: 'row', alignItems: 'center', gap: 20, paddingTop: 5 },
   productionLabel: { width: 45, color: colors.muted, fontSize: 11, lineHeight: 18 },
   productionValue: { color: '#C2C7CD', fontSize: 12, lineHeight: 19 },

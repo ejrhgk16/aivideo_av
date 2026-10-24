@@ -126,6 +126,12 @@
       "directory": "plan-21-front-account-points-screens",
       "title": "프론트 내 정보·포인트 화면 연결",
       "status": "completed"
+    },
+    {
+      "id": "plan-22-front-recommend-playback-unlock-ui",
+      "directory": "plan-22-front-recommend-playback-unlock-ui",
+      "title": "프론트 추천·재생·회차 열기 UI 이식",
+      "status": "completed"
     }
   ]
 }

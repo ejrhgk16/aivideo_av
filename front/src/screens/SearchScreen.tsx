@@ -3,6 +3,7 @@ import { Image } from 'expo-image';
 import { Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AppText, EmptyState, Icon, Page, SectionTitle } from '@/components/ui';
+import { AppTopBar } from '@/components/AppTopBar';
 import { getDramaList, type DramaSummary } from '@/features/drama/dramaContent';
 import { resolveApiImageUrl } from '@/common/media';
 import { colors, typography } from '@/common/theme/tokens';
@@ -33,7 +34,7 @@ export function SearchScreen() {
   const posterWidth = Math.min(Math.max((Math.min(width, 960) - 58) / 2, 140), 230);
 
   return (
-    <Page contentStyle={styles.page}>
+    <Page header={<AppTopBar />} contentStyle={styles.page}>
       <SectionTitle eyebrow="FIND YOUR NEXT STORY" title="어떤 이야기를 찾으세요?" />
       <View style={styles.searchField}>
         <Icon name="search" size={21} color={colors.muted} />
