@@ -53,12 +53,17 @@ export function DramaDetailScreen({ id }: { id: string }) {
   const coverUrl = resolveApiImageUrl(drama.imageUrls.detailCover);
   const genres = drama.genres.map((genre) => genre.name).join(' · ');
   const episodes = [...drama.episodes].sort((a, b) => a.episodeNumber - b.episodeNumber);
+  const firstPreview = drama.previewVideos[0];
   const openEpisode = (episode: DramaContent['episodes'][number]) => {
     if (episode.pricePoints > 0) {
       setLockedEpisode(episode);
       return;
     }
-    router.push({ pathname: '/episode/[id]', params: { id: episode.uuid, dramaId: drama.uuid, dramaTitle: drama.title } });
+    router.push({ pathname: '/episode/[id]', params: { id: episode.uuid, dramaId: drama.uuid } });
+  };
+  const openPreview = () => {
+    if (!firstPreview) return;
+    router.push({ pathname: '/preview/[dramaId]/[videoId]', params: { dramaId: drama.uuid, videoId: firstPreview.uuid } });
   };
 
   return (
@@ -77,7 +82,7 @@ export function DramaDetailScreen({ id }: { id: string }) {
       <View style={styles.tabs} accessibilityRole="tablist">{(['소개', '회차'] as const).map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} style={[styles.tab, tab === item && styles.activeTab]} onPress={() => setSelectedTab(item)}><AppText weight={tab === item ? 'semibold' : 'regular'} style={[styles.tabLabel, tab === item && styles.activeTabLabel]}>{item === '소개' ? '작품 소개' : `전체 회차  ${episodes.length}`}</AppText></Pressable>)}</View>
       {tab === '소개' ? <View style={styles.section}>
         <AppText style={styles.synopsis}>{drama.synopsis || drama.shortDescription}</AppText>
-        <Pressable disabled accessibilityRole="button" accessibilityLabel="분위기 미리보기, 준비 중" accessibilityState={{ disabled: true }} style={styles.previewButton}>
+        <Pressable disabled={!firstPreview} onPress={openPreview} accessibilityRole="button" accessibilityLabel="분위기 미리보기" accessibilityState={{ disabled: !firstPreview }} style={[styles.previewButton, !firstPreview && styles.disabledPreviewButton]}>
           <Icon name="film" size={18} color={colors.text} />
           <AppText weight="semibold" style={styles.previewButtonText}>분위기 미리보기</AppText>
           <Icon name="arrow-up-right" size={16} color={colors.text} />
@@ -124,6 +129,7 @@ const styles = StyleSheet.create({
   section: { gap: 14, paddingTop: 3 },
   synopsis: { fontSize: 14, lineHeight: 25, color: '#C2C7CD' },
   previewButton: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 15, marginTop: 9, backgroundColor: colors.elevated, borderWidth: 1, borderColor: colors.border, borderRadius: 11, borderCurve: 'continuous' },
+  disabledPreviewButton: { opacity: 0.45 },
   previewButtonText: { flex: 1, fontSize: 12, lineHeight: 18 },
   production: { flexDirection: 'row', alignItems: 'center', gap: 20, paddingTop: 5 },
   productionLabel: { width: 45, color: colors.muted, fontSize: 11, lineHeight: 18 },

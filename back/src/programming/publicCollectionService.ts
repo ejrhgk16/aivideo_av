@@ -13,14 +13,6 @@ import { CollectionDrama } from './entities/collectionDrama.entity.js';
 import { ContentCollection } from './entities/contentCollection.entity.js';
 import { createDramaImageUrls } from '../content/mediaUrl.js';
 
-type PublicImages = {
-  poster: string | null;
-  posterLandscape: string | null;
-  homeHero: string | null;
-  detailCover: string | null;
-  campaigns: string[];
-};
-
 type PublicPreviewVideo = {
   uuid: string;
   storageKey: string;
@@ -34,7 +26,6 @@ export interface PublicDramaSummary {
   shortDescription: string;
   productionCompany: { uuid: string; name: string } | null;
   genres: Array<{ id: number; code: string; name: string }>;
-  images: PublicImages;
   imageUrls: ReturnType<typeof createDramaImageUrls>;
   previewVideos: PublicPreviewVideo[];
   publishedEpisodeCount: number;
@@ -196,13 +187,6 @@ export class PublicCollectionService {
             const genre = genresById.get(genreId);
             return genre ? [{ id: genre.id, code: genre.code, name: genre.name }] : [];
           }),
-          images: {
-            poster: imageByKind.get('POSTER') ?? null,
-            posterLandscape: imageByKind.get('POSTER_LANDSCAPE') ?? null,
-            homeHero: imageByKind.get('HOME_HERO') ?? null,
-            detailCover: imageByKind.get('DETAIL_COVER') ?? null,
-            campaigns: campaignImages.map(({ storageKey }) => storageKey),
-          },
           imageUrls: createDramaImageUrls({
             poster: imageByKind.get('POSTER') ?? null,
             posterLandscape: imageByKind.get('POSTER_LANDSCAPE') ?? null,

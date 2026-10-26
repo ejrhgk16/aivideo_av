@@ -15,7 +15,6 @@ test('drama list requests the latest public catalog and returns the API response
     shortDescription: '서로의 비밀을 간직한 두 사람의 봄날 로맨스',
     productionCompany: '라이트하우스 스튜디오',
     genres: [{ id: 1, code: 'ROMANCE', name: '로맨스' }],
-    images: { poster: null, posterLandscape: null, homeHero: null, detailCover: null, campaigns: [] },
     imageUrls: { poster: '/media/poster.webp', posterLandscape: null, homeHero: null, detailCover: null, campaigns: [] },
     previewVideos: [],
     episodeCount: 4,
@@ -67,13 +66,6 @@ test('drama detail requests use the configured API base URL and return the API c
     synopsis: '마지막 봄에 다시 만난다.',
     productionCompany: '라이트하우스 스튜디오',
     genres: [{ id: 1, code: 'ROMANCE', name: '로맨스' }],
-    images: {
-      poster: 'dramas/our-last-spring/images/poster.webp',
-      posterLandscape: 'dramas/our-last-spring/images/poster-landscape/image-1.webp',
-      homeHero: 'dramas/our-last-spring/images/home-hero.webp',
-      detailCover: null,
-      campaigns: [],
-    },
     imageUrls: {
       poster: '/media/images/dramas/example/images/poster/image-1.webp',
       posterLandscape: '/media/images/dramas/example/images/poster-landscape/image-1.webp',

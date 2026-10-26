@@ -21,13 +21,6 @@ test('home collection requests use the configured API base URL', async () => {
         shortDescription: '서로의 비밀을 간직한 두 사람의 봄날 로맨스',
         productionCompany: { uuid: '00000001-0000-4000-8000-000000000001', name: '라이트하우스 스튜디오' },
         genres: [{ id: 1, code: 'ROMANCE', name: '로맨스' }],
-        images: {
-          poster: null,
-          posterLandscape: null,
-          homeHero: null,
-          detailCover: null,
-          campaigns: ['dramas/our-last-spring/images/campaign-1.webp'],
-        },
         imageUrls: {
           poster: null,
           posterLandscape: '/media/images/dramas/example/images/poster-landscape/image-1.webp',

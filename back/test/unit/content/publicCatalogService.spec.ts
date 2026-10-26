@@ -131,10 +131,6 @@ describe('PublicCatalogService', () => {
         productionCompany: '제작사',
         episodeCount: 2,
         freeEpisodeCount: 1,
-        images: {
-          poster: 'dramas/drama-1/images/poster/image-1.webp', posterLandscape: 'dramas/drama-1/images/poster-landscape/image-4.webp', homeHero: null, detailCover: null,
-          campaigns: ['dramas/drama-1/images/campaign/image-1.webp', 'dramas/drama-1/images/campaign/image-2.webp'],
-        },
         imageUrls: {
           poster: 'https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/drama-1/images/poster/image-1.webp',
           posterLandscape: 'https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/drama-1/images/poster-landscape/image-4.webp',
@@ -402,7 +398,6 @@ describe('PublicCatalogService', () => {
       synopsis: '긴 줄거리',
       productionCompany: '제작사',
       genres: [{ id: 1, code: 'MYSTERY', name: '미스터리' }],
-      images: { poster: 'dramas/drama-1/images/poster/image-1.webp', posterLandscape: 'dramas/drama-1/images/poster-landscape/image-4.webp', homeHero: null, detailCover: null, campaigns: [] },
       imageUrls: { poster: 'https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/drama-1/images/poster/image-1.webp', posterLandscape: 'https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/drama-1/images/poster-landscape/image-4.webp', homeHero: null, detailCover: null, campaigns: [] },
       previewVideos: [],
       episodes: [

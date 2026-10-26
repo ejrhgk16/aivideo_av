@@ -35,29 +35,20 @@
     "genres": [
       { "id": 1, "code": "ROMANCE", "name": "로맨스" }
     ],
-    "images": {
-      "poster": "dramas/our-last-spring/images/poster.webp",
-      "posterLandscape": "dramas/our-last-spring/images/poster-landscape.webp",
-      "homeHero": "dramas/our-last-spring/images/home-hero.webp",
-      "detailCover": "dramas/our-last-spring/images/detail-cover.webp",
-      "campaigns": [
-        "dramas/our-last-spring/images/campaign-1.webp"
-      ]
-    },
-    "imageUrls": {
-      "poster": "https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/00000002-0000-4000-8000-000000000001/images/poster/image-1.webp",
-      "posterLandscape": "https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/00000002-0000-4000-8000-000000000001/images/poster-landscape/image-1.webp",
-      "homeHero": "https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/00000002-0000-4000-8000-000000000001/images/home-hero/image-1.webp",
-      "detailCover": null,
-      "campaigns": []
-    },
-    "previewVideos": [
-      {
-        "uuid": "00000002-0000-4000-8000-000000000201",
-        "storageKey": "dramas/our-last-spring/videos/preview-1.mp4",
-        "durationMs": 30000
-      }
-    ],
+  "imageUrls": {
+    "poster": "https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/00000002-0000-4000-8000-000000000001/images/poster/image-1.webp",
+    "posterLandscape": "https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/00000002-0000-4000-8000-000000000001/images/poster-landscape/image-1.webp",
+    "homeHero": "https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/00000002-0000-4000-8000-000000000001/images/home-hero/image-1.webp",
+    "detailCover": null,
+    "campaigns": []
+  },
+  "previewVideos": [
+    {
+      "uuid": "00000002-0000-4000-8000-000000000201",
+      "storageKey": "dramas/our-last-spring/videos/preview-1.mp4",
+      "durationMs": 30000
+    }
+  ],
     "episodeCount": 4,
     "freeEpisodeCount": 1
   }
@@ -72,11 +63,6 @@
 | `shortDescription` | string | 카드·홈용 짧은 소개 |
 | `productionCompany` | string \| null | 제작사명. 연결된 제작사가 없으면 `null` |
 | `genres` | array | 연결된 장르의 식별자·코드·이름 |
-| `images.poster` | string \| null | 포스터 storage key |
-| `images.posterLandscape` | string \| null | 가로 포스터 storage key |
-| `images.homeHero` | string \| null | 홈 히어로 이미지 storage key |
-| `images.detailCover` | string \| null | 상세 커버 이미지 storage key |
-| `images.campaigns` | string[] | 캠페인 이미지 storage key. `displayOrder` 오름차순 |
 | `imageUrls.poster` | string \| null | 포스터의 공개 S3 URL. 이미지가 없거나 버킷 설정이 없으면 `null` |
 | `imageUrls.posterLandscape` | string \| null | 가로 포스터의 공개 S3 URL |
 | `imageUrls.homeHero` | string \| null | 홈 히어로의 공개 S3 URL |
@@ -134,15 +120,6 @@
   "genres": [
     { "id": 1, "code": "ROMANCE", "name": "로맨스" }
   ],
-  "images": {
-    "poster": "dramas/our-last-spring/images/poster.webp",
-    "posterLandscape": "dramas/our-last-spring/images/poster-landscape.webp",
-      "homeHero": "dramas/our-last-spring/images/home-hero.webp",
-      "detailCover": "dramas/our-last-spring/images/detail-cover.webp",
-      "campaigns": [
-        "dramas/our-last-spring/images/campaign-1.webp"
-      ]
-    },
     "imageUrls": {
       "poster": "https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/00000002-0000-4000-8000-000000000001/images/poster/image-1.webp",
       "posterLandscape": "https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/00000002-0000-4000-8000-000000000001/images/poster-landscape/image-1.webp",
@@ -190,11 +167,6 @@
 | `genres[].id` | number | 장르 식별자 |
 | `genres[].code` | string | 장르 코드 |
 | `genres[].name` | string | 장르명 |
-| `images.poster` | string \| null | 포스터 storage key |
-| `images.posterLandscape` | string \| null | 가로 포스터 storage key |
-| `images.homeHero` | string \| null | 홈 히어로 이미지 storage key |
-| `images.detailCover` | string \| null | 상세 커버 이미지 storage key |
-| `images.campaigns` | string[] | 캠페인 이미지 storage key. `displayOrder` 오름차순 |
 | `imageUrls.poster` | string \| null | 포스터의 공개 S3 URL. 이미지가 없거나 버킷 설정이 없으면 `null` |
 | `imageUrls.posterLandscape` | string \| null | 가로 포스터의 공개 S3 URL |
 | `imageUrls.homeHero` | string \| null | 홈 히어로의 공개 S3 URL |
@@ -230,7 +202,7 @@
 - 작품은 `status = PUBLISHED`이고 `published_at`이 현재 시각 이하인 경우에만 반환한다.
 - 회차는 `status = PUBLISHED`이고 `published_at`이 `null`이 아니며 현재 시각 이하인 경우에만 반환한다.
 - 회차는 `episodeNumber` 오름차순으로 정렬한다.
-- `images`는 기존 storage key를 유지한다. `imageUrls`에는 버킷과 리전 설정이 있을 때 공개 이미지의 직접 S3 URL을 제공한다. 이미지가 없으면 `null` 또는 빈 배열이다. 공개 URL은 `dramas/*/images/*/*.webp`, `dramas/*/episodes/*/images/*.webp`, `genres/*/images/*.webp` 키에만 허용한다.
+- `imageUrls`에는 버킷과 리전 설정이 있을 때 공개 이미지의 직접 S3 URL을 제공한다. 이미지가 없으면 `null` 또는 빈 배열이다. 공개 URL은 `dramas/*/images/*/*.webp`, `dramas/*/episodes/*/images/*.webp`, `genres/*/images/*.webp` 키에만 허용한다.
 - 이 공개 API는 사용자별 구매·해제 여부를 조회하지 않는다. 따라서 `FREE`, `LOCKED`, `ENTITLED` 접근 상태도 응답에 포함하지 않는다.
 - 사용자별 구매·해제 여부와 접근 상태는 인증된 후속 API의 범위로 정의한다.
 

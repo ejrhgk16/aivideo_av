@@ -12,9 +12,9 @@ import { getDramaContent, type DramaContent } from '@/features/drama/dramaConten
 import { getEpisodePlayback, type EpisodePlayback } from '@/features/playback/episodePlayback';
 
 type LoadState = 'loading' | 'loaded' | 'not-found' | 'error';
-type Props = { id: string; dramaId?: string; dramaTitle?: string };
+type Props = { id: string; dramaId?: string };
 
-export function ImmersiveEpisodePlaybackScreen({ id, dramaId, dramaTitle }: Props) {
+export function PlaybackScreenEpisode({ id, dramaId }: Props) {
   const router = useRouter();
   const [playback, setPlayback] = useState<EpisodePlayback | null>(null);
   const [loadState, setLoadState] = useState<LoadState>('loading');
@@ -46,11 +46,11 @@ export function ImmersiveEpisodePlaybackScreen({ id, dramaId, dramaTitle }: Prop
     return <Page><EmptyState title="영상 정보를 불러오지 못했어요" description="네트워크를 확인한 뒤 다시 시도해 주세요." action="뒤로 가기" onAction={back} /></Page>;
   }
 
-  return <PlaybackVideo id={id} playback={playback} dramaId={dramaId} dramaTitle={dramaTitle} onBack={back} />;
+  return <PlaybackVideo id={id} playback={playback} dramaId={dramaId} onBack={back} />;
 }
 
-function PlaybackVideo({ id, playback, dramaId, dramaTitle, onBack }: {
-  id: string; playback: EpisodePlayback; dramaId?: string; dramaTitle?: string; onBack: () => void;
+function PlaybackVideo({ id, playback, dramaId, onBack }: {
+  id: string; playback: EpisodePlayback; dramaId?: string; onBack: () => void;
 }) {
   const router = useRouter();
   const [drama, setDrama] = useState<DramaContent | null>(null);
@@ -166,11 +166,10 @@ function PlaybackVideo({ id, playback, dramaId, dramaTitle, onBack }: {
     router.replace({ pathname: '/episode/[id]', params: {
       id: episode.uuid,
       dramaId,
-      dramaTitle: drama?.title ?? dramaTitle,
     } });
   };
   const shareEpisode = () => {
-    void Share.share({ message: `${dramaTitle ? `${dramaTitle} · ` : ''}${playback.title || `${playback.episodeNumber}화`}` });
+    void Share.share({ message: `${drama?.title ? `${drama.title} · ` : ''}${playback.title || `${playback.episodeNumber}화`}` });
   };
 
   return <View style={styles.fullscreen}>
@@ -229,8 +228,8 @@ function PlaybackVideo({ id, playback, dramaId, dramaTitle, onBack }: {
         </Pressable>
         <View style={[styles.bottomControls, { paddingBottom: insets.bottom + 12 }]}>
           {drama?.productionCompany ? <AppText style={styles.studio}>{drama.productionCompany}</AppText> : null}
-          {dramaId ? <Pressable onPress={openDrama} accessibilityRole="button" accessibilityLabel={`${drama?.title ?? dramaTitle ?? '작품'} 작품 상세 보기`} style={styles.bottomTitleButton}>
-            <AppText weight="bold" numberOfLines={1} style={styles.bottomTitle}>{drama?.title ?? dramaTitle ?? playback.title ?? `${playback.episodeNumber}화`}</AppText>
+          {dramaId ? <Pressable onPress={openDrama} accessibilityRole="button" accessibilityLabel={`${drama?.title ?? playback.title ?? `${playback.episodeNumber}화`} 작품 상세 보기`} style={styles.bottomTitleButton}>
+            <AppText weight="bold" numberOfLines={1} style={styles.bottomTitle}>{drama?.title ?? playback.title ?? `${playback.episodeNumber}화`}</AppText>
             <Icon name="chevron-right" color="#fff" size={21} />
           </Pressable> : <AppText weight="bold" numberOfLines={1} style={styles.bottomTitle}>{playback.title ?? `${playback.episodeNumber}화`}</AppText>}
           <View style={styles.episodeInfo}>
@@ -296,7 +295,7 @@ function PlaybackVideo({ id, playback, dramaId, dramaTitle, onBack }: {
     </Modal>
     <EpisodeUnlockDialog
       episode={lockedEpisode}
-      dramaTitle={drama?.title ?? dramaTitle ?? '작품'}
+      dramaTitle={drama?.title ?? '작품'}
       onClose={() => setLockedEpisode(null)}
       onCharge={() => {
         setLockedEpisode(null);

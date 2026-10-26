@@ -1,11 +1,10 @@
 import { useLocalSearchParams } from 'expo-router';
-import { ImmersiveEpisodePlaybackScreen } from '@/screens/ImmersiveEpisodePlaybackScreen';
+import { PlaybackScreenEpisode } from '@/screens/playbackScreen_episode';
 
 export default function EpisodeRoute() {
-  const { id, dramaId, dramaTitle } = useLocalSearchParams<{
+  const { id, dramaId } = useLocalSearchParams<{
     id: string;
     dramaId?: string;
-    dramaTitle?: string;
   }>();
-  return <ImmersiveEpisodePlaybackScreen id={id} dramaId={dramaId} dramaTitle={dramaTitle} />;
+  return <PlaybackScreenEpisode id={id} dramaId={dramaId} />;
 }

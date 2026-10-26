@@ -90,13 +90,6 @@ describe('PublicCollectionService', () => {
           genres: [{ id: 1, code: 'ROMANCE', name: '로맨스' }],
           publishedEpisodeCount: 2,
           freeEpisodeCount: 1,
-          images: {
-            poster: 'dramas/drama-1/images/poster/image-1.webp',
-            posterLandscape: 'dramas/drama-1/images/poster-landscape/image-4.webp',
-            homeHero: 'dramas/drama-1/images/home-hero/image-1.webp',
-            detailCover: null,
-            campaigns: ['dramas/drama-1/images/campaign/image-1.webp', 'dramas/drama-1/images/campaign/image-2.webp'],
-          },
           imageUrls: {
             poster: 'https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/drama-1/images/poster/image-1.webp',
             posterLandscape: 'https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/drama-1/images/poster-landscape/image-4.webp',

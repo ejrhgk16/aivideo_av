@@ -132,6 +132,12 @@
       "directory": "plan-22-front-recommend-playback-unlock-ui",
       "title": "프론트 추천·재생·회차 열기 UI 이식",
       "status": "completed"
+    },
+    {
+      "id": "plan-23-drama-image-dedupe-preview-playback",
+      "directory": "plan-23-drama-image-dedupe-preview-playback",
+      "title": "드라마 이미지 중복 필드 제거와 프리뷰 재생",
+      "status": "completed"
     }
   ]
 }

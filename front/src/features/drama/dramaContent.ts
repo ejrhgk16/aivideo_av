@@ -6,13 +6,6 @@ export interface DramaContent {
   synopsis: string;
   productionCompany: string | null;
   genres: Array<{ id: number; code: string; name: string }>;
-  images: {
-    poster: string | null;
-    posterLandscape: string | null;
-    homeHero: string | null;
-    detailCover: string | null;
-    campaigns: string[];
-  };
   imageUrls: {
     poster: string | null;
     posterLandscape: string | null;
@@ -39,13 +32,6 @@ export interface DramaSummary {
   shortDescription: string;
   productionCompany: string | null;
   genres: Array<{ id: number; code: string; name: string }>;
-  images: {
-    poster: string | null;
-    posterLandscape: string | null;
-    homeHero: string | null;
-    detailCover: string | null;
-    campaigns: string[];
-  };
   imageUrls: {
     poster: string | null;
     posterLandscape: string | null;

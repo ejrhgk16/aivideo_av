@@ -1,0 +1,151 @@
+{
+  "version": 1,
+  "plan_id": "plan-23-drama-image-dedupe-preview-playback",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "공개 API 이미지 필드 정리",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/content/publicCatalogService.ts",
+        "back/src/programming/publicCollectionService.ts",
+        "back/test/unit/content/publicCatalogService.spec.ts",
+        "back/test/unit/programming/publicCollectionService.spec.ts",
+        "_docs/api/02-content/dramas.md",
+        "_docs/api/03-programming/collections.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-26T09:35:11.968Z",
+      "summary": "GET /dramas 목록·상세와 GET /collections/:code 응답에서 공개 images 필드와 타입을 제거하고, 내부 저장소 키 기반 imageUrls 생성은 유지했습니다. 단위 테스트 기대값과 두 API 문서의 예시·필드 표·노출 규칙을 갱신했습니다. lint, test(11개 파일·36개 테스트), build 통과.",
+      "completed_at": "2026-10-26T09:37:22.134Z"
+    },
+    {
+      "id": "task-2",
+      "name": "프론트 이미지 응답 타입 정리",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/features/drama/dramaContent.ts",
+        "front/src/features/home/homeContent.ts",
+        "front/tests/unit/dramaContent.test.ts",
+        "front/tests/unit/homeContent.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-26T09:35:28.636Z",
+      "summary": "Removed the images property from DramaContent, DramaSummary, and HomeCollectionDrama and from the list, detail, and collection response fixtures. Kept imageUrls unchanged. npm --prefix front run typecheck, npm --prefix front run test, and npm --prefix front run export all passed.",
+      "completed_at": "2026-10-26T09:37:13.780Z"
+    },
+    {
+      "id": "task-3",
+      "name": "프리뷰 재생 API 클라이언트",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/features/playback/previewPlayback.ts",
+        "front/tests/unit/previewPlayback.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test"
+      ],
+      "started_at": "2026-10-26T09:35:46.302Z",
+      "summary": "Added getPreviewPlayback with encoded drama/video UUID path segments, unchanged signed URL response, and API URL/failure handling. Typecheck passed; npm run test passed. The existing frontend test script does not include the new test file, so I also compiled and ran previewPlayback.test.ts directly; all 3 tests passed.",
+      "completed_at": "2026-10-26T09:38:03.123Z"
+    },
+    {
+      "id": "task-4",
+      "name": "프리뷰 화면 연결과 파일명 정리",
+      "status": "completed",
+      "depends_on": [
+        "task-2",
+        "task-3"
+      ],
+      "files": [
+        "front/src/screens/DramaDetailScreen.tsx",
+        "front/src/screens/ImmersiveEpisodePlaybackScreen.tsx",
+        "front/src/screens/playbackScreen_episode.tsx",
+        "front/src/screens/playbackScreen_preview.tsx",
+        "front/src/app/_layout.tsx",
+        "front/src/app/episode/[id].tsx",
+        "front/src/app/preview/[dramaId]/[videoId].tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-26T09:38:14.848Z",
+      "summary": "상세 화면에서 첫 preview UUID로 새 프리뷰 재생 화면을 열고, RecommendationScreen 카드 배치에 자동 재생 영상·포스터 대기 화면·재생/일시정지·저장·회차·공유 동작을 연결했습니다. 프리뷰 라우트를 등록하고 회차 플레이어 파일명과 import를 정리했습니다. npm --prefix front run typecheck, npm --prefix front run test(8개 통과), npm --prefix front run export 모두 통과했습니다.",
+      "completed_at": "2026-10-26T09:41:05.634Z"
+    },
+    {
+      "id": "task-5",
+      "name": "프리뷰 재생 컨트롤·영상 배치 조정",
+      "status": "completed",
+      "depends_on": [
+        "task-4"
+      ],
+      "files": [
+        "front/src/screens/playbackScreen_preview.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-26T09:54:29.925Z",
+      "summary": "프리뷰 화면에 탭으로 컨트롤 표시·숨김 전환과 4초 자동 숨김을 추가하고, 화면 이탈 시 타이머를 정리하도록 했습니다. 재생 버튼을 카드 정중앙에 배치하고 영상 잘림을 막도록 contentFit을 contain으로 변경했습니다. 기존 컨트롤 위치와 동작은 유지했습니다. typecheck, test(8개 통과), export 통과. 세로·가로 영상의 실제 화면 확인은 실행 환경이 없어 검증하지 못했습니다.",
+      "completed_at": "2026-10-26T09:57:01.818Z"
+    },
+    {
+      "id": "task-6",
+      "name": "프리뷰 화면을 회차 플레이어 형식으로 변경하고 제목 라우트 파라미터 제거",
+      "status": "completed",
+      "depends_on": [
+        "task-5"
+      ],
+      "files": [
+        "front/src/screens/playbackScreen_preview.tsx",
+        "front/src/screens/playbackScreen_episode.tsx",
+        "front/src/screens/DramaDetailScreen.tsx",
+        "front/src/app/episode/[id].tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-26T10:17:47.538Z",
+      "summary": "Updated the preview player to use the episode player’s fullscreen controls, seek bar, and playback speed controls. Replaced episode navigation with a first-episode button that opens the episode or unlock dialog, and removed dramaTitle from episode route parameters and props. `npm --prefix front run typecheck`, `npm --prefix front run test` (8 passed), and `npm --prefix front run export` passed. Device-level playback and touch behavior were not manually checked.",
+      "completed_at": "2026-10-26T10:21:26.705Z"
+    },
+    {
+      "id": "task-7",
+      "name": "프리뷰 본편 버튼 색상과 재생 화면 복귀 경로 수정",
+      "status": "completed",
+      "depends_on": [
+        "task-6"
+      ],
+      "files": [
+        "front/src/screens/playbackScreen_preview.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-26T10:56:49.756Z",
+      "summary": "프리뷰의 본편 버튼을 RecommendationScreen의 강조 배경색과 텍스트 색상에 맞췄습니다. 무료 첫 회차 이동을 router.replace로 바꿔 회차 화면의 X가 미리보기를 다시 거치지 않게 했습니다. typecheck, test(8개 통과), export, 대상 파일 diff check가 통과했습니다. 실제 기기에서의 화면 이동과 버튼 색상은 수동 확인하지 못했습니다.",
+      "completed_at": "2026-10-26T10:59:39.894Z"
+    }
+  ]
+}

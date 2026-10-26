@@ -20,13 +20,6 @@ export type DramaSummary = {
   shortDescription: string;
   productionCompany: string | null;
   genres: Array<{ id: number; code: string; name: string }>;
-  images: {
-    poster: string | null;
-    posterLandscape: string | null;
-    homeHero: string | null;
-    detailCover: string | null;
-    campaigns: string[];
-  };
   imageUrls: ReturnType<typeof createDramaImageUrls>;
   previewVideos: Array<{ uuid: string; storageKey: string; durationMs: number }>;
   episodeCount: number;
@@ -43,13 +36,6 @@ export type DramaDetail = {
   synopsis: string;
   productionCompany: string | null;
   genres: Array<{ id: number; code: string; name: string }>;
-  images: {
-    poster: string | null;
-    posterLandscape: string | null;
-    homeHero: string | null;
-    detailCover: string | null;
-    campaigns: string[];
-  };
   imageUrls: ReturnType<typeof createDramaImageUrls>;
   previewVideos: Array<{ uuid: string; storageKey: string; durationMs: number }>;
   episodes: Array<{
@@ -176,7 +162,6 @@ export class PublicCatalogService {
           .map((link) => genresById.get(link.genreId))
           .filter((genre): genre is Genre => genre !== undefined)
           .map(({ id, code, name }) => ({ id, code, name })),
-        images: dramaImagesForResponse,
         imageUrls: createDramaImageUrls(dramaImagesForResponse),
         previewVideos: mapPreviewVideos(dramaVideos),
         episodeCount: dramaEpisodes.length,
@@ -238,7 +223,6 @@ export class PublicCatalogService {
         .map((link) => genresById.get(link.genreId))
         .filter((genre): genre is Genre => genre !== undefined)
         .map(({ id, code, name }) => ({ id, code, name })),
-      images: dramaImages,
       imageUrls: createDramaImageUrls(dramaImages),
       previewVideos: mapPreviewVideos(videos),
       episodes: publicEpisodes.map(
