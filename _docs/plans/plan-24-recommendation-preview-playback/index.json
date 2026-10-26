@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "plan_id": "plan-24-recommendation-preview-playback",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "추천 피드 활성 작품 영상 요청과 재생",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/screens/RecommendationScreen.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-26T13:26:41.245Z",
+      "summary": "Updated only RecommendationScreen.tsx: the initial and settled active recommendation request its preview URL individually; only the focused active card mounts and autoplays an expo-video player; scrolling and screen blur unmount it; poster fallback remains for loading, missing previews, and playback errors. Existing vertical paging, initialId ordering, and card actions are preserved. Checks passed: npm --prefix front run typecheck, npm --prefix front run test (8 passed), npm --prefix front run export. Device playback was not manually verified.",
+      "completed_at": "2026-10-26T13:28:37.366Z"
+    },
+    {
+      "id": "task-2",
+      "name": "추천 카드 전체 재생 조작 UI",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/src/screens/RecommendationScreen.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-26T13:28:50.873Z",
+      "summary": "Expanded RecommendationScreen.tsx with independent playback controls: tap to show/hide with a 4-second timeout, play/pause, speed selection, seek bar and time, settings modal, saved/episode/share actions, title navigation, and first-episode routing with the existing unlock dialog. Active-card details load separately; if unavailable, the main-play button opens the episode list. Preserved vertical paging and poster fallback. Checks passed: typecheck, test (8 passed), and export. Device playback was not manually verified.",
+      "completed_at": "2026-10-26T13:32:01.715Z"
+    },
+    {
+      "id": "task-3",
+      "name": "추천 영상 잘림 수정과 포스터 이미지 제거",
+      "status": "completed",
+      "depends_on": [
+        "task-2"
+      ],
+      "files": [
+        "front/src/screens/RecommendationScreen.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-26T15:00:24.501Z",
+      "summary": "Updated only RecommendationScreen.tsx. Matched the preview screen’s explicit 100% VideoView dimensions while retaining contentFit=\"contain\", and removed all poster image rendering and the poster-only badge; unavailable cards use a solid background. Typecheck passed, all 8 tests passed, and Expo export passed. Device playback was not manually verified.",
+      "completed_at": "2026-10-26T15:02:50.183Z"
+    },
+    {
+      "id": "task-4",
+      "name": "웹 추천 스와이프 복구와 포스터 전용 대체 화면",
+      "status": "completed",
+      "depends_on": [
+        "task-3"
+      ],
+      "files": [
+        "front/src/screens/RecommendationScreen.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-26T15:40:50.187Z",
+      "summary": "Updated only RecommendationScreen.tsx. Active card selection now debounces actual onScroll offsets and keeps native momentum settling; the inactive, loading, missing-preview, and failed-video branches render only the API poster image (solid background if missing). Removed the old fallback text/actions/styles while preserving the active player controls and paused video frame. Typecheck passed, front tests passed (8), and Expo export passed for web/iOS/Android. Browser swipe interaction was not manually verified.",
+      "completed_at": "2026-10-26T15:43:00.962Z"
+    }
+  ]
+}

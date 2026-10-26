@@ -138,6 +138,12 @@
       "directory": "plan-23-drama-image-dedupe-preview-playback",
       "title": "드라마 이미지 중복 필드 제거와 프리뷰 재생",
       "status": "completed"
+    },
+    {
+      "id": "plan-24-recommendation-preview-playback",
+      "directory": "plan-24-recommendation-preview-playback",
+      "title": "추천 피드 프리뷰 영상 재생",
+      "status": "completed"
     }
   ]
 }
