@@ -48,6 +48,8 @@ test('user prompt hook ignores normal prompts and adds ready-task context for ha
 test('file hook permits allowed tests and blocks source tests, web prototype, and out-of-scope active edits', () => {
   const repo = fixture();
   assert.deepEqual(invoke('pre-file-write', { cwd: repo, tool_input: { patch: '*** Add File: front/tests/unit/new.test.ts\n+test' } }), {});
+  assert.deepEqual(invoke('pre-file-write', { cwd: repo, tool_input: { patch: '*** Add File: back/test/api/public.postman_collection.json\n+{}' } }), {});
+  assert.equal(invoke('pre-file-write', { cwd: repo, tool_input: { patch: '*** Add File: back/src/public.postman_collection.json\n+{}' } }).hookSpecificOutput.permissionDecision, 'deny');
   assert.equal(invoke('pre-file-write', { cwd: repo, tool_input: { patch: '*** Add File: front/src/new.test.ts\n+test' } }).hookSpecificOutput.permissionDecision, 'deny');
   assert.equal(invoke('pre-file-write', { cwd: repo, tool_input: { input: '*** Add File: back/src/new.spec.ts\n+test' } }).hookSpecificOutput.permissionDecision, 'deny');
   assert.equal(invoke('pre-file-write', { cwd: repo, tool_input: { patch: '*** Update File: web-prototype/app.ts\n@@' } }).hookSpecificOutput.permissionDecision, 'deny');

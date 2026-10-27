@@ -1,0 +1,781 @@
+{
+  "info": {
+    "name": "AI Drama public API",
+    "description": "Read-only HTTP checks against the running development API and its existing MySQL database. Requires public dramas with free/paid episodes and previews. Does not seed or modify data, or download signed media URLs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test(\"API does not return a server error\", () => {",
+          "  pm.expect(pm.response.code).to.be.below(500);",
+          "});",
+          "if (pm.response.code === 200 && pm.info.requestName !== \"Root\") {",
+          "  pm.test(\"Public response shapes and identifiers follow the API contract\", () => {",
+          "    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;",
+          "    function check(value) {",
+          "      if (Array.isArray(value)) return value.forEach(check);",
+          "      if (!value || typeof value !== \"object\") return;",
+          "      if (\"uuid\" in value) {",
+          "        pm.expect(value.uuid).to.match(uuid);",
+          "        pm.expect(value).not.to.have.property(\"id\");",
+          "      }",
+          "      if (\"imageUrls\" in value) {",
+          "        [\"slug\", \"title\", \"shortDescription\"].forEach(key => pm.expect(value[key], key).to.be.a(\"string\"));",
+          "        pm.expect(value).not.to.have.property(\"images\");",
+          "        [\"poster\", \"posterLandscape\", \"homeHero\", \"detailCover\"].forEach(key => {",
+          "          const url = value.imageUrls[key];",
+          "          pm.expect(url === null || (typeof url === \"string\" && /^https:\\/\\//.test(url)), key).to.equal(true);",
+          "        });",
+          "        pm.expect(value.imageUrls.campaigns).to.be.an(\"array\");",
+          "        value.imageUrls.campaigns.forEach(url => pm.expect(url).to.match(/^https:\\/\\//));",
+          "        pm.expect(value.previewVideos).to.be.an(\"array\");",
+          "        value.previewVideos.forEach(video => {",
+          "          pm.expect(video.storageKey).to.be.a(\"string\").and.not.be.empty;",
+          "          pm.expect(video.durationMs).to.satisfy(Number.isInteger).and.be.above(0);",
+          "        });",
+          "        pm.expect(value.genres).to.be.an(\"array\");",
+          "        const genreIds = JSON.parse(pm.collectionVariables.get(\"genreIds\"));",
+          "        value.genres.forEach(genre => {",
+          "          pm.expect(genreIds).to.include(genre.id);",
+          "          pm.expect(genre.code).to.be.a(\"string\");",
+          "          pm.expect(genre.name).to.be.a(\"string\");",
+          "        });",
+          "        const count = value.episodeCount ?? value.publishedEpisodeCount;",
+          "        if (count !== undefined) {",
+          "          pm.expect(count).to.satisfy(Number.isInteger).and.be.at.least(0);",
+          "          pm.expect(value.freeEpisodeCount).to.satisfy(Number.isInteger).and.be.within(0, count);",
+          "        }",
+          "      }",
+          "      Object.values(value).forEach(check);",
+          "    }",
+          "    check(pm.response.json());",
+          "  });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Root",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "[\"catalog\", \"selectedDrama\", \"dramaId\", \"otherDramaId\", \"previewId\", \"freeEpisode\", \"paidEpisode\", \"freeEpisodeId\", \"paidEpisodeId\", \"genreIds\"].forEach(key => pm.collectionVariables.unset(key));",
+              "pm.collectionVariables.set(\"missingId\", pm.variables.replaceIn(\"{{$guid}}\"));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Root responds\", () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.text()).to.equal(\"Hello World!\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/"
+      }
+    },
+    {
+      "name": "Genres",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "",
+              "const genres = pm.response.json();",
+              "pm.test(\"Genres contain database records with unique numeric IDs\", () => {",
+              "  pm.expect(genres).to.be.an(\"array\").and.not.be.empty;",
+              "  pm.expect(new Set(genres.map(genre => genre.id)).size).to.equal(genres.length);",
+              "  genres.forEach(genre => {",
+              "    pm.expect(genre.id).to.satisfy(Number.isInteger).and.be.above(0);",
+              "    pm.expect(genre.code).to.be.a(\"string\").and.not.be.empty;",
+              "    pm.expect(genre.name).to.be.a(\"string\").and.not.be.empty;",
+              "    pm.expect(genre.tileImage === null || typeof genre.tileImage === \"string\").to.equal(true);",
+              "  });",
+              "});",
+              "pm.collectionVariables.set(\"genreIds\", JSON.stringify(genres.map(genre => genre.id)));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/genres"
+      }
+    },
+    {
+      "name": "Latest dramas",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "",
+              "const dramas = pm.response.json();",
+              "pm.test(\"Catalog has distinct dramas for playback and ownership checks\", () => {",
+              "  pm.expect(dramas).to.be.an(\"array\");",
+              "  pm.expect(dramas.length).to.be.at.least(2);",
+              "  pm.expect(new Set(dramas.map(drama => drama.uuid)).size).to.equal(dramas.length);",
+              "});",
+              "const selected = dramas.find(drama => drama.previewVideos.length > 0 && drama.freeEpisodeCount > 0 && drama.episodeCount > drama.freeEpisodeCount);",
+              "pm.test(\"Database has a drama with a preview, free episode, and paid episode\", () => {",
+              "  pm.expect(selected, \"Prepare existing development data before running API tests\").to.exist;",
+              "});",
+              "pm.collectionVariables.set(\"catalog\", JSON.stringify(dramas));",
+              "if (selected) {",
+              "  pm.collectionVariables.set(\"selectedDrama\", JSON.stringify(selected));",
+              "  pm.collectionVariables.set(\"dramaId\", selected.uuid);",
+              "  pm.collectionVariables.set(\"previewId\", selected.previewVideos[0].uuid);",
+              "  const other = dramas.find(drama => drama.uuid !== selected.uuid);",
+              "  if (other) pm.collectionVariables.set(\"otherDramaId\", other.uuid);",
+              "} else {",
+              "  pm.execution.setNextRequest(null);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/dramas?sort=latest"
+      }
+    },
+    {
+      "name": "Default drama sort",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "",
+              "pm.test(\"Default sort returns the latest catalog\", () => {",
+              "  pm.expect(pm.response.json()).to.deep.equal(JSON.parse(pm.collectionVariables.get(\"catalog\")));",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/dramas"
+      }
+    },
+    {
+      "name": "Invalid drama sort",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Unsupported sort returns the documented HTTP 400\", () => {",
+              "  pm.response.to.have.status(400);",
+              "  pm.expect(pm.response.json()).to.deep.equal({",
+              "    statusCode: 400, error: \"Bad Request\", message: \"sort must be latest\"",
+              "  });",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/dramas?sort=invalid"
+      }
+    },
+    {
+      "name": "Drama detail",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "",
+              "const detail = pm.response.json();",
+              "const summary = JSON.parse(pm.collectionVariables.get(\"selectedDrama\"));",
+              "pm.test(\"Detail agrees with catalog fields\", () => {",
+              "  [\"uuid\", \"slug\", \"title\", \"shortDescription\", \"productionCompany\", \"genres\", \"imageUrls\", \"previewVideos\"].forEach(key => {",
+              "    pm.expect(detail[key], key).to.deep.equal(summary[key]);",
+              "  });",
+              "  pm.expect(detail.synopsis).to.be.a(\"string\");",
+              "});",
+              "pm.test(\"Public episode counts, ordering, and prices agree with the catalog\", () => {",
+              "  pm.expect(detail.episodes).to.be.an(\"array\");",
+              "  pm.expect(detail.episodes.length).to.equal(summary.episodeCount);",
+              "  pm.expect(detail.episodes.filter(episode => episode.pricePoints === 0).length).to.equal(summary.freeEpisodeCount);",
+              "  const numbers = detail.episodes.map(episode => episode.episodeNumber);",
+              "  pm.expect(numbers).to.deep.equal([...numbers].sort((a, b) => a - b));",
+              "  pm.expect(new Set(numbers).size).to.equal(numbers.length);",
+              "  detail.episodes.forEach(episode => {",
+              "    pm.expect(episode.episodeNumber).to.satisfy(Number.isInteger).and.be.above(0);",
+              "    pm.expect(episode.pricePoints).to.satisfy(Number.isInteger).and.be.at.least(0);",
+              "    pm.expect(episode.durationMs).to.satisfy(Number.isInteger).and.be.above(0);",
+              "    pm.expect(episode.title === null || typeof episode.title === \"string\").to.equal(true);",
+              "    pm.expect(episode.synopsis === null || typeof episode.synopsis === \"string\").to.equal(true);",
+              "    pm.expect(episode.image === null || typeof episode.image === \"string\").to.equal(true);",
+              "  });",
+              "});",
+              "const free = detail.episodes.find(episode => episode.pricePoints === 0);",
+              "const paid = detail.episodes.find(episode => episode.pricePoints > 0);",
+              "pm.test(\"Detail supplies both playback test cases\", () => {",
+              "  pm.expect(free).to.exist;",
+              "  pm.expect(paid).to.exist;",
+              "});",
+              "if (free && paid) {",
+              "  pm.collectionVariables.set(\"freeEpisode\", JSON.stringify(free));",
+              "  pm.collectionVariables.set(\"paidEpisode\", JSON.stringify(paid));",
+              "  pm.collectionVariables.set(\"freeEpisodeId\", free.uuid);",
+              "  pm.collectionVariables.set(\"paidEpisodeId\", paid.uuid);",
+              "} else {",
+              "  pm.execution.setNextRequest(null);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/dramas/{{dramaId}}"
+      }
+    },
+    {
+      "name": "Free episode playback",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "",
+              "const body = pm.response.json();",
+              "const episode = JSON.parse(pm.collectionVariables.get(\"freeEpisode\"));",
+              "pm.test(\"Playback matches the selected episode\", () => {",
+              "  pm.expect(body.title).to.equal(episode.title);",
+              "  pm.expect(body.episodeNumber).to.equal(episode.episodeNumber);",
+              "  pm.expect(body.durationMs).to.satisfy(Number.isInteger).and.be.above(0);",
+              "});",
+              "pm.test(\"Playback uses a one-hour S3 signed HTTPS URL\", () => {",
+              "  pm.expect(body.url).to.match(/^https:\\/\\/[^/]+\\.s3\\.[^/]+\\.amazonaws\\.com\\//);",
+              "  pm.expect(body.url).to.include(\"X-Amz-Algorithm=AWS4-HMAC-SHA256\");",
+              "  pm.expect(body.url).to.match(/[?&]X-Amz-Expires=3600(?:&|$)/);",
+              "  pm.expect(body.url).to.match(/[?&]X-Amz-Signature=[a-f0-9]+/);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/episodes/{{freeEpisodeId}}/playback"
+      }
+    },
+    {
+      "name": "Paid episode playback",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "",
+              "const body = pm.response.json();",
+              "const episode = JSON.parse(pm.collectionVariables.get(\"paidEpisode\"));",
+              "pm.test(\"Playback matches the selected episode\", () => {",
+              "  pm.expect(body.title).to.equal(episode.title);",
+              "  pm.expect(body.episodeNumber).to.equal(episode.episodeNumber);",
+              "  pm.expect(body.durationMs).to.satisfy(Number.isInteger).and.be.above(0);",
+              "});",
+              "pm.test(\"Playback uses a one-hour S3 signed HTTPS URL\", () => {",
+              "  pm.expect(body.url).to.match(/^https:\\/\\/[^/]+\\.s3\\.[^/]+\\.amazonaws\\.com\\//);",
+              "  pm.expect(body.url).to.include(\"X-Amz-Algorithm=AWS4-HMAC-SHA256\");",
+              "  pm.expect(body.url).to.match(/[?&]X-Amz-Expires=3600(?:&|$)/);",
+              "  pm.expect(body.url).to.match(/[?&]X-Amz-Signature=[a-f0-9]+/);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/episodes/{{paidEpisodeId}}/playback"
+      }
+    },
+    {
+      "name": "Preview playback",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "",
+              "const body = pm.response.json();",
+              "const preview = JSON.parse(pm.collectionVariables.get(\"selectedDrama\")).previewVideos[0];",
+              "pm.test(\"Preview duration and storage key match the catalog\", () => {",
+              "  pm.expect(body.durationMs).to.equal(preview.durationMs);",
+              "  pm.expect(body.url).to.match(/^https:\\/\\/[^/]+\\.s3\\.[^/]+\\.amazonaws\\.com\\//);",
+              "  pm.expect(body.url.split(\"?\")[0]).to.include(preview.storageKey.split(\"/\").map(encodeURIComponent).join(\"/\"));",
+              "  pm.expect(body.url).to.match(/[?&]X-Amz-Expires=3600(?:&|$)/);",
+              "  pm.expect(body.url).to.match(/[?&]X-Amz-Signature=[a-f0-9]+/);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/dramas/{{dramaId}}/previews/{{previewId}}/playback"
+      }
+    },
+    {
+      "name": "Missing drama",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 404 with NestJS error body\", () => {",
+              "  pm.response.to.have.status(404);",
+              "  pm.expect(pm.response.json()).to.include({ statusCode: 404, error: \"Not Found\" });",
+              "  pm.expect(pm.response.json().message).to.be.a(\"string\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/dramas/{{missingId}}"
+      }
+    },
+    {
+      "name": "Missing episode",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 404 with NestJS error body\", () => {",
+              "  pm.response.to.have.status(404);",
+              "  pm.expect(pm.response.json()).to.include({ statusCode: 404, error: \"Not Found\" });",
+              "  pm.expect(pm.response.json().message).to.be.a(\"string\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/episodes/{{missingId}}/playback"
+      }
+    },
+    {
+      "name": "Missing preview",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 404 with NestJS error body\", () => {",
+              "  pm.response.to.have.status(404);",
+              "  pm.expect(pm.response.json()).to.include({ statusCode: 404, message: \"Not Found\" });",
+              "  pm.expect(pm.response.json().message).to.be.a(\"string\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/dramas/{{dramaId}}/previews/{{missingId}}/playback"
+      }
+    },
+    {
+      "name": "Preview of missing drama",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 404 with NestJS error body\", () => {",
+              "  pm.response.to.have.status(404);",
+              "  pm.expect(pm.response.json()).to.include({ statusCode: 404, message: \"Not Found\" });",
+              "  pm.expect(pm.response.json().message).to.be.a(\"string\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/dramas/{{missingId}}/previews/{{previewId}}/playback"
+      }
+    },
+    {
+      "name": "Preview ownership",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 404 with NestJS error body\", () => {",
+              "  pm.response.to.have.status(404);",
+              "  pm.expect(pm.response.json()).to.include({ statusCode: 404, message: \"Not Found\" });",
+              "  pm.expect(pm.response.json().message).to.be.a(\"string\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/dramas/{{otherDramaId}}/previews/{{previewId}}/playback"
+      }
+    },
+    {
+      "name": "Collection HOME_FEATURED",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "",
+              "const collection = pm.response.json();",
+              "const catalog = JSON.parse(pm.collectionVariables.get(\"catalog\"));",
+              "pm.test(\"Collection HOME_FEATURED has its documented envelope\", () => {",
+              "  pm.expect(collection.code).to.equal(\"HOME_FEATURED\");",
+              "  pm.expect(collection.title).to.be.a(\"string\");",
+              "  pm.expect(collection.description === null || typeof collection.description === \"string\").to.equal(true);",
+              "  pm.expect(collection.dramas).to.be.an(\"array\");",
+              "});",
+              "pm.test(\"Collection order and public summaries agree with the catalog\", () => {",
+              "  const orders = collection.dramas.map(drama => drama.displayOrder);",
+              "  pm.expect(orders).to.deep.equal([...orders].sort((a, b) => a - b));",
+              "  pm.expect(new Set(collection.dramas.map(drama => drama.uuid)).size).to.equal(collection.dramas.length);",
+              "  collection.dramas.forEach(drama => {",
+              "    pm.expect(drama.displayOrder).to.satisfy(Number.isInteger);",
+              "    const summary = catalog.find(item => item.uuid === drama.uuid);",
+              "    pm.expect(summary, \"Collection must only contain public catalog dramas\").to.exist;",
+              "    [\"slug\", \"title\", \"shortDescription\", \"imageUrls\", \"previewVideos\"].forEach(key => {",
+              "      pm.expect(drama[key], key).to.deep.equal(summary[key]);",
+              "    });",
+              "    pm.expect(drama.genres.map(genre => genre.id).sort()).to.deep.equal(summary.genres.map(genre => genre.id).sort());",
+              "    pm.expect(drama.publishedEpisodeCount).to.equal(summary.episodeCount);",
+              "    pm.expect(drama.freeEpisodeCount).to.equal(summary.freeEpisodeCount);",
+              "    pm.expect(drama.productionCompany ? drama.productionCompany.name : null).to.equal(summary.productionCompany);",
+              "  });",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/collections/HOME_FEATURED"
+      }
+    },
+    {
+      "name": "Collection EDITORIAL_TOP_3",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "",
+              "const collection = pm.response.json();",
+              "const catalog = JSON.parse(pm.collectionVariables.get(\"catalog\"));",
+              "pm.test(\"Collection EDITORIAL_TOP_3 has its documented envelope\", () => {",
+              "  pm.expect(collection.code).to.equal(\"EDITORIAL_TOP_3\");",
+              "  pm.expect(collection.title).to.be.a(\"string\");",
+              "  pm.expect(collection.description === null || typeof collection.description === \"string\").to.equal(true);",
+              "  pm.expect(collection.dramas).to.be.an(\"array\");",
+              "});",
+              "pm.test(\"Collection order and public summaries agree with the catalog\", () => {",
+              "  const orders = collection.dramas.map(drama => drama.displayOrder);",
+              "  pm.expect(orders).to.deep.equal([...orders].sort((a, b) => a - b));",
+              "  pm.expect(new Set(collection.dramas.map(drama => drama.uuid)).size).to.equal(collection.dramas.length);",
+              "  collection.dramas.forEach(drama => {",
+              "    pm.expect(drama.displayOrder).to.satisfy(Number.isInteger);",
+              "    const summary = catalog.find(item => item.uuid === drama.uuid);",
+              "    pm.expect(summary, \"Collection must only contain public catalog dramas\").to.exist;",
+              "    [\"slug\", \"title\", \"shortDescription\", \"imageUrls\", \"previewVideos\"].forEach(key => {",
+              "      pm.expect(drama[key], key).to.deep.equal(summary[key]);",
+              "    });",
+              "    pm.expect(drama.genres.map(genre => genre.id).sort()).to.deep.equal(summary.genres.map(genre => genre.id).sort());",
+              "    pm.expect(drama.publishedEpisodeCount).to.equal(summary.episodeCount);",
+              "    pm.expect(drama.freeEpisodeCount).to.equal(summary.freeEpisodeCount);",
+              "    pm.expect(drama.productionCompany ? drama.productionCompany.name : null).to.equal(summary.productionCompany);",
+              "  });",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/collections/EDITORIAL_TOP_3"
+      }
+    },
+    {
+      "name": "Collection RECOMMENDATION_DAILY",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "",
+              "const collection = pm.response.json();",
+              "const catalog = JSON.parse(pm.collectionVariables.get(\"catalog\"));",
+              "pm.test(\"Collection RECOMMENDATION_DAILY has its documented envelope\", () => {",
+              "  pm.expect(collection.code).to.equal(\"RECOMMENDATION_DAILY\");",
+              "  pm.expect(collection.title).to.be.a(\"string\");",
+              "  pm.expect(collection.description === null || typeof collection.description === \"string\").to.equal(true);",
+              "  pm.expect(collection.dramas).to.be.an(\"array\");",
+              "});",
+              "pm.test(\"Collection order and public summaries agree with the catalog\", () => {",
+              "  const orders = collection.dramas.map(drama => drama.displayOrder);",
+              "  pm.expect(orders).to.deep.equal([...orders].sort((a, b) => a - b));",
+              "  pm.expect(new Set(collection.dramas.map(drama => drama.uuid)).size).to.equal(collection.dramas.length);",
+              "  collection.dramas.forEach(drama => {",
+              "    pm.expect(drama.displayOrder).to.satisfy(Number.isInteger);",
+              "    const summary = catalog.find(item => item.uuid === drama.uuid);",
+              "    pm.expect(summary, \"Collection must only contain public catalog dramas\").to.exist;",
+              "    [\"slug\", \"title\", \"shortDescription\", \"imageUrls\", \"previewVideos\"].forEach(key => {",
+              "      pm.expect(drama[key], key).to.deep.equal(summary[key]);",
+              "    });",
+              "    pm.expect(drama.genres.map(genre => genre.id).sort()).to.deep.equal(summary.genres.map(genre => genre.id).sort());",
+              "    pm.expect(drama.publishedEpisodeCount).to.equal(summary.episodeCount);",
+              "    pm.expect(drama.freeEpisodeCount).to.equal(summary.freeEpisodeCount);",
+              "    pm.expect(drama.productionCompany ? drama.productionCompany.name : null).to.equal(summary.productionCompany);",
+              "  });",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/collections/RECOMMENDATION_DAILY"
+      }
+    },
+    {
+      "name": "Collection HOME_CAMPAIGN",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "",
+              "const collection = pm.response.json();",
+              "const catalog = JSON.parse(pm.collectionVariables.get(\"catalog\"));",
+              "pm.test(\"Collection HOME_CAMPAIGN has its documented envelope\", () => {",
+              "  pm.expect(collection.code).to.equal(\"HOME_CAMPAIGN\");",
+              "  pm.expect(collection.title).to.be.a(\"string\");",
+              "  pm.expect(collection.description === null || typeof collection.description === \"string\").to.equal(true);",
+              "  pm.expect(collection.dramas).to.be.an(\"array\");",
+              "});",
+              "pm.test(\"Collection order and public summaries agree with the catalog\", () => {",
+              "  const orders = collection.dramas.map(drama => drama.displayOrder);",
+              "  pm.expect(orders).to.deep.equal([...orders].sort((a, b) => a - b));",
+              "  pm.expect(new Set(collection.dramas.map(drama => drama.uuid)).size).to.equal(collection.dramas.length);",
+              "  collection.dramas.forEach(drama => {",
+              "    pm.expect(drama.displayOrder).to.satisfy(Number.isInteger);",
+              "    const summary = catalog.find(item => item.uuid === drama.uuid);",
+              "    pm.expect(summary, \"Collection must only contain public catalog dramas\").to.exist;",
+              "    [\"slug\", \"title\", \"shortDescription\", \"imageUrls\", \"previewVideos\"].forEach(key => {",
+              "      pm.expect(drama[key], key).to.deep.equal(summary[key]);",
+              "    });",
+              "    pm.expect(drama.genres.map(genre => genre.id).sort()).to.deep.equal(summary.genres.map(genre => genre.id).sort());",
+              "    pm.expect(drama.publishedEpisodeCount).to.equal(summary.episodeCount);",
+              "    pm.expect(drama.freeEpisodeCount).to.equal(summary.freeEpisodeCount);",
+              "    pm.expect(drama.productionCompany ? drama.productionCompany.name : null).to.equal(summary.productionCompany);",
+              "  });",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/collections/HOME_CAMPAIGN"
+      }
+    },
+    {
+      "name": "Missing collection",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 404 with NestJS error body\", () => {",
+              "  pm.response.to.have.status(404);",
+              "  pm.expect(pm.response.json()).to.include({ statusCode: 404, error: \"Not Found\" });",
+              "  pm.expect(pm.response.json().message).to.be.a(\"string\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/collections/{{missingId}}"
+      }
+    },
+    {
+      "name": "Allowed CORS origin",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "",
+              "pm.test(\"Development web origin is allowed\", () => {",
+              "  pm.expect(pm.response.headers.get(\"Access-Control-Allow-Origin\")).to.equal(\"http://localhost:8081\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Origin",
+            "value": "http://localhost:8081"
+          }
+        ],
+        "url": "{{baseUrl}}/genres"
+      }
+    },
+    {
+      "name": "Rejected CORS origin",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "",
+              "pm.test(\"Another web origin receives no CORS permission\", () => {",
+              "  pm.expect(pm.response.headers.get(\"Access-Control-Allow-Origin\")).to.not.exist;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Origin",
+            "value": "http://localhost:8082"
+          }
+        ],
+        "url": "{{baseUrl}}/genres"
+      }
+    },
+    {
+      "name": "CORS preflight",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Preflight allows the development origin and GET\", () => {",
+              "  pm.response.to.have.status(204);",
+              "  pm.expect(pm.response.headers.get(\"Access-Control-Allow-Origin\")).to.equal(\"http://localhost:8081\");",
+              "  pm.expect(pm.response.headers.get(\"Access-Control-Allow-Methods\")).to.include(\"GET\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "OPTIONS",
+        "header": [
+          {
+            "key": "Origin",
+            "value": "http://localhost:8081"
+          },
+          {
+            "key": "Access-Control-Request-Method",
+            "value": "GET"
+          }
+        ],
+        "url": "{{baseUrl}}/genres"
+      }
+    }
+  ]
+}

@@ -53,8 +53,13 @@ test('validate rejects missing dependencies, cycles, overlapping parallel files,
   assert.throws(() => validateIndex({ version: 1, plans: [{ id: 'plan-1-test', directory: 'plan-1-test', status: 'draft', tasks: [task('a', { depends_on: ['b'] }), task('b', { depends_on: ['a'] })] }] }), /cycle/);
   assert.throws(() => validateIndex({ version: 1, plans: [{ id: 'plan-1-test', directory: 'plan-1-test', status: 'draft', tasks: [task('a'), task('b', { files: ['tools/harness/a.mjs'] })] }] }), /share/);
   assert.throws(() => validateIndex({ version: 1, plans: [{ id: 'plan-1-test', directory: 'plan-1-test', status: 'draft', tasks: [task('a', { files: ['front/src/example.test.ts'] })] }] }), /approved location/);
+  assert.throws(() => validateIndex({ version: 1, plans: [{ id: 'plan-1-test', directory: 'plan-1-test', status: 'draft', tasks: [task('a', { files: ['back/src/public.postman_collection.json'] })] }] }), /approved location/);
   assert.throws(() => validateIndex({ version: 1, plans: [{ id: 'plan-1-test', directory: 'plan-1-test', status: 'draft', tasks: [task('a', { files: ['web-prototype/app.ts'] })] }] }), /web-prototype/);
   assert.throws(() => validatePlansIndex({ version: 1, plans: [{ id: 'plan-1-test', directory: 'plan-1-test', status: 'draft', tasks: [] }] }), /plan index/);
+});
+
+test('validate accepts Postman collections in the backend API test directory', () => {
+  assert.doesNotThrow(() => validateIndex({ version: 1, plans: [{ id: 'plan-1-test', directory: 'plan-1-test', status: 'draft', tasks: [task('api', { files: ['back/test/api/public.postman_collection.json'], checks: ['npm --prefix back run test:api'] })] }] }));
 });
 
 test('task transitions respect dependencies, retry errors, and reset a blocked task', () => {

@@ -9,6 +9,7 @@ Use this skill only after the user explicitly writes `$harness-plan`. It creates
 
 1. Read the root `AGENTS.md`, `_docs/ARCHITECTURE.md`, `_docs/plans/README.md`, and applicable nested `AGENTS.md` files. Do not read or plan work under `web-prototype/`.
 2. State the intended scope, non-goals, affected layers, assumptions, and verification commands. Ask for scope approval. Do not create a plan yet.
+   For backend REST behavior changes, include the affected API documents and `back/test/api/**/*.postman_collection.json` in task files. Use the backend lint, test, and build checks; `npm --prefix back run test` includes both focused unit tests and real HTTP API tests. Read `back/test/api/README.md` for the running development server and existing MySQL data requirements. Do not plan database resets or seed writes for read-only API verification. Keep unit tests for internal rules and boundaries that cannot be exercised without changing existing data.
 3. After approval, propose tasks with exact repository-relative `files`, `depends_on`, and `checks`. Explain any sequential dependency. Tasks that could run at the same time must not share a file. Ask for task-structure approval.
 4. After the second approval, create `_docs/plans/plan-N-name/` using the next numeric `N`, add its human-readable `plan.md`, create one `task-N-name.md` per task, create `_docs/plans/plan-N-name/index.json` for the task state, and add only the plan metadata entry to `_docs/plans/index.json`.
 
@@ -88,6 +89,6 @@ The plan-local `_docs/plans/plan-1-example/index.json` uses this shape:
 
 Never put `tasks` in the root plans index. The `plan_id` in the plan-local index must match its root plan entry.
 
-Use only `pending`, `in_progress`, `completed`, `error`, or `blocked` for task status. Do not list `web-prototype/`. Test files may only be in `front/tests/**/*.test.ts(x)`, `back/test/unit/**/*.spec.ts`, or `tools/harness/**/*.test.mjs`.
+Use only `pending`, `in_progress`, `completed`, `error`, or `blocked` for task status. Do not list `web-prototype/`. Test files may only be in `front/tests/**/*.test.ts(x)`, `back/test/api/**/*.postman_collection.json`, `back/test/unit/**/*.spec.ts`, or `tools/harness/**/*.test.mjs`.
 
 Run `node tools/harness/cli.mjs validate --plan <id>` after writing the plan. Report the plan ID and that the user can explicitly invoke `$harness` next.

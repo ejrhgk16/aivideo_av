@@ -19,7 +19,9 @@
     "db:migration:run": "typeorm migration:run -d dist/common/database/dataSource.js",
     "db:migration:revert": "typeorm migration:revert -d dist/common/database/dataSource.js",
     "lint": "oxlint src/ test/",
-    "test": "vitest run",
+    "test": "npm run test:unit && npm run test:api",
+    "test:unit": "vitest run",
+    "test:api": "postman collection run test/api/public.postman_collection.json --timeout-request 10000 --timeout-script 5000 --no-report-events",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism"

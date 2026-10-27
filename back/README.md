@@ -92,12 +92,20 @@ $ npm run start:prod
 ## Run tests
 
 ```bash
-# unit tests
+# focused unit tests and real HTTP API tests
 $ npm run test
 
-# test coverage
+# unit tests only
+$ npm run test:unit
+
+# Postman CLI against the running development API and MySQL
+$ npm run test:api
+
+# focused unit test coverage
 $ npm run test:cov
 ```
+
+Start the backend with the current code and its existing development database before running API tests. See [API test instructions](test/api/README.md) for the target URL, data prerequisites, and coverage. The tests do not initialize or modify the database.
 
 ## Deployment
 

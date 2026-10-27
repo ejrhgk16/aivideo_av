@@ -22,3 +22,5 @@ Use this skill only after the user explicitly writes `$harness`. Do not edit pro
 6. When `next` reports `done`, report completed checks and tell the user to explicitly invoke `$finish-plan`. Never run `finish`, `git commit`, or `git push` from this skill.
 
 Workers may change only their declared files. They must not touch `web-prototype/`, `_docs/plans/index.json`, plan-local task state JSON, or Git state. Tests belong only in `front/tests/`, `back/test/`, and `tools/harness/` under the approved filename conventions.
+
+Backend `npm --prefix back run test` includes Postman HTTP tests against the running development API and its real MySQL database. Before dispatching backend checks, ensure the target server reflects the changed code and follow `back/test/api/README.md`. Treat unavailable server/data as a failed check; do not reset or seed the existing database to make verification pass. Shared API collection edits must be sequenced through task dependencies.

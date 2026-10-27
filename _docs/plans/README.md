@@ -13,6 +13,8 @@
 
 `plan-N-name/plan.md`에는 목표·범위·비목표·승인된 task 상세·검증 결과를 기록한다. 병렬 task는 파일 목록이 겹치지 않을 때만 허용한다. task 상태 변경은 플랜 폴더의 `index.json`에 기록하며 루트 index에는 플랜 상태만 기록한다.
 
-새 제품 테스트는 `front/tests/**/*.test.ts(x)`, `back/test/unit/**/*.spec.ts`에만 둘 수 있다. Harness CLI·hook 테스트만 `tools/harness/**/*.test.mjs`에 둔다. 최상위 `tests/` 폴더는 만들지 않는다.
+새 제품 테스트는 `front/tests/**/*.test.ts(x)`, `back/test/api/**/*.postman_collection.json`, `back/test/unit/**/*.spec.ts`에 둔다. 백엔드는 HTTP API 테스트를 우선하고, 내부 규칙과 기존 데이터 변경 없이 재현하기 어려운 경계 조건만 단위 테스트로 유지한다. Harness CLI·hook 테스트만 `tools/harness/**/*.test.mjs`에 둔다. 최상위 `tests/` 폴더는 만들지 않는다.
+
+백엔드 REST 동작 변경 task는 API 문서와 Postman 컬렉션을 `files`에 함께 선언한다. `checks`에는 `npm --prefix back run lint`, `npm --prefix back run test`, `npm --prefix back run build`를 포함한다. `test`가 단위 테스트와 실제 API 검증을 모두 실행하므로 `test:api`를 중복 선언할 필요는 없다. API 검증은 현재 코드를 반영한 개발 서버와 기존 MySQL 데이터를 사용하며, 실행 전제와 데이터 조건은 `back/test/api/README.md`를 따른다. 서버 연결 실패나 필수 데이터 부족은 실패로 보고한다.
 
 계획은 `$harness-plan`의 두 단계 승인 후 생성한다. `$harness`는 worker를 최대 3개까지 실행하지만 commit/push하지 않는다. worker 오류는 `node tools/harness/cli.mjs retry --plan <id> --task <id>`로 같은 task를 재시도하며, 3회 연속 실패하면 `blocked`로 중단한다. 전체 완료 후에만 `$finish-plan`이 `node tools/harness/cli.mjs finish`로 검증·단일 commit·`origin/dev` push를 수행한다. `--message`를 생략하면 현재 완료하는 plan의 `id`를 사용해 `finish <plan-id>` 커밋명을 만든다.

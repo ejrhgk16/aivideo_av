@@ -4,10 +4,11 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const PLANS_INDEX = '_docs/plans/index.json';
-const TEST_FILE = /(?:\.test\.(?:ts|tsx|mjs)|\.spec\.ts)$/;
+export const TEST_FILE = /(?:\.test\.(?:ts|tsx|mjs)|\.spec\.ts|\.postman_collection\.json)$/;
 const ALLOWED_TEST_FILE = [
   /^front\/tests\/.+\.test\.(?:ts|tsx)$/,
   /^back\/test\/unit\/.+\.spec\.ts$/,
+  /^back\/test\/api\/.+\.postman_collection\.json$/,
   /^tools\/harness\/.+\.test\.mjs$/,
 ];
 const TASK_STATUS = new Set(['pending', 'in_progress', 'completed', 'error', 'blocked']);

@@ -97,8 +97,16 @@
 ## Test placement
 
 - 프론트 제품 테스트는 `front/tests/**/*.test.ts(x)`에 둔다. `front/src/`에는 새 테스트를 만들지 않는다. 검증은 `npm --prefix front run typecheck`, `npm --prefix front run test`, `npm --prefix front run export`를 사용한다.
-- 백엔드 테스트는 단위 테스트만 `back/test/unit/**/*.spec.ts`에 둔다. `back/src/`에는 새 테스트를 만들지 않는다. 검증은 `npm --prefix back run lint`, `npm --prefix back run test`, `npm --prefix back run build`를 사용한다.
+- 백엔드 HTTP API 동작은 `back/test/api/**/*.postman_collection.json`에 Postman CLI 테스트로 작성한다. DB 설정·시드·저장 키 등 내부 규칙과 기존 데이터 변경 없이 재현하기 어려운 공개 시점·환경 경계 조건은 `back/test/unit/**/*.spec.ts`에 최소한의 단위 테스트로 유지한다. `back/src/`에는 새 테스트를 만들지 않는다.
+- 백엔드 검증은 `npm --prefix back run lint`, `npm --prefix back run test`, `npm --prefix back run build`를 사용한다. `test`는 `test:unit`과 `test:api`를 모두 실행한다. 각각 별도로 실행할 수도 있다.
 - Harness 자체 테스트만 `tools/harness/**/*.test.mjs`에 colocate하며 `node --test tools/harness/*.test.mjs`로 실행한다. 제품 테스트용 최상위 `tests/` 폴더는 만들지 않는다.
+
+## API 테스트
+
+- Postman CLI는 실행 중인 개발 API를 HTTP로 호출하며, API가 사용하는 실제 MySQL DB까지 연결해 검증한다. 기본 주소는 `http://localhost:3000`이며 실행 방법과 데이터 조건은 `back/test/api/README.md`를 따른다.
+- API 검증 전 테스트 대상 서버가 현재 변경 코드를 반영했는지 확인한다. 서버가 없으면 개발 환경으로 시작하고, 연결 실패·필수 데이터 부족을 검증 통과로 처리하지 않는다.
+- REST endpoint의 경로·요청·응답·인증·노출 규칙을 변경하면 관련 API 문서와 Postman 컬렉션을 함께 갱신한다. Harness task의 `files`에 해당 파일을 선언하고 `checks`에 전체 백엔드 검증 명령을 포함한다.
+- 현재 컬렉션은 GET·OPTIONS 요청만 사용한다. 테스트를 위해 기존 DB를 생성·초기화·시드하거나 데이터를 변경하지 않는다. 비밀 값은 환경 파일에서 관리하고 컬렉션에 넣지 않는다.
 
 ## Codex Harness
 

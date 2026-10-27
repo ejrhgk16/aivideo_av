@@ -1,8 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve } from 'node:path';
-import { completeTask, failTask, getHarnessStatus, getNext, isAllowedTestPath, normalizePath, readIndex } from '../../tools/harness/cli.mjs';
-
-const TEST_FILE = /(?:\.test\.(?:ts|tsx|mjs)|\.spec\.ts)$/;
+import { completeTask, failTask, getHarnessStatus, getNext, isAllowedTestPath, normalizePath, readIndex, TEST_FILE } from '../../tools/harness/cli.mjs';
 
 function output(value) {
   process.stdout.write(`${JSON.stringify(value)}\n`);
