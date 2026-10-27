@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "plan_id": "plan-27-front-episode-purchase",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "회차 구매 요청과 테스트",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/features/economy/episodePurchase.ts",
+        "front/tests/unit/episodePurchase.test.ts",
+        "front/scripts/test-front.cjs"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-27T11:09:43.766Z",
+      "summary": "구매 POST 함수와 응답·오류 타입을 추가하고 테스트를 기본 실행 목록에 등록했습니다. typecheck, test(22 tests), export 모두 통과했습니다.",
+      "completed_at": "2026-10-27T11:11:59.076Z"
+    },
+    {
+      "id": "task-2",
+      "name": "공통 구매 팝업과 화면별 재생 이동",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/src/components/EpisodeUnlockDialog.tsx",
+        "front/src/screens/DramaDetailScreen.tsx",
+        "front/src/screens/RecommendationScreen.tsx",
+        "front/src/screens/playbackScreen_preview.tsx",
+        "front/src/screens/playbackScreen_episode.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-27T11:12:08.889Z",
+      "summary": "공통 회차 팝업에 구매 조건, 중복 요청 방지, 오류 표시, 잔액 갱신을 연결하고 네 화면의 구매 성공 이동을 추가했습니다. 상세·추천은 push, 프리뷰·회차 재생은 replace를 사용합니다. typecheck, test(22 tests), export 모두 통과했고 두 개발 서버는 HTTP 200입니다. 브라우저 조작 도구가 없어 실제 구매 화면과 뒤로 가기 동작은 미검증입니다.",
+      "completed_at": "2026-10-27T11:14:04.153Z"
+    }
+  ]
+}

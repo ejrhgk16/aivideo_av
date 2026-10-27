@@ -104,6 +104,10 @@ export function DramaDetailScreen({ id }: { id: string }) {
           setLockedEpisode(null);
           router.push('/points');
         }}
+        onPurchased={(episode) => router.push({
+          pathname: '/episode/[id]',
+          params: { id: episode.uuid, dramaId: drama.uuid },
+        })}
       />
     </Page>
   );

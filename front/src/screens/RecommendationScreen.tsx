@@ -171,7 +171,16 @@ function RecommendationPreviewPlayer({
         </View>
       </View>
     </Modal>
-    <EpisodeUnlockDialog episode={lockedEpisode} dramaTitle={drama.title} onClose={() => setLockedEpisode(null)} onCharge={() => { setLockedEpisode(null); router.push('/points'); }} />
+    <EpisodeUnlockDialog
+      episode={lockedEpisode}
+      dramaTitle={drama.title}
+      onClose={() => setLockedEpisode(null)}
+      onCharge={() => { setLockedEpisode(null); router.push('/points'); }}
+      onPurchased={(episode) => router.push({
+        pathname: '/episode/[id]',
+        params: { id: episode.uuid, dramaId: drama.uuid },
+      })}
+    />
   </>;
 }
 

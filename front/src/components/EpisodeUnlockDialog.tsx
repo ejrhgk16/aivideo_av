@@ -1,33 +1,70 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { AppText, Button, Icon } from '@/components/ui';
 import { colors } from '@/common/theme/tokens';
 import type { DramaContent } from '@/features/drama/dramaContent';
+import { EpisodePurchaseError, purchaseEpisode } from '@/features/economy/episodePurchase';
 import { useUser } from '@/features/user/UserProvider';
 
 type Episode = DramaContent['episodes'][number];
 
-export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge }: {
+export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge, onPurchased }: {
   episode: Episode | null;
   dramaTitle: string;
   onClose: () => void;
   onCharge: () => void;
+  onPurchased: (episode: Episode) => void;
 }) {
   const [displayedEpisode, setDisplayedEpisode] = useState(episode);
   // Keep the content visible while the modal finishes its closing animation.
   if (episode !== null && episode !== displayedEpisode) {
     setDisplayedEpisode(episode);
   }
-  const { points } = useUser();
+  const { user, points, setPoints } = useUser();
+  const inFlight = useRef(false);
+  const [purchasing, setPurchasing] = useState(false);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
+  const canPurchase = user !== null && points !== null
+    && episode !== null && episode.pricePoints <= points;
   const amount = points === null ? '—' : points.toLocaleString('ko-KR');
   const pointsDescription = points === null ? '로그인 후 포인트를 확인할 수 있어요'
     : `사용 가능한 포인트는 ${amount} P예요`;
 
+  useEffect(() => { setPurchaseError(null); }, [episode]);
+
+  const close = () => {
+    if (!inFlight.current) onClose();
+  };
+
+  const purchase = async () => {
+    if (!canPurchase || !user || !episode || inFlight.current) return;
+    const selectedEpisode = episode;
+    inFlight.current = true;
+    setPurchasing(true);
+    setPurchaseError(null);
+    let result;
+    try {
+      result = await purchaseEpisode(user.uuid, selectedEpisode.uuid);
+    } catch (error) {
+      setPurchaseError(error instanceof EpisodePurchaseError
+        && error.errorCode === 'POINT_INSUFFICIENT_BALANCE'
+        ? '포인트가 부족해요. 포인트 충전 후 다시 시도해 주세요.'
+        : '회차를 구매하지 못했어요. 다시 시도해 주세요.');
+      return;
+    } finally {
+      inFlight.current = false;
+      setPurchasing(false);
+    }
+    setPoints(result.availablePoints);
+    onClose();
+    onPurchased(selectedEpisode);
+  };
+
   return (
-    <Modal transparent visible={episode !== null} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+    <Modal transparent visible={episode !== null} animationType="fade" onRequestClose={close} statusBarTranslucent>
       <View style={styles.backdrop}>
         <View style={styles.dialog} accessibilityRole="alert" accessibilityLabel="회차 열기">
-          <Pressable style={styles.close} accessibilityRole="button" accessibilityLabel="팝업 닫기" onPress={onClose}>
+          <Pressable style={styles.close} accessibilityRole="button" accessibilityLabel="팝업 닫기" disabled={purchasing} onPress={close}>
             <Icon name="x" size={20} color={colors.muted} />
           </Pressable>
           <View style={styles.lockIcon}><Icon name="lock" size={25} color={colors.accent} /></View>
@@ -43,9 +80,15 @@ export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge }: 
               <AppText weight="semibold" style={styles.summaryValue}>{amount} P</AppText>
             </View>
           </View>
-          <AppText style={styles.notice}>{pointsDescription} · 회차 구매 기능은 준비 중이에요.</AppText>
-          <Button label="포인트 충전하기" onPress={onCharge} style={styles.chargeButton} />
-          <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} style={styles.dismiss}>
+          <AppText style={styles.notice}>{canPurchase ? '보유 포인트로 바로 구매할 수 있어요.' : pointsDescription}</AppText>
+          {purchaseError ? <AppText accessibilityRole="alert" style={styles.error}>{purchaseError}</AppText> : null}
+          <Button
+            label={purchasing ? '구매 중…' : canPurchase ? '구매하기' : '포인트 충전하기'}
+            disabled={purchasing}
+            onPress={canPurchase ? () => { void purchase(); } : onCharge}
+            style={styles.chargeButton}
+          />
+          <Pressable accessibilityRole="button" accessibilityLabel="닫기" disabled={purchasing} onPress={close} style={styles.dismiss}>
             <AppText weight="medium" style={styles.dismissLabel}>닫기</AppText>
           </Pressable>
         </View>
@@ -66,6 +109,7 @@ const styles = StyleSheet.create({
   summaryLabel: { color: colors.muted, fontSize: 13, lineHeight: 20 },
   summaryValue: { color: colors.text, fontSize: 14, lineHeight: 20 },
   notice: { color: colors.muted, textAlign: 'center', fontSize: 12, lineHeight: 19 },
+  error: { color: colors.danger, textAlign: 'center', fontSize: 12, lineHeight: 19 },
   chargeButton: { width: '100%', minHeight: 48, marginTop: 2 },
   dismiss: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 14 },
   dismissLabel: { color: colors.muted, fontSize: 13, lineHeight: 20 },

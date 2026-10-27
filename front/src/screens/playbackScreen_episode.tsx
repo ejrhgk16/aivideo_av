@@ -301,6 +301,13 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
         setLockedEpisode(null);
         router.push('/points');
       }}
+      onPurchased={(episode) => {
+        if (!dramaId) return;
+        router.replace({
+          pathname: '/episode/[id]',
+          params: { id: episode.uuid, dramaId },
+        });
+      }}
     />
   </View>;
 }
