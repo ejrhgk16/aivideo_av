@@ -21,6 +21,7 @@ export interface DramaContent {
     synopsis: string | null;
     durationMs: number;
     pricePoints: number;
+    isUnlocked: boolean;
     image: string | null;
   }>;
 }
@@ -48,13 +49,14 @@ function joinApiUrl(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 }
 
-export async function getDramaContent(dramaId: string): Promise<DramaContent> {
+export async function getDramaContent(dramaId: string, userUuid?: string): Promise<DramaContent> {
   const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   if (!baseUrl) {
     throw new Error('EXPO_PUBLIC_API_BASE_URL must be set to fetch drama content.');
   }
 
-  const response = await fetch(joinApiUrl(baseUrl, `dramas/${encodeURIComponent(dramaId)}`));
+  const query = userUuid ? `?userUuid=${encodeURIComponent(userUuid)}` : '';
+  const response = await fetch(joinApiUrl(baseUrl, `dramas/${encodeURIComponent(dramaId)}${query}`));
   if (!response.ok) {
     throw new Error(`Failed to fetch drama '${dramaId}': ${response.status}`);
   }

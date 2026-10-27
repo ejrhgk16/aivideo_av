@@ -81,6 +81,7 @@ test('drama detail requests use the configured API base URL and return the API c
       synopsis: '우연한 재회가 시작된다.',
       durationMs: 420000,
       pricePoints: 0,
+      isUnlocked: true,
       image: null,
     }],
   } satisfies DramaContent;
@@ -96,6 +97,27 @@ test('drama detail requests use the configured API base URL and return the API c
 
     assert.deepEqual(requestedUrls, ['http://localhost:3000/dramas/00000002-0000-4000-8000-000000000001']);
     assert.deepEqual(result, responseBody);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    else process.env.EXPO_PUBLIC_API_BASE_URL = originalBaseUrl;
+  }
+});
+
+test('drama detail passes and URL-encodes the optional user UUID', async () => {
+  const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+  const originalFetch = globalThis.fetch;
+  const requestedUrls: string[] = [];
+  process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
+  globalThis.fetch = (async (input) => {
+    requestedUrls.push(String(input));
+    return { ok: true, json: async () => ({ episodes: [{ pricePoints: 30, isUnlocked: true }] }) } as Response;
+  }) as typeof fetch;
+
+  try {
+    const result = await getDramaContent('drama id', 'user+one@example.com');
+    assert.deepEqual(requestedUrls, ['http://localhost:3000/dramas/drama%20id?userUuid=user%2Bone%40example.com']);
+    assert.equal(result.episodes[0].isUnlocked, true);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;

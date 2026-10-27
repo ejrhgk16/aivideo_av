@@ -7,11 +7,14 @@ import { EpisodeUnlockDialog } from '@/components/EpisodeUnlockDialog';
 import { resolveApiImageUrl } from '@/common/media';
 import { colors } from '@/common/theme/tokens';
 import { getDramaContent, type DramaContent } from '@/features/drama/dramaContent';
+import { useUser } from '@/features/user/UserProvider';
 
 type LoadState = 'loading' | 'loaded' | 'not-found' | 'error';
 
 export function DramaDetailScreen({ id }: { id: string }) {
   const router = useRouter();
+  const { user } = useUser();
+  const userUuid = user?.uuid;
   const params = useLocalSearchParams<{ tab?: string }>();
   const [drama, setDrama] = useState<DramaContent | null>(null);
   const [loadState, setLoadState] = useState<LoadState>('loading');
@@ -23,10 +26,11 @@ export function DramaDetailScreen({ id }: { id: string }) {
   useEffect(() => {
     let active = true;
     setDrama(null);
+    setLockedEpisode(null);
     setImageFailed(false);
     setLoadState('loading');
 
-    getDramaContent(id).then((content) => {
+    getDramaContent(id, userUuid).then((content) => {
       if (!active) return;
       setDrama(content);
       setLoadState('loaded');
@@ -37,7 +41,7 @@ export function DramaDetailScreen({ id }: { id: string }) {
     });
 
     return () => { active = false; };
-  }, [id]);
+  }, [id, userUuid]);
 
   const back = () => router.canGoBack() ? router.back() : router.replace('/');
   if (loadState === 'loading') {
@@ -55,7 +59,7 @@ export function DramaDetailScreen({ id }: { id: string }) {
   const episodes = [...drama.episodes].sort((a, b) => a.episodeNumber - b.episodeNumber);
   const firstPreview = drama.previewVideos[0];
   const openEpisode = (episode: DramaContent['episodes'][number]) => {
-    if (episode.pricePoints > 0) {
+    if (episode.pricePoints > 0 && !episode.isUnlocked) {
       setLockedEpisode(episode);
       return;
     }
@@ -90,9 +94,9 @@ export function DramaDetailScreen({ id }: { id: string }) {
         {drama.productionCompany ? <View style={styles.production}><AppText style={styles.productionLabel}>제작사</AppText><AppText weight="medium" style={styles.productionValue}>{drama.productionCompany}</AppText></View> : null}
       </View> : <View style={styles.episodes}>
         {episodes.length === 0 ? <AppText style={styles.emptyEpisodes}>공개된 회차가 아직 없어요.</AppText> : <View style={styles.episodeGrid}>{episodes.map((episode) => (
-          <Pressable key={episode.uuid} style={styles.episode} accessibilityRole="button" accessibilityLabel={`${episode.episodeNumber}화 ${episode.pricePoints === 0 ? '무료' : `${episode.pricePoints}포인트`}`} onPress={() => openEpisode(episode)}>
+          <Pressable key={episode.uuid} style={styles.episode} accessibilityRole="button" accessibilityLabel={`${episode.episodeNumber}화${episode.pricePoints === 0 ? ' 무료' : episode.isUnlocked ? '' : ` ${episode.pricePoints}포인트`}`} onPress={() => openEpisode(episode)}>
             <AppText weight="medium" style={styles.episodeNumber}>{episode.episodeNumber}화</AppText>
-            {episode.pricePoints === 0 ? <AppText style={styles.freeLabel}>무료</AppText> : <AppText style={styles.priceLabel}>{episode.pricePoints}P</AppText>}
+            {episode.pricePoints === 0 ? <AppText style={styles.freeLabel}>무료</AppText> : episode.isUnlocked ? null : <AppText style={styles.priceLabel}>{episode.pricePoints}P</AppText>}
           </Pressable>
         ))}</View>}
       </View>}
@@ -104,10 +108,18 @@ export function DramaDetailScreen({ id }: { id: string }) {
           setLockedEpisode(null);
           router.push('/points');
         }}
-        onPurchased={(episode) => router.push({
-          pathname: '/episode/[id]',
-          params: { id: episode.uuid, dramaId: drama.uuid },
-        })}
+        onPurchased={(episode) => {
+          setDrama((current) => current === null ? null : {
+            ...current,
+            episodes: current.episodes.map((item) => item.uuid === episode.uuid
+              ? { ...item, isUnlocked: true }
+              : item),
+          });
+          router.push({
+            pathname: '/episode/[id]',
+            params: { id: episode.uuid, dramaId: drama.uuid },
+          });
+        }}
       />
     </Page>
   );
