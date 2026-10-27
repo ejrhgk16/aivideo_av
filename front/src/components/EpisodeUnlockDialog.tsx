@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { AppText, Button, Icon } from '@/components/ui';
 import { colors } from '@/common/theme/tokens';
@@ -12,6 +13,11 @@ export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge }: 
   onClose: () => void;
   onCharge: () => void;
 }) {
+  const [displayedEpisode, setDisplayedEpisode] = useState(episode);
+  // Keep the content visible while the modal finishes its closing animation.
+  if (episode !== null && episode !== displayedEpisode) {
+    setDisplayedEpisode(episode);
+  }
   const { points } = useUser();
   const amount = points === null ? '—' : points.toLocaleString('ko-KR');
   const pointsDescription = points === null ? '로그인 후 포인트를 확인할 수 있어요'
@@ -26,11 +32,11 @@ export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge }: 
           </Pressable>
           <View style={styles.lockIcon}><Icon name="lock" size={25} color={colors.accent} /></View>
           <AppText weight="bold" style={styles.title}>다음 이야기가 기다려요</AppText>
-          <AppText style={styles.subtitle}>{dramaTitle} · {episode?.episodeNumber}화</AppText>
+          <AppText style={styles.subtitle}>{dramaTitle} · {displayedEpisode?.episodeNumber}화</AppText>
           <View style={styles.summary}>
             <View style={styles.summaryRow}>
               <AppText style={styles.summaryLabel}>이번 회차</AppText>
-              <AppText weight="semibold" style={styles.summaryValue}>{episode?.pricePoints} P</AppText>
+              <AppText weight="semibold" style={styles.summaryValue}>{displayedEpisode?.pricePoints} P</AppText>
             </View>
             <View style={styles.summaryRow}>
               <AppText style={styles.summaryLabel}>내 포인트</AppText>
