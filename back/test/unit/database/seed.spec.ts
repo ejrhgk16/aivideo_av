@@ -229,6 +229,8 @@ describe('database seed with numeric primary keys', () => {
       accountType: 'OPERATOR',
       status: 'ACTIVE',
       productionCompanyId: null,
+      loginId: 'admin',
+      password: 'admin',
     });
     expect(rowsFor(Wallet)).toContainEqual({ userId: admin?.id, availablePoints: 100, id: 1 });
     expect(rowsFor(PointTransaction)).toContainEqual({
@@ -271,6 +273,28 @@ describe('database seed with numeric primary keys', () => {
     ).toBe(admin?.id);
     expect(rowsFor(Wallet)[0].userId).toBe(admin?.id);
     expect(rowsFor(Wallet)[0].availablePoints).toBe(40);
+    expect(rowsFor(PointTransaction)).toHaveLength(1);
+
+    Object.assign(
+      rowsFor(User).find(({ uuid }) => uuid === initialData.adminUser.uuid)!,
+      { loginId: null, password: null },
+    );
+    await seedData(manager);
+    expect(
+      rowsFor(User).find(({ uuid }) => uuid === initialData.adminUser.uuid),
+    ).toMatchObject({ loginId: 'admin', password: 'admin' });
+    expect(rowsFor(Wallet)[0].availablePoints).toBe(40);
+
+    Object.assign(
+      rowsFor(User).find(({ uuid }) => uuid === initialData.adminUser.uuid)!,
+      { loginId: 'configured-admin', password: 'configured-password' },
+    );
+    rowsFor(Wallet)[0].availablePoints = 35;
+    await seedData(manager);
+    expect(
+      rowsFor(User).find(({ uuid }) => uuid === initialData.adminUser.uuid),
+    ).toMatchObject({ loginId: 'configured-admin', password: 'configured-password' });
+    expect(rowsFor(Wallet)[0].availablePoints).toBe(35);
     expect(rowsFor(PointTransaction)).toHaveLength(1);
   });
 });

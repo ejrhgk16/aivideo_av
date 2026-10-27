@@ -20,6 +20,7 @@ describe('initial seed data', () => {
   });
 
   it('defines the admin user and its one-time initial points grant', () => {
+    expect(initialData.adminLogin).toEqual({ loginId: 'admin', password: 'admin' });
     expect(initialData.adminUser).toEqual({
       uuid: '00000010-0000-4000-8000-000000000001',
       displayName: 'admin',

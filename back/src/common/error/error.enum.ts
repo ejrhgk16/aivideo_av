@@ -1,4 +1,6 @@
 export enum ErrorCodeEnum {
+  InvalidLoginInput = 'AUTH_INVALID_LOGIN_INPUT',
+  LoginFailed = 'AUTH_LOGIN_FAILED',
   PointUserNotFound = 'POINT_USER_NOT_FOUND',
   PointWalletNotFound = 'POINT_WALLET_NOT_FOUND',
   PointEpisodeNotFound = 'POINT_EPISODE_NOT_FOUND',

@@ -4,6 +4,7 @@ import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
 
 @Entity({ name: 'users' })
 @Index('idx_users_production_company_id', ['productionCompanyId'])
+@Index('uq_users_login_id', ['loginId'], { unique: true })
 @Check("account_type IN ('GUEST', 'MEMBER', 'OPERATOR', 'PARTNER')")
 @Check("status IN ('ACTIVE', 'SUSPENDED', 'WITHDRAWN')")
 export class User extends AuditedEntity {
@@ -12,6 +13,12 @@ export class User extends AuditedEntity {
 
   @Column({ type: 'char', length: 36, unique: true })
   uuid!: string;
+
+  @Column({ name: 'login_id', type: 'varchar', length: 100, nullable: true })
+  loginId!: string | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true, select: false })
+  password!: string | null;
 
   @Column({ name: 'account_type', type: 'varchar', length: 16 })
   accountType!: string;

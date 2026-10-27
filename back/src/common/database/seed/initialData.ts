@@ -30,6 +30,7 @@ type UuidRow<T> = Omit<DeepPartial<T>, 'id'> & { uuid: string };
 
 export interface InitialSeedData {
   adminUser: UuidRow<User>;
+  adminLogin: { loginId: string; password: string };
   adminInitialGrant: Omit<UuidRow<PointTransaction>, 'walletUserId' | 'balanceAfter'> & {
     amount: number;
   };
@@ -361,6 +362,7 @@ const adRewardOffers = [
 ];
 
 export const initialData: InitialSeedData = {
+  adminLogin: { loginId: 'admin', password: 'admin' },
   adminUser: {
     uuid: '00000010-0000-4000-8000-000000000001',
     displayName: 'admin',

@@ -914,6 +914,66 @@
         ],
         "url": "{{baseUrl}}/users/00000010-0000-4000-8000-000000000001/episodes/00000020-0000-4000-8000-000000000001/purchaseSingle"
       }
+    },
+    {
+      "name": "Login returns admin user and points",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Admin login returns public user fields and points', () => { const body = pm.response.json(); pm.response.to.have.status(200); pm.expect(Object.keys(body).sort()).to.eql(['accountType','availablePoints','displayName','uuid']); pm.expect(body.uuid).to.be.a('string'); pm.expect(body.accountType).to.be.a('string'); pm.expect(body.availablePoints).to.be.a('number').and.at.least(0); pm.expect(body).not.to.have.property('password'); pm.expect(body).not.to.have.property('id'); pm.expect(pm.response.headers.has('Set-Cookie')).to.equal(false); pm.collectionVariables.set('loginUserUuid', body.uuid); });"
+      ] } }],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"loginId\":\"admin\",\"password\":\"admin\"}" },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "Login is repeatable",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Repeated login succeeds with the same user', () => { const body = pm.response.json(); pm.response.to.have.status(200); pm.expect(body.uuid).to.equal(pm.collectionVariables.get('loginUserUuid')); pm.expect(body.availablePoints).to.be.a('number').and.at.least(0); });"
+      ] } }],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"loginId\":\"another-valid-id\",\"password\":\"another-password\"}" },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "Login rejects missing fields",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Missing login fields return custom 400', () => { const body = pm.response.json(); pm.response.to.have.status(400); pm.expect(body).to.include({ errorCode: 'AUTH_INVALID_LOGIN_INPUT', errorName: 'InvalidLoginInput', statusCode: 400, path: '/auth/login' }); pm.expect(new Date(body.timestamp).toISOString()).to.equal(body.timestamp); });"
+      ] } }],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"loginId\":\"admin\"}" },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "Login rejects blank credentials",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Blank credentials return custom 400', () => { const body = pm.response.json(); pm.response.to.have.status(400); pm.expect(body).to.include({ errorCode: 'AUTH_INVALID_LOGIN_INPUT', errorName: 'InvalidLoginInput', statusCode: 400, path: '/auth/login' }); pm.expect(new Date(body.timestamp).toISOString()).to.equal(body.timestamp); });"
+      ] } }],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"loginId\":\"   \",\"password\":\"   \"}" },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "Login rejects non-string fields",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Non-string fields return custom 400', () => { const body = pm.response.json(); pm.response.to.have.status(400); pm.expect(body).to.include({ errorCode: 'AUTH_INVALID_LOGIN_INPUT', errorName: 'InvalidLoginInput', statusCode: 400, path: '/auth/login' }); pm.expect(new Date(body.timestamp).toISOString()).to.equal(body.timestamp); });"
+      ] } }],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"loginId\":123,\"password\":\"admin\"}" },
+        "url": "{{baseUrl}}/auth/login"
+      }
     }
   ]
 }

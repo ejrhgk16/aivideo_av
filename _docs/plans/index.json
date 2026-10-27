@@ -150,6 +150,12 @@
       "directory": "plan-25-admin-seed-point-adjustment",
       "title": "admin 사용자 최초 100포인트 시드와 포인트 지급·회차 단건 구매 API",
       "status": "completed"
+    },
+    {
+      "id": "plan-26-front-global-data",
+      "directory": "plan-26-front-global-data",
+      "title": "Context 기반 프론트 전역 사용자·포인트·재생 설정 구성",
+      "status": "completed"
     }
   ]
 }

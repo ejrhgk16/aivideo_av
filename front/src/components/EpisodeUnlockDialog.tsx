@@ -2,6 +2,7 @@ import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { AppText, Button, Icon } from '@/components/ui';
 import { colors } from '@/common/theme/tokens';
 import type { DramaContent } from '@/features/drama/dramaContent';
+import { useUser } from '@/features/user/UserProvider';
 
 type Episode = DramaContent['episodes'][number];
 
@@ -11,6 +12,11 @@ export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge }: 
   onClose: () => void;
   onCharge: () => void;
 }) {
+  const { points } = useUser();
+  const amount = points === null ? '—' : points.toLocaleString('ko-KR');
+  const pointsDescription = points === null ? '로그인 후 포인트를 확인할 수 있어요'
+    : `사용 가능한 포인트는 ${amount} P예요`;
+
   return (
     <Modal transparent visible={episode !== null} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.backdrop}>
@@ -28,10 +34,10 @@ export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge }: 
             </View>
             <View style={styles.summaryRow}>
               <AppText style={styles.summaryLabel}>내 포인트</AppText>
-              <AppText weight="semibold" style={styles.summaryValue}>— P</AppText>
+              <AppText weight="semibold" style={styles.summaryValue}>{amount} P</AppText>
             </View>
           </View>
-          <AppText style={styles.notice}>포인트 정보를 확인할 수 없어요. 충전 화면에서 포인트 기능을 확인해 주세요.</AppText>
+          <AppText style={styles.notice}>{pointsDescription} · 회차 구매 기능은 준비 중이에요.</AppText>
           <Button label="포인트 충전하기" onPress={onCharge} style={styles.chargeButton} />
           <Pressable accessibilityRole="button" accessibilityLabel="닫기" onPress={onClose} style={styles.dismiss}>
             <AppText weight="medium" style={styles.dismissLabel}>닫기</AppText>

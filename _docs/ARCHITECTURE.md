@@ -14,7 +14,7 @@ Expo React Native client. Own `package.json` and lockfile.
 | `src/screens/` | Screen-level UI. |
 | `src/components/` | Reusable UI components. |
 | `src/common/` | Shared HTTP, storage, environment, theme, and pure utility code. |
-| `src/features/` | Feature-specific state, endpoints, and types. |
+| `src/features/` | Feature-specific state, endpoints, and types. `user/` owns the current nullable user, points, and in-memory playback preferences in one Context. |
 | `assets/images/` | Static screen images. |
 | `assets/icons/` | Static icons. |
 | `assets/fonts/` | Font files and licenses. |
@@ -28,6 +28,7 @@ NestJS API server. Own `package.json` and lockfile.
 |---|---|
 | `src/` | NestJS modules, controllers, and services. |
 | `src/{domain}/entities/` | Domain-specific Entity classes and persistence metadata. |
+| `src/identity/` | User identity entity, login API, and credential lookup. The development seed supplies admin/admin; the current login response does not issue tokens or sessions. |
 | `src/common/entities/` | Shared persistence base entities and metadata. |
 | `src/common/error/` | Shared custom HTTP error base, error codes, concrete exceptions, and response filter used by opted-in controllers. |
 | `src/common/database/` | Shared TypeORM configuration and Entity registry, CLI `DataSource`, explicit development seed CLI, and migration files. |
@@ -56,6 +57,12 @@ Preserved standalone web prototype. It is not imported or run by `front/`, and i
 - Frontend and backend dependencies are managed independently.
 - `front/tests/`, `back/test/`, and `tools/harness/` are the only test roots.
 - A directory responsibility change must update this document in the same task.
+
+### Frontend global state
+
+The root layout provides one `UserProvider`. `UserContext` stores `{ user, points, subtitlesEnabled, autoplayNext }`, initially `{ user: null, points: null, subtitlesEnabled: true, autoplayNext: false }`. Login updates the user and server-returned points together through `setUser(user, points)`; `setUser(null)` clears those two fields and preserves playback preferences. `setPoints(points)` replaces the current logged-in user's balance. All point displays read `useUser().points`, distinguishing `null` from a real zero. Playback preferences are read and updated through the same `useUser()` hook with `setSubtitlesEnabled` and `setAutoplayNext`. User updates do not remount the navigation tree. All state is held in memory.
+
+The temporary frontend `/login` route calls the existing `useLogin` hook, which sends `POST /auth/login` and stores the returned user and points together. Omitted `loginId` and `password` query parameters default to `admin` for convenient development login; explicit parameters are passed through. After login, or when already logged in, the route redirects to `/` without a browser reload so the in-memory state is retained. Invalid parameters and request failures are displayed on the route.
 
 ## Backend verification
 

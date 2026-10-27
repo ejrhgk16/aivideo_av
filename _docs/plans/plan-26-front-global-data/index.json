@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "plan_id": "plan-26-front-global-data",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "Context와 전역 상태 구성",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/features/user/UserProvider.tsx",
+        "front/src/features/points/PointsProvider.tsx",
+        "front/src/features/points/pointsState.ts",
+        "front/src/features/playback/PlaybackSettingsProvider.tsx",
+        "front/src/app/_layout.tsx",
+        "front/tests/unit/pointsState.test.ts",
+        "front/scripts/test-front.cjs",
+        "_docs/ARCHITECTURE.md"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-27T09:54:48.639Z",
+      "summary": "User, points, and playback Context providers are wired into the root layout; points reducer tests and architecture docs are added. Checks passed: typecheck, test (12/12), and export.",
+      "completed_at": "2026-10-27T09:58:00.644Z"
+    },
+    {
+      "id": "task-2",
+      "name": "공통 포인트 데이터 화면 연결",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/src/components/AppTopBar.tsx",
+        "front/src/components/EpisodeUnlockDialog.tsx",
+        "front/src/screens/AccountScreen.tsx",
+        "front/src/screens/PointsScreen.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-27T09:58:10.398Z",
+      "summary": "Connected the header, unlock dialog, account screen, and points screen to shared points Context; added status-aware balances and account type/name display. Checks passed: typecheck, test (12/12), and export.",
+      "completed_at": "2026-10-27T10:00:21.118Z"
+    },
+    {
+      "id": "task-3",
+      "name": "사용자 로그인 컬럼·admin 시드·로그인 API",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/identity/identity.module.ts",
+        "back/src/identity/loginController.ts",
+        "back/src/identity/loginService.ts",
+        "back/src/common/error/error.enum.ts",
+        "back/src/common/error/error.customExceptions.ts",
+        "back/src/app.module.ts",
+        "back/test/unit/loginController.spec.ts",
+        "back/test/api/public.postman_collection.json",
+        "back/test/api/README.md",
+        "_docs/api/01-identity/login.md",
+        "_docs/api/00-overview/conventions.md",
+        "_docs/api/01-identity/README.md",
+        "_docs/api/README.md",
+        "_docs/ARCHITECTURE.md",
+        "back/src/identity/entities/user.entity.ts",
+        "back/src/common/database/migrations/20261027000000AddUserLoginCredentials.ts",
+        "back/src/common/database/seed.ts",
+        "back/src/common/database/seed/initialData.ts",
+        "back/test/unit/database/seed.spec.ts",
+        "back/test/unit/database/initialData.spec.ts",
+        "back/test/unit/entities/entities.spec.ts",
+        "_docs/AI_DRAMA_data_model/01-identity/users.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-27T09:58:25.160Z",
+      "summary": "Added nullable unique loginId and password fields, an idempotent admin/admin seed, and POST /auth/login with custom errors and one user-wallet query. Updated API docs and Postman coverage. Lint, build, and test passed (66 unit tests; 35 API requests, 107 assertions). Verified admin/admin returns the admin user with 100 points.",
+      "completed_at": "2026-10-27T10:06:37.111Z"
+    },
+    {
+      "id": "task-4",
+      "name": "프론트 로그인 요청과 Context 연결 훅",
+      "status": "completed",
+      "depends_on": [
+        "task-1",
+        "task-3"
+      ],
+      "files": [
+        "front/src/features/user/login.ts",
+        "front/src/features/user/useLogin.ts",
+        "front/tests/unit/login.test.ts",
+        "front/scripts/test-front.cjs"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-27T10:06:46.688Z",
+      "summary": "Added the login request and Context hook. Supplied credentials are sent unchanged; successful login updates the user and points together. Added request tests. Typecheck, test (19/19), and Expo export passed.",
+      "completed_at": "2026-10-27T10:08:40.477Z"
+    }
+  ]
+}

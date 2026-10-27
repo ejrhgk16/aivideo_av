@@ -4,11 +4,13 @@ import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { AppText, Button, Icon, Page, SectionTitle } from '@/components/ui';
 import { AppTopBar } from '@/components/AppTopBar';
 import { colors } from '@/common/theme/tokens';
+import { useUser } from '@/features/user/UserProvider';
 
 type AccountDialog = 'settings' | 'help' | 'about' | null;
 
 export function AccountScreen() {
   const router = useRouter();
+  const { user, points } = useUser();
   const [dialog, setDialog] = useState<AccountDialog>(null);
   const [dialogVisible, setDialogVisible] = useState(false);
   const openDialog = (next: Exclude<AccountDialog, null>) => {
@@ -16,17 +18,26 @@ export function AccountScreen() {
     setDialogVisible(true);
   };
   const closeDialog = () => setDialogVisible(false);
+  const accountTypeLabel = user === null ? '체험 계정' : {
+    GUEST: '게스트',
+    MEMBER: '회원',
+    OPERATOR: '운영자',
+    PARTNER: '제휴사',
+  }[user.accountType];
+  const amount = points === null ? '—' : points.toLocaleString('ko-KR');
+  const pointsDescription = points === null ? '로그인 후 포인트를 확인할 수 있어요'
+    : `사용 가능한 포인트는 ${amount} P예요`;
 
   return <Page header={<AppTopBar />} contentStyle={styles.page}>
     <SectionTitle title="나의 작은 영화관" eyebrow="MY SPACE" />
     <View style={styles.profile}>
       <View style={styles.avatar}><Icon name="user" size={27} color={colors.accent} /></View>
       <View style={styles.copy}>
-        <AppText weight="bold" style={styles.title}>드라마를 좋아하는 당신</AppText>
-        <AppText style={styles.muted}>게스트로 둘러보고 있어요</AppText>
+        <AppText weight="bold" style={styles.title}>{user?.displayName || '드라마를 좋아하는 당신'}</AppText>
+        <AppText style={styles.muted}>{user === null ? '게스트로 둘러보고 있어요' : accountTypeLabel}</AppText>
       </View>
     </View>
-    <View style={styles.accountBadge}><AppText style={styles.badgeText}>체험 계정</AppText></View>
+    <View style={styles.accountBadge}><AppText style={styles.badgeText}>{accountTypeLabel}</AppText></View>
 
     <Pressable accessibilityRole="button" onPress={() => router.push('/points')} style={styles.pointsCard}>
       <View style={styles.pointsHeader}>
@@ -34,8 +45,8 @@ export function AccountScreen() {
         <AppText weight="semibold">내 포인트</AppText>
         <Icon name="chevron-right" size={18} color={colors.muted} />
       </View>
-      <AppText weight="bold" style={styles.pointsAmount}>— P</AppText>
-      <AppText style={styles.muted}>포인트 정보를 준비하고 있어요</AppText>
+      <AppText weight="bold" style={styles.pointsAmount}>{amount} P</AppText>
+      <AppText style={styles.muted}>{pointsDescription}</AppText>
     </Pressable>
 
     <View style={styles.menu}>

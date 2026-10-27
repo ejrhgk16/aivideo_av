@@ -7,6 +7,7 @@ import { createDatabaseOptions } from './common/database/databaseConfig.js';
 import { ContentModule } from './content/content.module.js';
 import { EconomyModule } from './economy/economy.module.js';
 import { ProgrammingModule } from './programming/programming.module.js';
+import { IdentityModule } from './identity/identity.module.js';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ProgrammingModule } from './programming/programming.module.js';
     ContentModule,
     EconomyModule,
     ProgrammingModule,
+    IdentityModule,
   ],
   controllers: [AppController],
   providers: [AppService],

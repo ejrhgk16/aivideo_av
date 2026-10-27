@@ -13,4 +13,4 @@ AI DRAMA 백엔드 REST API의 현재 계약을 도메인별로 기록한다. �
 | [04-playback](04-playback/README.md) | 저장·시청 진행·재생 |
 | [05-economy](05-economy/README.md) | 포인트·결제·광고 보상 |
 
-현재 공개 API는 콘텐츠와 편성 도메인만 구현되어 있다. 아직 구현되지 않은 도메인 문서는 API를 추측해 정의하지 않는다.
+현재 identity 도메인은 로그인 API를, content와 programming 도메인은 공개 콘텐츠 조회 API를 제공한다. 아직 구현되지 않은 도메인 문서는 API를 추측해 정의하지 않는다.

@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText, Button, EmptyState, Icon, Page, SectionTitle } from '@/components/ui';
 import { colors } from '@/common/theme/tokens';
+import { useUser } from '@/features/user/UserProvider';
 
 type PointsTab = 'charge' | 'history';
 
@@ -15,10 +16,14 @@ const packs = [
 export function PointsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ tab?: string }>();
+  const { points } = useUser();
   const [selectedTab, setSelectedTab] = useState<PointsTab | null>(null);
   useEffect(() => setSelectedTab(null), [params.tab]);
   const tab = selectedTab ?? (params.tab === 'history' ? 'history' : 'charge');
   const goBack = () => router.canGoBack() ? router.back() : router.replace('/account');
+  const amount = points === null ? '—' : points.toLocaleString('ko-KR');
+  const pointsDescription = points === null ? '로그인 후 포인트를 확인할 수 있어요'
+    : `사용 가능한 포인트는 ${amount} P예요`;
 
   return <Page contentStyle={styles.page}>
     <Pressable accessibilityRole="button" accessibilityLabel="뒤로 가기" onPress={goBack} style={styles.backButton}>
@@ -28,8 +33,8 @@ export function PointsScreen() {
     <SectionTitle title="이야기를 계속하는 방법" eyebrow="MORE STORIES, MORE MOMENTS" />
     <View style={styles.balanceCard}>
       <AppText style={styles.muted}>사용 가능한 포인트</AppText>
-      <AppText weight="bold" style={styles.balance}>— P</AppText>
-      <AppText style={styles.muted}>포인트 정보는 준비 중이에요</AppText>
+      <AppText weight="bold" style={styles.balance}>{amount} P</AppText>
+      <AppText style={styles.muted}>{pointsDescription}</AppText>
     </View>
     <View style={styles.tabs} accessibilityRole="tablist">
       {(['charge', 'history'] as const).map((item) => {

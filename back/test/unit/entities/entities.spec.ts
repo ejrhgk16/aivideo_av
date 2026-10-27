@@ -158,6 +158,31 @@ describe('AI DRAMA entity registry', () => {
     }
   });
 
+  it('keeps login credentials nullable and excludes the password by default', () => {
+    expect(metadataStorage.columns).toContainEqual(
+      expect.objectContaining({
+        target: User,
+        propertyName: 'loginId',
+        options: expect.objectContaining({ name: 'login_id', type: 'varchar', length: 100, nullable: true }),
+      }),
+    );
+    expect(metadataStorage.columns).toContainEqual(
+      expect.objectContaining({
+        target: User,
+        propertyName: 'password',
+        options: expect.objectContaining({ type: 'varchar', length: 255, nullable: true, select: false }),
+      }),
+    );
+    expect(metadataStorage.indices).toContainEqual(
+      expect.objectContaining({
+        target: User,
+        name: 'uq_users_login_id',
+        columns: ['loginId'],
+        unique: true,
+      }),
+    );
+  });
+
   it('uses unsigned integer columns for migrated parent references', () => {
     const references = [
       [User, 'productionCompanyId'],

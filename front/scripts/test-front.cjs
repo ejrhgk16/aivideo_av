@@ -4,11 +4,11 @@ const { join, resolve, relative, sep } = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const output = mkdtempSync(join(tmpdir(), 'aivideo-tests-'));
-const testFiles = ['tests/unit/media.test.ts', 'tests/unit/homeContent.test.ts', 'tests/unit/dramaContent.test.ts'];
+const testFiles = ['tests/unit/media.test.ts', 'tests/unit/homeContent.test.ts', 'tests/unit/dramaContent.test.ts', 'tests/unit/login.test.ts'];
 try {
   const build = spawnSync(process.execPath, [
     require.resolve('typescript/bin/tsc'), '--ignoreConfig', '--module', 'commonjs',
-    '--target', 'es2022', '--types', 'node', '--skipLibCheck', '--esModuleInterop',
+    '--target', 'es2022', '--jsx', 'react-jsx', '--types', 'node', '--skipLibCheck', '--esModuleInterop',
     '--strict', '--rootDir', '.', '--outDir', output, ...testFiles,
   ], { cwd: resolve(__dirname, '..'), stdio: 'inherit' });
   if (build.status !== 0) process.exitCode = build.status ?? 1;

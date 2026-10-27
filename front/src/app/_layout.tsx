@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors } from '@/common/theme/tokens';
+import { UserProvider } from '@/features/user/UserProvider';
 
 function AppNavigation() {
   return <View style={styles.root}>
@@ -13,6 +14,7 @@ function AppNavigation() {
       <Stack.Screen name="episode/[id]" />
       <Stack.Screen name="preview/[dramaId]/[videoId]" />
       <Stack.Screen name="points" />
+      <Stack.Screen name="login" />
     </Stack>
   </View>;
 }
@@ -25,8 +27,10 @@ export default function RootLayout() {
     'Pretendard-Bold': require('../../assets/fonts/Pretendard-Bold.ttf'),
   });
   return <SafeAreaProvider><StatusBar style="light" />
-    {!fontsLoaded && !fontError ? <View style={styles.loading}><ActivityIndicator color={colors.accent} /></View>
-      : <AppNavigation />}
+    <UserProvider>
+      {!fontsLoaded && !fontError ? <View style={styles.loading}><ActivityIndicator color={colors.accent} /></View>
+        : <AppNavigation />}
+    </UserProvider>
   </SafeAreaProvider>;
 }
 

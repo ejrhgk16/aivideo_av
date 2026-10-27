@@ -42,6 +42,8 @@ Tests may prepare the required development data through database setup, seeds, a
 
 ## Coverage
 
+The login collection requests `POST /auth/login` with the seeded `admin` / `admin` credentials, repeats login with another well-formed pair (the controller currently substitutes admin/admin), and checks the public user/points response and custom 400 errors for malformed input.
+
 The collection checks the root endpoint, genre/catalog response shapes and public UUIDs, default/invalid sort, detail/catalog consistency, public episode counts and ordering, free/paid episode playback, preview playback and ownership, missing-resource errors, four home collections and their ordering, and allowed/disallowed CORS origins and preflight. It also checks POST preflight for the development-only point increase and single-episode purchase paths. Preflight verifies CORS negotiation only; it does not prove the POST route or any balance, ledger, or entitlement change.
 
 The collection checks the existing catalog, POST preflight, custom point error responses, including invalid input, missing user/episode, insufficient balance, and idempotency conflict. The insufficient-balance case requires a development test user `00000012-0000-4000-8000-000000000001` with an existing zero-point wallet. Prepare it in the configured development database with:

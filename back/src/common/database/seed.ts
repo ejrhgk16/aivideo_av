@@ -87,11 +87,17 @@ export async function seedData(manager: EntityManager): Promise<void> {
   await userRepository
     .createQueryBuilder()
     .insert()
-    .values(initialData.adminUser)
+    .values({ ...initialData.adminUser, ...initialData.adminLogin })
     .orIgnore()
     .updateEntity(false)
     .execute();
-  const admin = await userRepository.findOneByOrFail({ uuid: initialData.adminUser.uuid });
+  const admin = await userRepository.findOneOrFail({
+    where: { uuid: initialData.adminUser.uuid },
+    select: { id: true, uuid: true, loginId: true, password: true },
+  });
+  if (admin.loginId === null && admin.password === null) {
+    await userRepository.update({ id: admin.id }, initialData.adminLogin);
+  }
 
   const walletRepository = manager.getRepository(Wallet);
   await walletRepository
