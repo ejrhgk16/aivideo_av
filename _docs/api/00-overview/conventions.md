@@ -19,6 +19,7 @@
 
 - 이미지와 영상의 `storageKey`는 저장소 내부 키다. `imageUrls`는 공개 이미지 키 패턴에 해당하는 S3 직접 URL을 제공하며, 개발용 로컬 이미지 API는 없다. FULL·PREVIEW 영상의 재생 API는 개발 환경에서만 S3 객체 GET 서명 URL을 발급하며 3600초 후 만료된다.
 - 현재 정의된 홈 콘텐츠 API는 인증을 요구하지 않는다.
+- `GET /dramas/:dramaId`는 선택 `userUuid`를 받아 회차별 `isUnlocked`를 표시할 수 있다. 현재 로그인은 토큰이나 세션을 발급하지 않으므로 이 값은 사용자 식별 값이며 인증·권한 부여 수단이 아니다. 생략 시 무료 회차만 열림으로 표시한다.
 - `POST /auth/login`은 loginId/password를 확인해 사용자 정보와 현재 포인트 잔액을 반환한다. 현재 개발 시드는 admin/admin이며 로그인 응답은 토큰이나 세션 쿠키를 발급하지 않는다.
 - 개발 웹 클라이언트 `http://localhost:8081`만 CORS 요청 origin으로 허용한다.
 - CORS는 와일드카드 origin을 사용하지 않으며, 운영 origin과 credentials는 별도 계약에서 정의한다.

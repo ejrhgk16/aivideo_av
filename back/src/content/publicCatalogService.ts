@@ -8,6 +8,8 @@ import { ContentVideo } from './entities/contentVideo.entity.js';
 import { Episode } from './entities/episode.entity.js';
 import { Genre } from './entities/genre.entity.js';
 import { ProductionCompany } from './entities/productionCompany.entity.js';
+import { EpisodeEntitlement } from '../economy/entities/episodeEntitlement.entity.js';
+import { User } from '../identity/entities/user.entity.js';
 import { createDramaImageUrls } from './mediaUrl.js';
 import { S3VideoUrlService } from './s3VideoUrlService.js';
 
@@ -46,6 +48,7 @@ export type DramaDetail = {
     durationMs: number;
     pricePoints: number;
     image: string | null;
+    isUnlocked: boolean;
   }>;
 };
 
@@ -85,6 +88,8 @@ export class PublicCatalogService {
     private readonly contentVideoRepository: Repository<ContentVideo>,
     @InjectRepository(Episode)
     private readonly episodeRepository: Repository<Episode>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     @Inject(S3VideoUrlService)
     private readonly s3VideoUrlService = new S3VideoUrlService(),
   ) {}
@@ -170,7 +175,7 @@ export class PublicCatalogService {
     });
   }
 
-  async getDrama(dramaId: string, now = new Date()): Promise<DramaDetail> {
+  async getDrama(dramaId: string, now = new Date(), userUuid?: string): Promise<DramaDetail> {
     const drama = await this.dramaRepository.findOne({
       where: { uuid: dramaId, status: PUBLIC_STATUS },
     });
@@ -184,29 +189,53 @@ export class PublicCatalogService {
       throw new NotFoundException(`Drama '${dramaId}' was not found`);
     }
 
+    const user = userUuid === undefined
+      ? null
+      : await this.userRepository.findOneBy({ uuid: userUuid });
+    if (userUuid !== undefined && user === null) {
+      throw new NotFoundException('User not found');
+    }
+    const userId = user?.id ?? null;
+
+    type DetailEpisodeRow = Pick<Episode,
+      'id' | 'uuid' | 'episodeNumber' | 'title' | 'synopsis' | 'durationMs' | 'pricePoints'
+    > & { unlocked: number | string };
+
+    const episodeQuery = this.episodeRepository.createQueryBuilder('episode')
+      .leftJoin(EpisodeEntitlement, 'entitlement',
+        'entitlement.episodeId = episode.id AND entitlement.userId = :userId',
+        { userId })
+      .select('episode.id', 'id')
+      .addSelect('episode.uuid', 'uuid')
+      .addSelect('episode.episodeNumber', 'episodeNumber')
+      .addSelect('episode.title', 'title')
+      .addSelect('episode.synopsis', 'synopsis')
+      .addSelect('episode.durationMs', 'durationMs')
+      .addSelect('episode.pricePoints', 'pricePoints')
+      .addSelect(
+        'CASE WHEN episode.pricePoints = 0 OR entitlement.id IS NOT NULL THEN 1 ELSE 0 END',
+        'unlocked',
+      )
+      .where('episode.dramaId = :dramaId', { dramaId: drama.id })
+      .andWhere('episode.status = :status', { status: PUBLIC_STATUS })
+      .andWhere('episode.publishedAt <= :now', { now })
+      .orderBy('episode.episodeNumber', 'ASC');
+
     const [company, dramaGenres, genres, images, videos, episodes] = await Promise.all([
       this.productionCompanyRepository.findOne({ where: { id: drama.productionCompanyId } }),
       this.dramaGenreRepository.findBy({ dramaId: drama.id }),
       this.genreRepository.find({ order: { displayOrder: 'ASC' } }),
       this.contentImageRepository.findBy({ contentType: 'DRAMA', contentId: drama.id }),
       this.contentVideoRepository.findBy({ contentType: 'DRAMA', contentId: drama.id, kind: 'PREVIEW' }),
-      this.episodeRepository.findBy({ dramaId: drama.id }),
+      episodeQuery.getRawMany<DetailEpisodeRow>(),
     ]);
 
     const genresById = new Map(genres.map((genre) => [genre.id, genre]));
-    const publicEpisodes = episodes
-      .filter(
-        (episode) =>
-          episode.status === PUBLIC_STATUS &&
-          episode.publishedAt !== null &&
-          episode.publishedAt <= now,
-      )
-      .sort((left, right) => left.episodeNumber - right.episodeNumber);
-    const episodeImages = publicEpisodes.length === 0
+    const episodeImages = episodes.length === 0
       ? []
       : await this.contentImageRepository.findBy({
         contentType: 'EPISODE',
-        contentId: In(publicEpisodes.map((episode) => episode.id)),
+        contentId: In(episodes.map((episode) => episode.id)),
         kind: 'EPISODE_COVER',
       });
     const episodeImagesById = new Map(episodeImages.map((image) => [image.contentId, image.storageKey]));
@@ -225,8 +254,8 @@ export class PublicCatalogService {
         .map(({ id, code, name }) => ({ id, code, name })),
       imageUrls: createDramaImageUrls(dramaImages),
       previewVideos: mapPreviewVideos(videos),
-      episodes: publicEpisodes.map(
-        ({ id, uuid, episodeNumber, title, synopsis, durationMs, pricePoints }) => ({
+      episodes: episodes.map(
+        ({ id, uuid, episodeNumber, title, synopsis, durationMs, pricePoints, unlocked }) => ({
           uuid,
           episodeNumber,
           title,
@@ -234,6 +263,7 @@ export class PublicCatalogService {
           durationMs,
           pricePoints,
           image: episodeImagesById.get(id) ?? null,
+          isUnlocked: Number(unlocked) === 1,
         }),
       ),
     };

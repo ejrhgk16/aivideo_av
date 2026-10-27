@@ -101,13 +101,19 @@
 | --- | --- | --- | --- |
 | `dramaId` | 예 | string | 조회할 작품 UUID. 작품 목록의 `uuid` 값 사용 |
 
+#### Query parameter
+
+| 이름 | 필수 | 타입 | 설명 |
+| --- | --- | --- | --- |
+| `userUuid` | 아니요 | string | 회차별 보유 권한 표시를 위한 사용자 UUID. 현재 인증 토큰 대신 전달하며, 생략하면 무료 회차만 `isUnlocked: true` |
+
 #### 인증
 
 불필요
 
 #### 200 Response
 
-응답 본문은 작품 상세 객체다. 공개된 회차는 `episodeNumber` 오름차순으로 반환한다.
+응답 본문은 작품 상세 객체다. 공개된 회차는 DB에서 `episodeNumber` 오름차순으로 반환한다. `userUuid`가 유효하면 해당 사용자의 회차 권한을 함께 조회한다.
 
 ```json
 {
@@ -141,7 +147,8 @@
       "title": "다시 만난 봄",
       "synopsis": "우연한 재회가 시작된다.",
       "durationMs": 420000,
-      "pricePoints": 0
+      "pricePoints": 0,
+      "isUnlocked": true
     },
     {
       "uuid": "00000002-0000-4000-8000-000000000102",
@@ -149,7 +156,8 @@
       "title": "숨겨둔 편지",
       "synopsis": null,
       "durationMs": 435000,
-      "pricePoints": 30
+      "pricePoints": 30,
+      "isUnlocked": false
     }
   ]
 }
@@ -184,6 +192,29 @@
 | `episodes[].durationMs` | number | 재생 시간(밀리초) |
 | `episodes[].pricePoints` | number | 회차 해제에 필요한 포인트. `0`이면 무료이고, `0`보다 크면 해제에 포인트가 필요하다 |
 | `episodes[].image` | string \| null | 회차 커버 이미지 storage key |
+| `episodes[].isUnlocked` | boolean | 무료 회차이거나 제공한 `userUuid`에 권한이 있으면 `true`. 유료 회차는 사용자가 권한을 보유한 경우에만 `true`이며, `userUuid`를 생략하면 `false` |
+
+`userUuid`는 인증 수단이 아니다. UUID 형식이 아니거나 빈 값이면 `400 Bad Request`, 형식은 맞지만 사용자가 존재하지 않으면 `404 Not Found`다.
+
+잘못된 형식의 `userUuid`는 다음 응답을 반환한다.
+
+```json
+{
+  "statusCode": 400,
+  "error": "Bad Request",
+  "message": "userUuid must be a UUID"
+}
+```
+
+존재하지 않는 사용자를 지정하면 다음 응답을 반환한다.
+
+```json
+{
+  "statusCode": 404,
+  "error": "Not Found",
+  "message": "User not found"
+}
+```
 
 #### 404 Response
 
@@ -201,10 +232,11 @@
 
 - 작품은 `status = PUBLISHED`이고 `published_at`이 현재 시각 이하인 경우에만 반환한다.
 - 회차는 `status = PUBLISHED`이고 `published_at`이 `null`이 아니며 현재 시각 이하인 경우에만 반환한다.
-- 회차는 `episodeNumber` 오름차순으로 정렬한다.
+- 회차의 공개 조건과 `episodeNumber` 오름차순은 DB 조회에서 처리한다.
+- 회차 권한은 해당 `userUuid`의 `episode_entitlements` 행을 회차 조회에 `LEFT JOIN`해서 표시한다. 사용자 조건은 JOIN에 있어 미보유 회차도 목록에 남는다. 권한 취득 종류에 따른 구분은 없다.
+- `userUuid`를 생략하면 권한 행을 조회하지 않으며 무료 회차만 `isUnlocked: true`다.
 - `imageUrls`에는 버킷과 리전 설정이 있을 때 공개 이미지의 직접 S3 URL을 제공한다. 이미지가 없으면 `null` 또는 빈 배열이다. 공개 URL은 `dramas/*/images/*/*.webp`, `dramas/*/episodes/*/images/*.webp`, `genres/*/images/*.webp` 키에만 허용한다.
-- 이 공개 API는 사용자별 구매·해제 여부를 조회하지 않는다. 따라서 `FREE`, `LOCKED`, `ENTITLED` 접근 상태도 응답에 포함하지 않는다.
-- 사용자별 구매·해제 여부와 접근 상태는 인증된 후속 API의 범위로 정의한다.
+- 사용자별 구매·해제 여부는 재생 API 접근을 제한하지 않는다. 재생 API의 공개 규칙은 별도 정의를 따른다.
 
 ## 프리뷰 재생 API
 

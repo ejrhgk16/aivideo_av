@@ -168,6 +168,12 @@
       "directory": "plan-28-episode-dialog-dismissal",
       "title": "회차 팝업 닫힘 표시 유지와 완료 후 재생 이동",
       "status": "completed"
+    },
+    {
+      "id": "plan-29-drama-episode-entitlements",
+      "directory": "plan-29-drama-episode-entitlements",
+      "title": "드라마 상세 회차 권한 JOIN 및 DB 정렬",
+      "status": "completed"
     }
   ]
 }

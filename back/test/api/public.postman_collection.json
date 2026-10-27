@@ -9,6 +9,31 @@
       "key": "baseUrl",
       "value": "http://localhost:3000",
       "type": "string"
+    },
+    {
+      "key": "entitledUserUuid",
+      "value": "00000010-0000-4000-8000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "unentitledUserUuid",
+      "value": "00000012-0000-4000-8000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "entitlementDramaUuid",
+      "value": "00000002-0000-4000-8000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "entitledEpisodeUuid",
+      "value": "00000004-0000-4000-8000-000000000002",
+      "type": "string"
+    },
+    {
+      "key": "lockedEpisodeUuid",
+      "value": "00000004-0000-4000-8000-000000000003",
+      "type": "string"
     }
   ],
   "event": [
@@ -244,6 +269,7 @@
               "  pm.expect(numbers).to.deep.equal([...numbers].sort((a, b) => a - b));",
               "  pm.expect(new Set(numbers).size).to.equal(numbers.length);",
               "  detail.episodes.forEach(episode => {",
+              "    pm.expect(episode.isUnlocked).to.be.a(\"boolean\");",
               "    pm.expect(episode.episodeNumber).to.satisfy(Number.isInteger).and.be.above(0);",
               "    pm.expect(episode.pricePoints).to.satisfy(Number.isInteger).and.be.at.least(0);",
               "    pm.expect(episode.durationMs).to.satisfy(Number.isInteger).and.be.above(0);",
@@ -275,6 +301,41 @@
         "header": [],
         "url": "{{baseUrl}}/dramas/{{dramaId}}"
       }
+    },
+    {
+      "name": "Drama detail for entitled user",
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));","const detail = pm.response.json();","const owned = detail.episodes.find(e => e.uuid === pm.variables.get(\"entitledEpisodeUuid\"));","const locked = detail.episodes.find(e => e.uuid === pm.variables.get(\"lockedEpisodeUuid\"));","pm.test(\"The user's paid entitlement unlocks only owned episodes\", () => {","  pm.expect(owned).to.be.an(\"object\");","  pm.expect(owned.pricePoints).to.be.above(0);","  pm.expect(owned.isUnlocked).to.equal(true);","  pm.expect(locked).to.be.an(\"object\");","  pm.expect(locked.pricePoints).to.be.above(0);","  pm.expect(locked.isUnlocked).to.equal(false);","  const free = detail.episodes.filter(e => e.pricePoints === 0);","  pm.expect(free.length).to.be.above(0);","  free.forEach(e => pm.expect(e.isUnlocked).to.equal(true));","});"]}}],
+      "request": {"method":"GET","header":[],"url":"{{baseUrl}}/dramas/{{entitlementDramaUuid}}?userUuid={{entitledUserUuid}}"}
+    },
+    {
+      "name": "Drama detail for unentitled user",
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));","const detail = pm.response.json();","const owned = detail.episodes.find(e => e.uuid === pm.variables.get(\"entitledEpisodeUuid\"));","pm.test(\"Another user's entitlement is not exposed\", () => {","  pm.expect(owned).to.be.an(\"object\");","  pm.expect(owned.isUnlocked).to.equal(false);","  const free = detail.episodes.filter(e => e.pricePoints === 0);","  pm.expect(free.length).to.be.above(0);","  free.forEach(e => pm.expect(e.isUnlocked).to.equal(true));","});"]}}],
+      "request": {"method":"GET","header":[],"url":"{{baseUrl}}/dramas/{{entitlementDramaUuid}}?userUuid={{unentitledUserUuid}}"}
+    },
+    {
+      "name": "Drama detail without user",
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));","const detail = pm.response.json();","pm.test(\"Without user, only free episodes are unlocked\", () => {","  pm.expect(detail.episodes.length).to.be.above(0);","  detail.episodes.filter(e => e.pricePoints === 0).forEach(e => pm.expect(e.isUnlocked).to.equal(true));","  detail.episodes.filter(e => e.pricePoints > 0).forEach(e => pm.expect(e.isUnlocked).to.equal(false));","});"]}}],
+      "request": {"method":"GET","header":[],"url":"{{baseUrl}}/dramas/{{entitlementDramaUuid}}"}
+    },
+    {
+      "name": "Invalid detail user UUID",
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"Malformed user UUID returns HTTP 400\", () => {","  pm.response.to.have.status(400);","  pm.expect(pm.response.json()).to.deep.equal({ statusCode: 400, error: \"Bad Request\", message: \"userUuid must be a UUID\" });","});"]}}],
+      "request": {"method":"GET","header":[],"url":"{{baseUrl}}/dramas/{{entitlementDramaUuid}}?userUuid=invalid"}
+    },
+    {
+      "name": "Empty detail user UUID",
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"Empty user UUID returns HTTP 400\", () => {","  pm.response.to.have.status(400);","  pm.expect(pm.response.json()).to.deep.equal({ statusCode: 400, error: \"Bad Request\", message: \"userUuid must be a UUID\" });","});"]}}],
+      "request": {"method":"GET","header":[],"url":"{{baseUrl}}/dramas/{{entitlementDramaUuid}}?userUuid="}
+    },
+    {
+      "name": "Repeated detail user UUID",
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"Repeated user UUID returns HTTP 400\", () => {","  pm.response.to.have.status(400);","  pm.expect(pm.response.json()).to.deep.equal({ statusCode: 400, error: \"Bad Request\", message: \"userUuid must be a UUID\" });","});"]}}],
+      "request": {"method":"GET","header":[],"url":"{{baseUrl}}/dramas/{{entitlementDramaUuid}}?userUuid={{entitledUserUuid}}&userUuid={{unentitledUserUuid}}"}
+    },
+    {
+      "name": "Unknown detail user UUID",
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"Unknown but valid user UUID returns HTTP 404\", () => {","  pm.response.to.have.status(404);","  pm.expect(pm.response.json()).to.deep.equal({ statusCode: 404, error: \"Not Found\", message: \"User not found\" });","});"]}}],
+      "request": {"method":"GET","header":[],"url":"{{baseUrl}}/dramas/{{entitlementDramaUuid}}?userUuid={{missingId}}"}
     },
     {
       "name": "Free episode playback",

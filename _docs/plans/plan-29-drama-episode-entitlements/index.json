@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "plan_id": "plan-29-drama-episode-entitlements",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "드라마 상세 회차 권한 JOIN 및 DB 정렬",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/content/publicCatalogController.ts",
+        "back/src/content/publicCatalogService.ts",
+        "back/src/content/content.module.ts",
+        "back/test/unit/content/publicCatalogService.spec.ts",
+        "back/test/api/public.postman_collection.json",
+        "back/test/api/README.md",
+        "_docs/api/02-content/dramas.md",
+        "_docs/api/00-overview/conventions.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-27T13:13:19.855Z",
+      "summary": "Added optional userUuid validation and lookup, an episode entitlement LEFT JOIN, DB-side publication filtering and episodeNumber ordering, and episodes[].isUnlocked. Updated API docs and Postman coverage for owned/unowned users, anonymous requests, and invalid or missing users. Read-only inspection confirmed existing fixtures; no DB writes were made. lint and build passed; the full test run passed 68 unit tests and 127 API assertions using documented Postman --env-var forwarding. Standalone API tests passed with the same fixture values.",
+      "completed_at": "2026-10-27T13:20:01.052Z"
+    }
+  ]
+}

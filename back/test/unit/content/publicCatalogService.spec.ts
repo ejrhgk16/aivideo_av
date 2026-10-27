@@ -6,6 +6,7 @@ const repository = () => ({
   find: vi.fn().mockResolvedValue([]),
   findBy: vi.fn().mockResolvedValue([]),
   findOne: vi.fn().mockResolvedValue(null),
+  findOneBy: vi.fn().mockResolvedValue(null),
 });
 
 describe('PublicCatalogService publication boundaries', () => {
@@ -56,6 +57,93 @@ describe('PublicCatalogService publication boundaries', () => {
     await expect(service.listDramas('latest', now)).resolves.toEqual([
       expect.objectContaining({ episodeCount: 2, freeEpisodeCount: 1 }),
     ]);
+  });
+
+  it('queries public detail episodes in database order and joins only the requested user entitlement', async () => {
+    const now = new Date('2026-10-09T00:00:00Z');
+    const user = { id: 4, uuid: 'user-uuid' };
+    const query = {
+      leftJoin: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      addSelect: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      andWhere: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      getRawMany: vi.fn().mockResolvedValue([
+        {
+          id: 12,
+          uuid: 'episode-uuid',
+          episodeNumber: 2,
+          title: 'Episode',
+          synopsis: null,
+          durationMs: 1000,
+          pricePoints: 20,
+          unlocked: '1',
+        },
+      ]),
+    };
+    const drama = {
+      id: 7,
+      uuid: 'drama-uuid',
+      status: 'PUBLISHED',
+      publishedAt: new Date('2026-10-08T00:00:00Z'),
+      productionCompanyId: 1,
+      publicSlug: 'drama',
+      title: 'Drama',
+      shortDescription: 'Description',
+      synopsis: 'Synopsis',
+    };
+    const dramas = repository();
+    dramas.findOne.mockResolvedValue(drama);
+    const episodes = {
+      ...repository(),
+      createQueryBuilder: vi.fn().mockReturnValue(query),
+    };
+    const users = repository();
+    users.findOneBy.mockResolvedValue(user);
+    const images = repository();
+    const service = new PublicCatalogService(
+      dramas as never, repository() as never, repository() as never,
+      repository() as never, images as never, repository() as never,
+      episodes as never, users as never,
+    );
+
+    const detail = await service.getDrama('drama-uuid', now, user.uuid);
+
+    expect(users.findOneBy).toHaveBeenCalledWith({ uuid: user.uuid });
+    expect(query.leftJoin).toHaveBeenCalledWith(
+      expect.any(Function),
+      'entitlement',
+      'entitlement.episodeId = episode.id AND entitlement.userId = :userId',
+      { userId: user.id },
+    );
+    expect(query.where).toHaveBeenCalledWith('episode.dramaId = :dramaId', { dramaId: drama.id });
+    expect(query.andWhere).toHaveBeenCalledWith('episode.status = :status', { status: 'PUBLISHED' });
+    expect(query.andWhere).toHaveBeenCalledWith('episode.publishedAt <= :now', { now });
+    expect(query.orderBy).toHaveBeenCalledWith('episode.episodeNumber', 'ASC');
+    expect(episodes.findBy).not.toHaveBeenCalled();
+    expect(detail.episodes).toEqual([
+      expect.objectContaining({ uuid: 'episode-uuid', isUnlocked: true }),
+    ]);
+    expect(detail.episodes[0]).not.toHaveProperty('id');
+  });
+
+  it('rejects a well-formed but unknown detail user', async () => {
+    const dramas = repository();
+    dramas.findOne.mockResolvedValue({
+      id: 1,
+      status: 'PUBLISHED',
+      publishedAt: new Date('2026-10-08T00:00:00Z'),
+    });
+    const users = repository();
+    const service = new PublicCatalogService(
+      dramas as never, repository() as never, repository() as never,
+      repository() as never, repository() as never, repository() as never,
+      repository() as never, users as never,
+    );
+
+    await expect(service.getDrama('drama', new Date('2026-10-09T00:00:00Z'), 'missing-user'))
+      .rejects.toBeInstanceOf(NotFoundException);
   });
 
   it.each([null, new Date('2999-01-01T00:00:00Z')])(

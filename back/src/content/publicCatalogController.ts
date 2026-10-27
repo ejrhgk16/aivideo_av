@@ -14,8 +14,17 @@ export class PublicCatalogController {
   }
 
   @Get('dramas/:dramaId')
-  getDrama(@Param('dramaId') dramaId: string) {
-    return this.publicCatalogService.getDrama(dramaId);
+  getDrama(
+    @Param('dramaId') dramaId: string,
+    @Query('userUuid') userUuid?: unknown,
+  ) {
+    if (userUuid !== undefined && (
+      typeof userUuid !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userUuid)
+    )) {
+      throw new BadRequestException('userUuid must be a UUID');
+    }
+    return this.publicCatalogService.getDrama(dramaId, undefined, userUuid);
   }
 
   @Get('episodes/:episodeId/playback')

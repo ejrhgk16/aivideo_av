@@ -60,3 +60,25 @@ WHERE uuid = '00000012-0000-4000-8000-000000000001';
 ```
 
 The key-conflict case uses the admin's seeded `seed:admin:initial-points:v1` key and makes no data change. Other requests do not mutate balances, ledgers, or entitlements. API responses do not expose publication timestamps or all hidden records, so latest publication ordering and every hidden/scheduled-content boundary cannot be proven from these HTTP responses alone. Focused unit tests retain publication/environment/scheduling boundaries and internal database/seed/storage rules.
+
+### Drama detail entitlement fixtures
+
+The detail collection cases also compare a user's entitlement with a second user's response. The collection variables provide defaults for these existing development records, so `npm --prefix back run test` and `test:api` work without extra arguments. Postman environment variables can override the defaults:
+
+| Variable | Current development value | Purpose |
+| --- | --- | --- |
+| `entitledUserUuid` | `00000010-0000-4000-8000-000000000001` | Existing admin user with a paid entitlement |
+| `unentitledUserUuid` | `00000012-0000-4000-8000-000000000001` | Existing user with no entitlement to the drama episodes |
+| `entitlementDramaUuid` | `00000002-0000-4000-8000-000000000001` | Drama containing the fixture episodes |
+| `entitledEpisodeUuid` | `00000004-0000-4000-8000-000000000002` | Paid episode owned by the first user |
+| `lockedEpisodeUuid` | `00000004-0000-4000-8000-000000000003` | Paid episode owned by neither user |
+
+The current DB was inspected using SELECT statements only. The same drama also contains a free episode (`00000004-0000-4000-8000-000000000001`). If local development data differs, set equivalent IDs for existing users, drama, and episodes in the Postman environment. The API collection must not create an entitlement or change point balances to prepare these cases.
+
+To override the fixture defaults, pass environment values to Postman CLI:
+
+```powershell
+npm --prefix back run test -- -- --env-var entitledUserUuid=00000010-0000-4000-8000-000000000001 --env-var unentitledUserUuid=00000012-0000-4000-8000-000000000001 --env-var entitlementDramaUuid=00000002-0000-4000-8000-000000000001 --env-var entitledEpisodeUuid=00000004-0000-4000-8000-000000000002 --env-var lockedEpisodeUuid=00000004-0000-4000-8000-000000000003
+```
+
+The detail checks verify the owned paid episode is unlocked only for its owner, another paid episode stays locked, free episodes are unlocked for both users, and omitting `userUuid` does not expose a stored entitlement.
