@@ -23,10 +23,16 @@ import type {
   ContentCollection,
 } from '../../../programming/entities/index.js';
 import type { AdRewardOffer, PointProduct } from '../../../economy/entities/index.js';
+import type { PointTransaction } from '../../../economy/entities/index.js';
+import type { User } from '../../../identity/entities/index.js';
 
 type UuidRow<T> = Omit<DeepPartial<T>, 'id'> & { uuid: string };
 
 export interface InitialSeedData {
+  adminUser: UuidRow<User>;
+  adminInitialGrant: Omit<UuidRow<PointTransaction>, 'walletUserId' | 'balanceAfter'> & {
+    amount: number;
+  };
   productionCompanies: Array<UuidRow<ProductionCompany>>;
   genres: Array<DeepPartial<Genre>>;
   dramas: Array<
@@ -355,6 +361,20 @@ const adRewardOffers = [
 ];
 
 export const initialData: InitialSeedData = {
+  adminUser: {
+    uuid: '00000010-0000-4000-8000-000000000001',
+    displayName: 'admin',
+    accountType: 'OPERATOR',
+    status: 'ACTIVE',
+    productionCompanyId: null,
+  },
+  adminInitialGrant: {
+    uuid: '00000011-0000-4000-8000-000000000001',
+    transactionType: 'ADMIN_ADJUSTMENT',
+    amount: 100,
+    idempotencyKey: 'seed:admin:initial-points:v1',
+    memo: 'admin initial points',
+  },
   productionCompanies,
   genres,
   dramas,

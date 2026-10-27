@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 
 import { AdRewardOffer, PointProduct } from '../../economy/entities/index.js';
+import { PointTransaction, Wallet } from '../../economy/entities/index.js';
 import {
   ContentImage,
   ContentVideo,
@@ -26,6 +27,7 @@ import {
 } from '../../programming/entities/index.js';
 import dataSource from './dataSource.js';
 import initialData from './seed/initialData.js';
+import { User } from '../../identity/entities/index.js';
 
 type NumericUuidEntity = { id: number; uuid: string };
 
@@ -81,6 +83,47 @@ function requireId(ids: Map<string, number>, uuid: string): number {
 }
 
 export async function seedData(manager: EntityManager): Promise<void> {
+  const userRepository = manager.getRepository(User);
+  await userRepository
+    .createQueryBuilder()
+    .insert()
+    .values(initialData.adminUser)
+    .orIgnore()
+    .updateEntity(false)
+    .execute();
+  const admin = await userRepository.findOneByOrFail({ uuid: initialData.adminUser.uuid });
+
+  const walletRepository = manager.getRepository(Wallet);
+  await walletRepository
+    .createQueryBuilder()
+    .insert()
+    .values({ userId: admin.id, availablePoints: 0 })
+    .orIgnore()
+    .updateEntity(false)
+    .execute();
+  const wallet = await walletRepository.findOneOrFail({
+    where: { userId: admin.id },
+    lock: { mode: 'pessimistic_write' },
+  });
+
+  const grant = initialData.adminInitialGrant;
+  const transactionRepository = manager.getRepository(PointTransaction);
+  const existingGrant = await transactionRepository.findOneBy({
+    idempotencyKey: grant.idempotencyKey,
+  });
+  if (!existingGrant) {
+    const balanceAfter = wallet.availablePoints + grant.amount;
+    if (balanceAfter > 2147483647) {
+      throw new Error('Seed balance exceeds INT range');
+    }
+    await transactionRepository.insert({
+      ...grant,
+      walletUserId: admin.id,
+      balanceAfter,
+    });
+    await walletRepository.update({ userId: admin.id }, { availablePoints: balanceAfter });
+  }
+
   const companyIds = await upsertAndGetIds(
     manager.getRepository(ProductionCompany),
     initialData.productionCompanies,

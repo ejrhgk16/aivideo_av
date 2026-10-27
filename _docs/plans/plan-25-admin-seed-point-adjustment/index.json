@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "plan_id": "plan-25-admin-seed-point-adjustment",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "admin 시드와 최초 100포인트",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/common/database/seed/initialData.ts",
+        "back/src/common/database/seed.ts",
+        "back/test/unit/database/initialData.spec.ts",
+        "back/test/unit/database/seed.spec.ts",
+        "back/README.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-27T06:58:35.613Z",
+      "summary": "Added the fixed admin user and one-time 100-point grant seed. Updated seed tests for repeat runs, preserved balance, user ID, and wallet reference; documented development behavior. Checks passed: lint, full test (31 unit tests and 79 API assertions), and build. Applied the seed twice; SELECT confirmed admin UUID 00000010-0000-4000-8000-000000000001, OPERATOR, balance 100, and exactly one 100-point grant with key seed:admin:initial-points:v1.",
+      "completed_at": "2026-10-27T07:04:57.570Z"
+    },
+    {
+      "id": "task-2",
+      "name": "개발용 포인트 지급·회차 단건 구매 API",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/app.module.ts",
+        "back/src/economy/economy.module.ts",
+        "back/src/economy/pointController.ts",
+        "back/src/economy/pointService.ts",
+        "back/src/economy/entities/episodeEntitlement.entity.ts",
+        "back/test/unit/economy/pointService.spec.ts",
+        "back/test/unit/economy/pointController.spec.ts",
+        "back/test/api/public.postman_collection.json",
+        "back/test/api/README.md",
+        "_docs/api/05-economy/README.md",
+        "_docs/api/05-economy/points.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-27T07:05:14.257Z",
+      "summary": "Implemented development-only point increase and bodyless single-episode purchase APIs, transaction and entitlement handling, unit tests, API docs, and POST preflight checks. Lint and build passed; all 48 unit tests passed. Full test and current-build API checks on port 3002 passed, including 83 Postman assertions. HTTP checks did not perform purchase or balance mutations.",
+      "completed_at": "2026-10-27T07:11:26.902Z"
+    },
+    {
+      "id": "task-3",
+      "name": "포인트 커스텀 예외와 오류 예시 미사용 코드 정리",
+      "status": "completed",
+      "depends_on": [
+        "task-2"
+      ],
+      "files": [
+        "back/src/common/error/error.enum.ts",
+        "back/src/common/error/error.baseException.ts",
+        "back/src/common/error/error.customExceptions.ts",
+        "back/src/common/error/error.vo.ts",
+        "back/src/common/error/error.filter.ts",
+        "back/src/economy/pointController.ts",
+        "back/src/economy/pointService.ts",
+        "back/test/unit/economy/pointController.spec.ts",
+        "back/test/unit/economy/pointService.spec.ts",
+        "back/test/api/public.postman_collection.json",
+        "back/test/api/README.md",
+        "_docs/ARCHITECTURE.md",
+        "_docs/api/00-overview/conventions.md",
+        "_docs/api/05-economy/points.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-27T07:44:24.023Z",
+      "summary": "Removed unused auth/token/role/IP sample error code and implemented point-specific custom exceptions with a BaseException-only filter on PointController. Updated unit tests, Postman POST error assertions, fixture setup instructions, architecture and API error docs. Verified existing server on port 3000 hot-reflected the code without restart. Checks passed: lint, 48 unit tests, build, and full Postman collection (30 requests, 95 assertions). Created only the documented zero-point API test user/wallet; admin balance was unchanged.",
+      "completed_at": "2026-10-27T07:52:46.609Z"
+    }
+  ]
+}

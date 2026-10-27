@@ -37,7 +37,7 @@ export class EpisodeEntitlement {
     nullable: true,
     unique: true,
   })
-  unlockTransactionId!: string | null;
+  unlockTransactionId!: number | null;
 
   @Column({
     name: 'granted_at',

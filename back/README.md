@@ -73,8 +73,13 @@ $ npm run db:seed
 ```
 
 The command is not invoked by server startup, builds, or migration commands. It
-is safe to run again because each row is upserted by its fixed primary key. Do
-not run it automatically as part of a production deployment.
+creates the development `admin` user (`00000010-0000-4000-8000-000000000001`)
+with the `OPERATOR` role and an initial wallet balance of 100 points. The grant
+uses the ledger key `seed:admin:initial-points:v1`. On later runs, an existing
+grant and any changed wallet balance are preserved. Catalog rows continue to
+be upserted by their fixed UUIDs; the admin, wallet, and initial grant are only
+inserted when absent. Do not run it automatically as part of a production
+deployment.
 
 ## Compile and run the project
 

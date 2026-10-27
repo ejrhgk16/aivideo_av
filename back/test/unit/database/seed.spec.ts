@@ -1,6 +1,8 @@
 import type { EntityManager } from 'typeorm';
 
 import { AdRewardOffer, PointProduct } from '../../../src/economy/entities/index.js';
+import { PointTransaction, Wallet } from '../../../src/economy/entities/index.js';
+import { User } from '../../../src/identity/entities/index.js';
 import {
   ContentImage,
   ContentVideo,
@@ -42,6 +44,14 @@ function createManager(): {
           }
         }
       };
+      const applyInsertIgnore = (rows: SeedRow[]) => {
+        for (const row of rows) {
+          const key = entity === Wallet ? 'userId' : 'uuid';
+          if (!table.rows.some((saved) => saved[key] === row[key])) {
+            table.rows.push({ ...row, id: row.id ?? table.nextId++ });
+          }
+        }
+      };
       return {
         metadata: {
           findColumnWithPropertyPath(property: string) {
@@ -55,20 +65,52 @@ function createManager(): {
         createQueryBuilder() {
           let rows: SeedRow[] = [];
           let conflictPaths: string[] = [];
+          let ignore = false;
           return {
             insert() { return this; },
-            values(value: SeedRow[]) { rows = value; return this; },
+            values(value: SeedRow | SeedRow[]) { rows = Array.isArray(value) ? value : [value]; return this; },
+            orIgnore() { ignore = true; return this; },
             orUpdate(columns: string[], paths: string[]) {
               updateColumns.push(columns);
               conflictPaths = paths;
               return this;
             },
             updateEntity(value: boolean) { updateEntityFlags.push(value); return this; },
-            async execute() { applyUpsert(rows, conflictPaths); return {}; },
+            async execute() {
+              if (ignore) applyInsertIgnore(rows);
+              else applyUpsert(rows, conflictPaths);
+              return {};
+            },
           };
         },
         async find() {
           return table.rows.map(({ id, uuid }) => ({ id, uuid }));
+        },
+        async findOneByOrFail(where: SeedRow) {
+          const row = table.rows.find((saved) =>
+            Object.entries(where).every(([key, value]) => saved[key] === value),
+          );
+          if (!row) throw new Error('Seed row not found');
+          return row;
+        },
+        async findOneOrFail(options: { where: SeedRow }) {
+          return this.findOneByOrFail(options.where);
+        },
+        async findOneBy(where: SeedRow) {
+          return table.rows.find((saved) =>
+            Object.entries(where).every(([key, value]) => saved[key] === value),
+          ) ?? null;
+        },
+        async insert(row: SeedRow) {
+          table.rows.push({ ...row, id: row.id ?? table.nextId++ });
+          return {};
+        },
+        async update(criteria: SeedRow, values: SeedRow) {
+          const row = table.rows.find((saved) =>
+            Object.entries(criteria).every(([key, value]) => saved[key] === value),
+          );
+          if (row) Object.assign(row, values);
+          return {};
         },
       };
     },
@@ -96,6 +138,9 @@ describe('database seed with numeric primary keys', () => {
       ),
     );
     const firstCounts = [
+      User,
+      Wallet,
+      PointTransaction,
       ProductionCompany,
       Genre,
       Drama,
@@ -178,6 +223,21 @@ describe('database seed with numeric primary keys', () => {
       ).toBeDefined();
     }
 
+    const admin = rowsFor(User).find(({ uuid }) => uuid === initialData.adminUser.uuid);
+    expect(admin).toMatchObject({
+      displayName: 'admin',
+      accountType: 'OPERATOR',
+      status: 'ACTIVE',
+      productionCompanyId: null,
+    });
+    expect(rowsFor(Wallet)).toContainEqual({ userId: admin?.id, availablePoints: 100, id: 1 });
+    expect(rowsFor(PointTransaction)).toContainEqual({
+      ...initialData.adminInitialGrant,
+      walletUserId: admin?.id,
+      balanceAfter: 100,
+      id: 1,
+    });
+
     await seedData(manager);
 
     const secondIds = new Map(
@@ -187,6 +247,9 @@ describe('database seed with numeric primary keys', () => {
     );
     expect(secondIds).toEqual(firstIds);
     expect([
+      User,
+      Wallet,
+      PointTransaction,
       ProductionCompany,
       Genre,
       Drama,
@@ -200,5 +263,14 @@ describe('database seed with numeric primary keys', () => {
       PointProduct,
       AdRewardOffer,
     ].map((entity) => rowsFor(entity).length)).toEqual(firstCounts);
+
+    rowsFor(Wallet)[0].availablePoints = 40;
+    await seedData(manager);
+    expect(
+      rowsFor(User).find(({ uuid }) => uuid === initialData.adminUser.uuid)?.id,
+    ).toBe(admin?.id);
+    expect(rowsFor(Wallet)[0].userId).toBe(admin?.id);
+    expect(rowsFor(Wallet)[0].availablePoints).toBe(40);
+    expect(rowsFor(PointTransaction)).toHaveLength(1);
   });
 });

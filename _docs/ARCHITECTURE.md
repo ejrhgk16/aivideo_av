@@ -18,7 +18,6 @@ Expo React Native client. Own `package.json` and lockfile.
 | `assets/images/` | Static screen images. |
 | `assets/icons/` | Static icons. |
 | `assets/fonts/` | Font files and licenses. |
-| `media/` | 기존 로컬 미디어 작업 파일. 백엔드에서 이미지나 영상을 직접 제공하지 않는다. |
 | `tests/` | Frontend product tests. |
 
 ## Backend — `back/`
@@ -30,6 +29,7 @@ NestJS API server. Own `package.json` and lockfile.
 | `src/` | NestJS modules, controllers, and services. |
 | `src/{domain}/entities/` | Domain-specific Entity classes and persistence metadata. |
 | `src/common/entities/` | Shared persistence base entities and metadata. |
+| `src/common/error/` | Shared custom HTTP error base, error codes, concrete exceptions, and response filter used by opted-in controllers. |
 | `src/common/database/` | Shared TypeORM configuration and Entity registry, CLI `DataSource`, explicit development seed CLI, and migration files. |
 | `test/api/` | Postman collections that call the running development API and its real MySQL database; execution instructions and data requirements. |
 | `test/unit/` | Focused tests for internal rules and publication/environment boundaries that cannot be exercised without changing existing data. |
@@ -60,7 +60,7 @@ Preserved standalone web prototype. It is not imported or run by `front/`, and i
 ## Backend verification
 
 - `npm --prefix back run test` runs focused unit tests followed by the Postman CLI API collection. `test:unit` and `test:api` run each separately.
-- API tests use the existing development server at `http://localhost:3000` by default, with its configured MySQL connection. The server must reflect the code being verified. The collection discovers public UUIDs from responses and does not create a database, seed records, or modify existing data.
+- API tests use the existing development server at `http://localhost:3000` by default, with its configured MySQL connection. The server must reflect the code being verified. The collection discovers public UUIDs from responses; tests may prepare development-only fixtures and mutate data as needed.
 - `back/test/api/README.md` defines startup, target URL overrides, required existing content, and coverage limits. Missing server/data or failed assertions fail verification.
 
 ## Media storage

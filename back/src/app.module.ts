@@ -5,6 +5,7 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { createDatabaseOptions } from './common/database/databaseConfig.js';
 import { ContentModule } from './content/content.module.js';
+import { EconomyModule } from './economy/economy.module.js';
 import { ProgrammingModule } from './programming/programming.module.js';
 
 @Module({
@@ -17,6 +18,7 @@ import { ProgrammingModule } from './programming/programming.module.js';
       useFactory: () => createDatabaseOptions(process.env),
     }),
     ContentModule,
+    EconomyModule,
     ProgrammingModule,
   ],
   controllers: [AppController],

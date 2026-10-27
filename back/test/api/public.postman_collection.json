@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "AI Drama public API",
-    "description": "Read-only HTTP checks against the running development API and its existing MySQL database. Requires public dramas with free/paid episodes and previews. Does not seed or modify data, or download signed media URLs.",
+    "description": "HTTP checks against the running development API and its MySQL database. Requires public dramas with free/paid episodes and previews, plus the documented zero-balance point error fixture. Does not download signed media URLs.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -775,6 +775,144 @@
           }
         ],
         "url": "{{baseUrl}}/genres"
+      }
+    },
+    {
+      "name": "Point increase preflight",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Preflight allows the development origin and POST\", () => {",
+              "  pm.response.to.have.status(204);",
+              "  pm.expect(pm.response.headers.get(\"Access-Control-Allow-Origin\")).to.equal(\"http://localhost:8081\");",
+              "  pm.expect(pm.response.headers.get(\"Access-Control-Allow-Methods\")).to.include(\"POST\");",
+              "  pm.expect(pm.response.headers.get(\"Access-Control-Allow-Headers\").toLowerCase()).to.include(\"content-type\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "OPTIONS",
+        "header": [
+          {
+            "key": "Origin",
+            "value": "http://localhost:8081"
+          },
+          {
+            "key": "Access-Control-Request-Method",
+            "value": "POST"
+          },
+          {
+            "key": "Access-Control-Request-Headers",
+            "value": "content-type"
+          }
+        ],
+        "url": "{{baseUrl}}/users/00000010-0000-4000-8000-000000000001/points/increase"
+      }
+    },
+    {
+      "name": "Point increase with non-UUID user returns custom not found",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Unknown user returns custom 404 without UUID format validation', () => { const body = pm.response.json(); pm.response.to.have.status(404); pm.expect(body).to.include({ errorCode: 'POINT_USER_NOT_FOUND', errorName: 'PointUserNotFound', statusCode: 404 }); pm.expect(body.path).to.equal('/users/not-a-uuid/points/increase'); pm.expect(new Date(body.timestamp).toISOString()).to.equal(body.timestamp); });"
+      ] } }],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"amount\":1,\"idempotencyKey\":\"invalid-user-check\"}" },
+        "url": "{{baseUrl}}/users/not-a-uuid/points/increase"
+      }
+    },
+    {
+      "name": "Single episode purchase with non-UUID user returns custom not found",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Unknown user returns custom 404 without UUID format validation', () => { const body = pm.response.json(); pm.response.to.have.status(404); pm.expect(body).to.include({ errorCode: 'POINT_USER_NOT_FOUND', errorName: 'PointUserNotFound', statusCode: 404 }); pm.expect(body.path).to.equal('/users/not-a-uuid/episodes/not-a-uuid/purchaseSingle'); pm.expect(new Date(body.timestamp).toISOString()).to.equal(body.timestamp); });"
+      ] } }],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/users/not-a-uuid/episodes/not-a-uuid/purchaseSingle"
+      }
+    },
+    {
+      "name": "Point increase invalid body returns custom 400",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Invalid increase body returns custom 400', () => { const body = pm.response.json(); pm.response.to.have.status(400); pm.expect(body).to.include({ errorCode: 'POINT_INVALID_INCREASE', errorName: 'InvalidPointIncrease', statusCode: 400 }); pm.expect(body.path).to.equal('/users/00000010-0000-4000-8000-000000000001/points/increase'); pm.expect(new Date(body.timestamp).toISOString()).to.equal(body.timestamp); });"
+      ] } }],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"amount\":0,\"idempotencyKey\":\"invalid-body\"}" },
+        "url": "{{baseUrl}}/users/00000010-0000-4000-8000-000000000001/points/increase"
+      }
+    },
+    {
+      "name": "Point increase reused key returns custom 409",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Reused idempotency key returns custom 409', () => { const body = pm.response.json(); pm.response.to.have.status(409); pm.expect(body).to.include({ errorCode: 'POINT_IDEMPOTENCY_CONFLICT', errorName: 'PointIdempotencyConflict', statusCode: 409 }); pm.expect(new Date(body.timestamp).toISOString()).to.equal(body.timestamp); });"
+      ] } }],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"amount\":1,\"idempotencyKey\":\"seed:admin:initial-points:v1\"}" },
+        "url": "{{baseUrl}}/users/00000010-0000-4000-8000-000000000001/points/increase"
+      }
+    },
+    {
+      "name": "Single episode purchase missing episode returns custom 404",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Missing episode returns custom 404', () => { const body = pm.response.json(); pm.response.to.have.status(404); pm.expect(body).to.include({ errorCode: 'POINT_EPISODE_NOT_FOUND', errorName: 'PointEpisodeNotFound', statusCode: 404 }); pm.expect(new Date(body.timestamp).toISOString()).to.equal(body.timestamp); });"
+      ] } }],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/users/00000010-0000-4000-8000-000000000001/episodes/00000020-0000-4000-8000-000000000099/purchaseSingle"
+      }
+    },
+    {
+      "name": "Single episode purchase insufficient balance returns custom 409",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Insufficient balance returns custom 409', () => { const body = pm.response.json(); pm.response.to.have.status(409); pm.expect(body).to.include({ errorCode: 'POINT_INSUFFICIENT_BALANCE', errorName: 'InsufficientPoints', statusCode: 409 }); pm.expect(new Date(body.timestamp).toISOString()).to.equal(body.timestamp); });"
+      ] } }],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/users/00000012-0000-4000-8000-000000000001/episodes/00000004-0000-4000-8000-000000000042/purchaseSingle"
+      }
+    },
+    {
+      "name": "Single episode purchase preflight",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Preflight allows the development origin and POST\", () => {",
+              "  pm.response.to.have.status(204);",
+              "  pm.expect(pm.response.headers.get(\"Access-Control-Allow-Origin\")).to.equal(\"http://localhost:8081\");",
+              "  pm.expect(pm.response.headers.get(\"Access-Control-Allow-Methods\")).to.include(\"POST\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "OPTIONS",
+        "header": [
+          {
+            "key": "Origin",
+            "value": "http://localhost:8081"
+          },
+          {
+            "key": "Access-Control-Request-Method",
+            "value": "POST"
+          }
+        ],
+        "url": "{{baseUrl}}/users/00000010-0000-4000-8000-000000000001/episodes/00000020-0000-4000-8000-000000000001/purchaseSingle"
       }
     }
   ]

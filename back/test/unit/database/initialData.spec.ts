@@ -19,6 +19,23 @@ describe('initial seed data', () => {
     );
   });
 
+  it('defines the admin user and its one-time initial points grant', () => {
+    expect(initialData.adminUser).toEqual({
+      uuid: '00000010-0000-4000-8000-000000000001',
+      displayName: 'admin',
+      accountType: 'OPERATOR',
+      status: 'ACTIVE',
+      productionCompanyId: null,
+    });
+    expect(initialData.adminInitialGrant).toEqual({
+      uuid: '00000011-0000-4000-8000-000000000001',
+      transactionType: 'ADMIN_ADJUSTMENT',
+      amount: 100,
+      idempotencyKey: 'seed:admin:initial-points:v1',
+      memo: 'admin initial points',
+    });
+  });
+
   it('contains the planned number of catalog and commerce rows', () => {
     expect(initialData.productionCompanies).toHaveLength(3);
     expect(initialData.genres).toHaveLength(6);

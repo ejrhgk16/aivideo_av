@@ -144,6 +144,12 @@
       "directory": "plan-24-recommendation-preview-playback",
       "title": "추천 피드 프리뷰 영상 재생",
       "status": "completed"
+    },
+    {
+      "id": "plan-25-admin-seed-point-adjustment",
+      "directory": "plan-25-admin-seed-point-adjustment",
+      "title": "admin 사용자 최초 100포인트 시드와 포인트 지급·회차 단건 구매 API",
+      "status": "completed"
     }
   ]
 }

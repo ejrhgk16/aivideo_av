@@ -1,12 +1,14 @@
 # Backend API tests
 
-Postman CLI calls the running NestJS API over HTTP. The API uses its configured, real MySQL database; repositories and database responses are not mocked. Tests use existing content and make only GET and OPTIONS requests. They do not create/reset a database, run seeds, change records, or download images/videos from signed URLs.
+Postman CLI calls the running NestJS API over HTTP. The API uses its configured, real MySQL database; repositories and database responses are not mocked. Tests may use GET, OPTIONS, POST, PUT, PATCH, DELETE, and other methods supported by the endpoints. Creating/resetting/seeding the development database and changing test data are allowed when needed for API verification. Tests do not download images/videos from signed URLs.
 
 ## Run
 
 Postman CLI must be installed (`postman --version`). Local collection execution does not require a Postman login. Keep database and AWS credentials in the existing Git-ignored `back/.env.development`, not in the collection.
 
-From the repository root, start the development server in one terminal:
+First check whether the existing development API responds over HTTP (default: `http://localhost:3000`). If a server is already running, confirm it reflects the current code and run tests against that server. Do not start an additional test server or switch ports when an existing server is running. An empty port/process lookup alone does not establish that no server exists. If current-code readiness cannot be confirmed, ask the user before proceeding.
+
+If the backend is not running on port 3000, report an error and fail verification. Agents must not start the server automatically or use another port as a workaround. Print an instruction asking the user to start the backend from the repository root with the following command, then retry verification after it is running:
 
 ```powershell
 npm --prefix back run start:dev
@@ -36,10 +38,23 @@ The backend's MySQL connection follows its own environment configuration. No sep
 - Playback requires the existing development-only S3 signing configuration. Tests inspect the signed URL and its expiry; they do not request the S3 object or verify that the media object exists.
 - Avoid editing the same content during a run: catalog/detail/collection consistency checks compare successive responses.
 
-If these conditions are not met, the run fails and reports the missing condition. Prepare content through the normal development workflow; do not automatically seed or modify the existing DB from the test command.
+Tests may prepare the required development data through database setup, seeds, and data changes. If the requirements remain unmet, the run fails and reports the missing condition.
 
 ## Coverage
 
-The collection checks the root endpoint, genre/catalog response shapes and public UUIDs, default/invalid sort, detail/catalog consistency, public episode counts and ordering, free/paid episode playback, preview playback and ownership, missing-resource errors, four home collections and their ordering, and allowed/disallowed CORS origins and preflight.
+The collection checks the root endpoint, genre/catalog response shapes and public UUIDs, default/invalid sort, detail/catalog consistency, public episode counts and ordering, free/paid episode playback, preview playback and ownership, missing-resource errors, four home collections and their ordering, and allowed/disallowed CORS origins and preflight. It also checks POST preflight for the development-only point increase and single-episode purchase paths. Preflight verifies CORS negotiation only; it does not prove the POST route or any balance, ledger, or entitlement change.
 
-These are integration checks against current data, not a controlled fixture suite. API responses do not expose publication timestamps or all hidden records, so latest publication ordering and every hidden/scheduled-content boundary cannot be proven from these HTTP responses alone. Focused unit tests retain publication/environment/scheduling boundaries and internal database/seed/storage rules. Deterministic HTTP coverage of those additional states would need separately authorized fixture data; the current suite does not create it.
+The collection checks the existing catalog, POST preflight, custom point error responses, including invalid input, missing user/episode, insufficient balance, and idempotency conflict. The insufficient-balance case requires a development test user `00000012-0000-4000-8000-000000000001` with an existing zero-point wallet. Prepare it in the configured development database with:
+
+```sql
+INSERT IGNORE INTO users
+  (uuid, account_type, status, display_name, production_company_id)
+VALUES
+  ('00000012-0000-4000-8000-000000000001', 'MEMBER', 'ACTIVE', 'api-error-test', NULL);
+
+INSERT IGNORE INTO wallets (user_id, available_points)
+SELECT id, 0 FROM users
+WHERE uuid = '00000012-0000-4000-8000-000000000001';
+```
+
+The key-conflict case uses the admin's seeded `seed:admin:initial-points:v1` key and makes no data change. Other requests do not mutate balances, ledgers, or entitlements. API responses do not expose publication timestamps or all hidden records, so latest publication ordering and every hidden/scheduled-content boundary cannot be proven from these HTTP responses alone. Focused unit tests retain publication/environment/scheduling boundaries and internal database/seed/storage rules.

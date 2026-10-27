@@ -6,7 +6,7 @@
 - 성공 응답은 공통 envelope 없이 endpoint가 정의한 JSON 값 자체를 반환한다.
 - 필드명은 endpoint 정의서의 응답 예시를 기준으로 한다. 기존 구현의 대소문자는 임의로 통일하지 않는다.
 - 작품, 회차, 제작사, 영상의 공개 식별자는 `uuid` 필드로 반환하며, 작품·회차·프리뷰 조회 경로에도 해당 UUID를 전달한다. 자동 증가 숫자 `id`는 DB 내부 관계와 조인에만 사용하고 API 응답에 노출하지 않는다. 장르 `id`는 숫자 식별자로 유지한다.
-- 오류 응답은 NestJS 기본 HTTP 오류 형식을 사용한다.
+- 일반 endpoint 오류는 NestJS 기본 HTTP 오류 형식을 사용한다. 컨트롤러에 `AllExceptionFilter`를 지정한 포인트 API는 업무 오류에 `{ errorCode, errorName, statusCode, timestamp, path }` 형식을 사용하고, 해당 필터가 지정되지 않은 endpoint의 오류 응답은 바뀌지 않는다.
 
 ## 시간과 공개 콘텐츠
 
