@@ -83,6 +83,21 @@ test('drama detail requests use the configured API base URL and return the API c
       pricePoints: 0,
       isUnlocked: true,
       image: null,
+      watchProgress: {
+        positionMs: 0,
+        isCompleted: false,
+        lastPlayedAt: '2026-10-08T12:34:56.789Z',
+      },
+    }, {
+      uuid: '00000002-0000-4000-8000-000000000102',
+      episodeNumber: 2,
+      title: null,
+      synopsis: null,
+      durationMs: 435000,
+      pricePoints: 30,
+      isUnlocked: false,
+      image: null,
+      watchProgress: null,
     }],
   } satisfies DramaContent;
 

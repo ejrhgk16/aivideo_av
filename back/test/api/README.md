@@ -82,3 +82,51 @@ npm --prefix back run test -- -- --env-var entitledUserUuid=00000010-0000-4000-8
 ```
 
 The detail checks verify the owned paid episode is unlocked only for its owner, another paid episode stays locked, free episodes are unlocked for both users, and omitting `userUuid` does not expose a stored entitlement.
+
+The drama detail collection requires one watch-progress fixture for the entitled user. It compares the response with `watchProgressEpisodeUuid`, `watchProgressPositionMs`, `watchProgressIsCompleted`, and `watchProgressLastPlayedAt`; the same episode must return `watchProgress: null` for `unentitledUserUuid` and with `userUuid` omitted. Defaults match the development fixture below. If local UUIDs differ, set these variables to the equivalent records in the Postman environment.
+
+Inspect candidate records using this query:
+
+```sql
+SELECT
+  u.uuid AS userUuid,
+  d.uuid AS dramaUuid,
+  e.uuid AS episodeUuid,
+  p.position_ms AS positionMs,
+  p.is_completed AS isCompleted,
+  p.last_played_at AS lastPlayedAt
+FROM user_watch_progress p
+JOIN users u ON u.id = p.user_id
+JOIN episodes e ON e.id = p.episode_id
+JOIN dramas d ON d.id = e.drama_id
+WHERE u.uuid = '00000010-0000-4000-8000-000000000001'
+  AND d.uuid = '00000002-0000-4000-8000-000000000001'
+ORDER BY e.episode_number;
+```
+
+The current development database uses the following fixture: admin `00000010-0000-4000-8000-000000000001`, drama `00000002-0000-4000-8000-000000000001`, episode `00000004-0000-4000-8000-000000000003`, position `0`, incomplete, last played `2026-10-28T00:00:00.000Z`. The unentitled user has no progress record for that episode.
+
+To prepare this fixture after resetting the development database, insert the row idempotently:
+
+```sql
+INSERT INTO user_watch_progress
+  (user_id, episode_id, position_ms, is_completed, last_played_at)
+SELECT u.id, e.id, 0, 0, '2026-10-28 00:00:00.000'
+FROM users u
+JOIN episodes e ON e.uuid = '00000004-0000-4000-8000-000000000003'
+JOIN dramas d ON d.id = e.drama_id
+WHERE u.uuid = '00000010-0000-4000-8000-000000000001'
+  AND d.uuid = '00000002-0000-4000-8000-000000000001'
+  AND NOT EXISTS (
+    SELECT 1 FROM user_watch_progress p
+    WHERE p.user_id = u.id AND p.episode_id = e.id
+  );
+```
+
+For different IDs, pass the selected fixture values to Postman CLI (the timestamp must be UTC ISO 8601):
+
+```powershell
+npm --prefix back run test -- -- --env-var watchProgressEpisodeUuid=<episode-uuid> --env-var watchProgressPositionMs=<position-ms> --env-var watchProgressIsCompleted=<true-or-false> --env-var watchProgressLastPlayedAt=<utc-iso-timestamp>
+```
+
+MySQL `DATETIME(3)` is returned by mysql2 as a JavaScript `Date`; the API serializes it with `toISOString()` as UTC. If the fixture query returns no row, the required non-null case cannot be verified and the API test must fail. The API test also checks that the returned episode list and entitlement state are unchanged by the progress join.

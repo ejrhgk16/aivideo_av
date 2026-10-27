@@ -10,6 +10,7 @@ import { Genre } from './entities/genre.entity.js';
 import { ProductionCompany } from './entities/productionCompany.entity.js';
 import { EpisodeEntitlement } from '../economy/entities/episodeEntitlement.entity.js';
 import { User } from '../identity/entities/user.entity.js';
+import { UserWatchProgress } from '../playback/entities/userWatchProgress.entity.js';
 import { createDramaImageUrls } from './mediaUrl.js';
 import { S3VideoUrlService } from './s3VideoUrlService.js';
 
@@ -49,6 +50,11 @@ export type DramaDetail = {
     pricePoints: number;
     image: string | null;
     isUnlocked: boolean;
+    watchProgress: {
+      positionMs: number;
+      isCompleted: boolean;
+      lastPlayedAt: string;
+    } | null;
   }>;
 };
 
@@ -199,11 +205,20 @@ export class PublicCatalogService {
 
     type DetailEpisodeRow = Pick<Episode,
       'id' | 'uuid' | 'episodeNumber' | 'title' | 'synopsis' | 'durationMs' | 'pricePoints'
-    > & { unlocked: number | string };
+    > & {
+      unlocked: number | string;
+      progressEpisodeId: number | null;
+      positionMs: number | string | null;
+      isCompleted: number | string | null;
+      lastPlayedAt: Date | null;
+    };
 
     const episodeQuery = this.episodeRepository.createQueryBuilder('episode')
       .leftJoin(EpisodeEntitlement, 'entitlement',
         'entitlement.episodeId = episode.id AND entitlement.userId = :userId',
+        { userId })
+      .leftJoin(UserWatchProgress, 'progress',
+        'progress.episodeId = episode.id AND progress.userId = :userId',
         { userId })
       .select('episode.id', 'id')
       .addSelect('episode.uuid', 'uuid')
@@ -216,6 +231,10 @@ export class PublicCatalogService {
         'CASE WHEN episode.pricePoints = 0 OR entitlement.id IS NOT NULL THEN 1 ELSE 0 END',
         'unlocked',
       )
+      .addSelect('progress.episodeId', 'progressEpisodeId')
+      .addSelect('progress.positionMs', 'positionMs')
+      .addSelect('progress.isCompleted', 'isCompleted')
+      .addSelect('progress.lastPlayedAt', 'lastPlayedAt')
       .where('episode.dramaId = :dramaId', { dramaId: drama.id })
       .andWhere('episode.status = :status', { status: PUBLIC_STATUS })
       .andWhere('episode.publishedAt <= :now', { now })
@@ -255,7 +274,8 @@ export class PublicCatalogService {
       imageUrls: createDramaImageUrls(dramaImages),
       previewVideos: mapPreviewVideos(videos),
       episodes: episodes.map(
-        ({ id, uuid, episodeNumber, title, synopsis, durationMs, pricePoints, unlocked }) => ({
+        ({ id, uuid, episodeNumber, title, synopsis, durationMs, pricePoints, unlocked,
+          progressEpisodeId, positionMs, isCompleted, lastPlayedAt }) => ({
           uuid,
           episodeNumber,
           title,
@@ -264,6 +284,11 @@ export class PublicCatalogService {
           pricePoints,
           image: episodeImagesById.get(id) ?? null,
           isUnlocked: Number(unlocked) === 1,
+          watchProgress: progressEpisodeId === null ? null : {
+            positionMs: Number(positionMs),
+            isCompleted: Number(isCompleted) === 1,
+            lastPlayedAt: lastPlayedAt!.toISOString(),
+          },
         }),
       ),
     };

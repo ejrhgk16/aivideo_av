@@ -180,6 +180,12 @@
       "directory": "plan-30-drama-detail-purchased-episodes",
       "title": "드라마 상세 무료·구매 회차 표시와 재생 분기",
       "status": "completed"
+    },
+    {
+      "id": "plan-31-drama-detail-watch-progress",
+      "directory": "plan-31-drama-detail-watch-progress",
+      "title": "드라마 상세 시청기록 JOIN과 회차 색상 표시",
+      "status": "completed"
     }
   ]
 }

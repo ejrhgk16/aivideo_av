@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PublicCatalogService } from '../../../src/content/publicCatalogService.js';
+import { UserWatchProgress } from '../../../src/playback/entities/userWatchProgress.entity.js';
 
 const repository = () => ({
   find: vi.fn().mockResolvedValue([]),
@@ -79,6 +80,10 @@ describe('PublicCatalogService publication boundaries', () => {
           durationMs: 1000,
           pricePoints: 20,
           unlocked: '1',
+          progressEpisodeId: null,
+          positionMs: null,
+          isCompleted: null,
+          lastPlayedAt: null,
         },
       ]),
     };
@@ -117,13 +122,23 @@ describe('PublicCatalogService publication boundaries', () => {
       'entitlement.episodeId = episode.id AND entitlement.userId = :userId',
       { userId: user.id },
     );
+    expect(query.leftJoin).toHaveBeenCalledWith(
+      UserWatchProgress,
+      'progress',
+      'progress.episodeId = episode.id AND progress.userId = :userId',
+      { userId: user.id },
+    );
     expect(query.where).toHaveBeenCalledWith('episode.dramaId = :dramaId', { dramaId: drama.id });
     expect(query.andWhere).toHaveBeenCalledWith('episode.status = :status', { status: 'PUBLISHED' });
     expect(query.andWhere).toHaveBeenCalledWith('episode.publishedAt <= :now', { now });
     expect(query.orderBy).toHaveBeenCalledWith('episode.episodeNumber', 'ASC');
     expect(episodes.findBy).not.toHaveBeenCalled();
     expect(detail.episodes).toEqual([
-      expect.objectContaining({ uuid: 'episode-uuid', isUnlocked: true }),
+      expect.objectContaining({
+        uuid: 'episode-uuid',
+        isUnlocked: true,
+        watchProgress: null,
+      }),
     ]);
     expect(detail.episodes[0]).not.toHaveProperty('id');
   });

@@ -94,7 +94,7 @@ export function DramaDetailScreen({ id }: { id: string }) {
         {drama.productionCompany ? <View style={styles.production}><AppText style={styles.productionLabel}>제작사</AppText><AppText weight="medium" style={styles.productionValue}>{drama.productionCompany}</AppText></View> : null}
       </View> : <View style={styles.episodes}>
         {episodes.length === 0 ? <AppText style={styles.emptyEpisodes}>공개된 회차가 아직 없어요.</AppText> : <View style={styles.episodeGrid}>{episodes.map((episode) => (
-          <Pressable key={episode.uuid} style={styles.episode} accessibilityRole="button" accessibilityLabel={`${episode.episodeNumber}화${episode.pricePoints === 0 ? ' 무료' : episode.isUnlocked ? '' : ` ${episode.pricePoints}포인트`}`} onPress={() => openEpisode(episode)}>
+          <Pressable key={episode.uuid} style={[styles.episode, episode.watchProgress !== null && styles.watchedEpisode]} accessibilityRole="button" accessibilityLabel={`${episode.episodeNumber}화${episode.pricePoints === 0 ? ' 무료' : episode.isUnlocked ? '' : ` ${episode.pricePoints}포인트`}`} onPress={() => openEpisode(episode)}>
             <AppText weight="medium" style={styles.episodeNumber}>{episode.episodeNumber}화</AppText>
             {episode.pricePoints === 0 ? <AppText style={styles.freeLabel}>무료</AppText> : episode.isUnlocked ? <AppText style={styles.priceLabel} accessible={false}>{'\u00A0'}</AppText> : <AppText style={styles.priceLabel}>{episode.pricePoints}P</AppText>}
           </Pressable>
@@ -154,8 +154,9 @@ const styles = StyleSheet.create({
   emptyEpisodes: { color: colors.muted, fontSize: 13, lineHeight: 21, paddingVertical: 10 },
   episodeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   episode: { width: '17.5%', minHeight: 63, paddingVertical: 10, gap: 5, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 9, borderCurve: 'continuous' },
+  watchedEpisode: { backgroundColor: '#CBF46A18' },
   episodeNumber: { color: colors.text, fontSize: 13, lineHeight: 19 },
-  freeLabel: { color: colors.accent, fontSize: 9, lineHeight: 13 },
+  freeLabel: { color: colors.muted, fontSize: 9, lineHeight: 13 },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   priceLabel: { color: colors.muted, fontSize: 9, lineHeight: 13 },
 });

@@ -23,6 +23,11 @@ export interface DramaContent {
     pricePoints: number;
     isUnlocked: boolean;
     image: string | null;
+    watchProgress: {
+      positionMs: number;
+      isCompleted: boolean;
+      lastPlayedAt: string;
+    } | null;
   }>;
 }
 

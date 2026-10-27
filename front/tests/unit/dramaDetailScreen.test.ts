@@ -99,10 +99,15 @@ function createScreen() {
     assert.ok(found, `missing ${String(type)} ${label ?? ''}`);
     return found;
   }
+  function findAllByText(type: unknown, value: string) {
+    const found = nodes(tree).filter((node) => node.type === type && text(node.props.children) === value);
+    assert.ok(found.length > 0, `missing ${String(type)} with text ${value}`);
+    return found;
+  }
   async function settle() { await new Promise<void>((resolve) => setImmediate(resolve)); commit(); }
   function load(requestIndex = requests.length - 1) { requests[requestIndex].resolve(drama); }
   return {
-    commit, find, settle, load, requests, pushes,
+    commit, find, findAllByText, settle, load, requests, pushes,
     get visibleText() { return text(tree); },
     set user(value: { uuid: string } | null) { user = value; commit(); },
     get dialogProps() { dialogProps = null; nodes(tree); return dialogProps as Record<string, unknown> | null; },
@@ -114,10 +119,11 @@ const drama = {
   uuid: 'drama-1', slug: 'drama', title: '작품', shortDescription: '소개', synopsis: '소개', productionCompany: null,
   genres: [], imageUrls: { poster: null, posterLandscape: null, homeHero: null, detailCover: null, campaigns: [] }, previewVideos: [],
   episodes: [
-    { uuid: 'free', episodeNumber: 1, title: null, synopsis: null, durationMs: 100, pricePoints: 0, isUnlocked: true, image: null },
-    { uuid: 'owned', episodeNumber: 2, title: null, synopsis: null, durationMs: 100, pricePoints: 30, isUnlocked: true, image: null },
-    { uuid: 'locked', episodeNumber: 3, title: null, synopsis: null, durationMs: 100, pricePoints: 50, isUnlocked: false, image: null },
-    { uuid: 'locked-2', episodeNumber: 4, title: null, synopsis: null, durationMs: 100, pricePoints: 80, isUnlocked: false, image: null },
+    { uuid: 'free', episodeNumber: 1, title: null, synopsis: null, durationMs: 100, pricePoints: 0, isUnlocked: true, image: null, watchProgress: { positionMs: 0, isCompleted: false, lastPlayedAt: '2026-10-08T12:34:56.789Z' } },
+    { uuid: 'owned', episodeNumber: 2, title: null, synopsis: null, durationMs: 100, pricePoints: 30, isUnlocked: true, image: null, watchProgress: null },
+    { uuid: 'locked', episodeNumber: 3, title: null, synopsis: null, durationMs: 100, pricePoints: 50, isUnlocked: false, image: null, watchProgress: { positionMs: 10, isCompleted: true, lastPlayedAt: '2026-10-08T12:34:56.789Z' } },
+    { uuid: 'locked-2', episodeNumber: 4, title: null, synopsis: null, durationMs: 100, pricePoints: 80, isUnlocked: false, image: null, watchProgress: null },
+    { uuid: 'free-2', episodeNumber: 5, title: null, synopsis: null, durationMs: 100, pricePoints: 0, isUnlocked: true, image: null, watchProgress: null },
   ],
 };
 
@@ -131,6 +137,22 @@ test('drama detail distinguishes free, purchased and locked episodes', async () 
   const free = screen.find('Pressable', '1화 무료');
   const owned = screen.find('Pressable', '2화');
   const locked = screen.find('Pressable', '3화 50포인트');
+  const locked2 = screen.find('Pressable', '4화 80포인트');
+  const free2 = screen.find('Pressable', '5화 무료');
+  const hasBackground = (node: Node, color: string) => (node.props.style as unknown[]).some(
+    (style) => typeof style === 'object' && style !== null && (style as { backgroundColor?: string }).backgroundColor === color,
+  );
+  assert.equal(hasBackground(free, '#CBF46A18'), true);
+  assert.equal(hasBackground(locked, '#CBF46A18'), true);
+  assert.equal(hasBackground(owned, '#CBF46A18'), false);
+  assert.equal(hasBackground(locked2, '#CBF46A18'), false);
+  assert.equal(hasBackground(free2, '#CBF46A18'), false);
+  assert.equal(hasBackground(owned, '#111'), true);
+  assert.equal(hasBackground(free2, '#111'), true);
+  const freeLabels = screen.findAllByText('AppText', '무료');
+  assert.equal(freeLabels.length, 2);
+  assert.equal((freeLabels[0].props.style as { color: string }).color, '#aaa');
+  assert.equal((freeLabels[1].props.style as { color: string }).color, '#aaa');
   assert.match(screen.visibleText, /무료/);
   assert.match(screen.visibleText, /50P/);
   assert.doesNotMatch(screen.visibleText, /30P/);

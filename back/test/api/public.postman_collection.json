@@ -34,6 +34,26 @@
       "key": "lockedEpisodeUuid",
       "value": "00000004-0000-4000-8000-000000000003",
       "type": "string"
+    },
+    {
+      "key": "watchProgressEpisodeUuid",
+      "value": "00000004-0000-4000-8000-000000000003",
+      "type": "string"
+    },
+    {
+      "key": "watchProgressPositionMs",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "watchProgressIsCompleted",
+      "value": "false",
+      "type": "string"
+    },
+    {
+      "key": "watchProgressLastPlayedAt",
+      "value": "2026-10-28T00:00:00.000Z",
+      "type": "string"
     }
   ],
   "event": [
@@ -276,6 +296,12 @@
               "    pm.expect(episode.title === null || typeof episode.title === \"string\").to.equal(true);",
               "    pm.expect(episode.synopsis === null || typeof episode.synopsis === \"string\").to.equal(true);",
               "    pm.expect(episode.image === null || typeof episode.image === \"string\").to.equal(true);",
+              "    pm.expect(episode).to.have.property(\"watchProgress\");",
+              "    if (episode.watchProgress !== null) {",
+              "      pm.expect(episode.watchProgress.positionMs).to.satisfy(Number.isInteger).and.be.at.least(0);",
+              "      pm.expect(episode.watchProgress.isCompleted).to.be.a(\"boolean\");",
+              "      pm.expect(new Date(episode.watchProgress.lastPlayedAt).toISOString()).to.equal(episode.watchProgress.lastPlayedAt);",
+              "    }",
               "  });",
               "});",
               "const free = detail.episodes.find(episode => episode.pricePoints === 0);",
@@ -304,17 +330,17 @@
     },
     {
       "name": "Drama detail for entitled user",
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));","const detail = pm.response.json();","const owned = detail.episodes.find(e => e.uuid === pm.variables.get(\"entitledEpisodeUuid\"));","const locked = detail.episodes.find(e => e.uuid === pm.variables.get(\"lockedEpisodeUuid\"));","pm.test(\"The user's paid entitlement unlocks only owned episodes\", () => {","  pm.expect(owned).to.be.an(\"object\");","  pm.expect(owned.pricePoints).to.be.above(0);","  pm.expect(owned.isUnlocked).to.equal(true);","  pm.expect(locked).to.be.an(\"object\");","  pm.expect(locked.pricePoints).to.be.above(0);","  pm.expect(locked.isUnlocked).to.equal(false);","  const free = detail.episodes.filter(e => e.pricePoints === 0);","  pm.expect(free.length).to.be.above(0);","  free.forEach(e => pm.expect(e.isUnlocked).to.equal(true));","});"]}}],
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));","const detail = pm.response.json();","const owned = detail.episodes.find(e => e.uuid === pm.variables.get(\"entitledEpisodeUuid\"));","const locked = detail.episodes.find(e => e.uuid === pm.variables.get(\"lockedEpisodeUuid\"));","const progressEpisodeUuid = pm.variables.get(\"watchProgressEpisodeUuid\");","const progressEpisode = detail.episodes.find(e => e.uuid === progressEpisodeUuid);","pm.test(\"The user's paid entitlement unlocks only owned episodes\", () => {","  pm.expect(owned).to.be.an(\"object\");","  pm.expect(owned.pricePoints).to.be.above(0);","  pm.expect(owned.isUnlocked).to.equal(true);","  pm.expect(locked).to.be.an(\"object\");","  pm.expect(locked.pricePoints).to.be.above(0);","  pm.expect(locked.isUnlocked).to.equal(false);","  const free = detail.episodes.filter(e => e.pricePoints === 0);","  pm.expect(free.length).to.be.above(0);","  free.forEach(e => pm.expect(e.isUnlocked).to.equal(true));","});","pm.test(\"Configured existing watch progress matches its SELECT fixture\", () => {","  pm.expect(progressEpisodeUuid, \"Set watchProgress* variables from an existing DB row\").to.match(/^[0-9a-f-]{36}$/i);","  pm.expect(progressEpisode).to.be.an(\"object\");","  pm.expect(progressEpisode.watchProgress).to.deep.equal({","    positionMs: Number(pm.variables.get(\"watchProgressPositionMs\")),","    isCompleted: pm.variables.get(\"watchProgressIsCompleted\") === \"true\",","    lastPlayedAt: pm.variables.get(\"watchProgressLastPlayedAt\"),","  });","});"]}}],
       "request": {"method":"GET","header":[],"url":"{{baseUrl}}/dramas/{{entitlementDramaUuid}}?userUuid={{entitledUserUuid}}"}
     },
     {
       "name": "Drama detail for unentitled user",
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));","const detail = pm.response.json();","const owned = detail.episodes.find(e => e.uuid === pm.variables.get(\"entitledEpisodeUuid\"));","pm.test(\"Another user's entitlement is not exposed\", () => {","  pm.expect(owned).to.be.an(\"object\");","  pm.expect(owned.isUnlocked).to.equal(false);","  const free = detail.episodes.filter(e => e.pricePoints === 0);","  pm.expect(free.length).to.be.above(0);","  free.forEach(e => pm.expect(e.isUnlocked).to.equal(true));","});"]}}],
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));","const detail = pm.response.json();","const owned = detail.episodes.find(e => e.uuid === pm.variables.get(\"entitledEpisodeUuid\"));","const progressEpisodeUuid = pm.variables.get(\"watchProgressEpisodeUuid\");","const progressEpisode = detail.episodes.find(e => e.uuid === progressEpisodeUuid);","pm.test(\"Another user's entitlement and watch progress are not exposed\", () => {","  pm.expect(owned).to.be.an(\"object\");","  pm.expect(owned.isUnlocked).to.equal(false);","  pm.expect(progressEpisode).to.be.an(\"object\");","  pm.expect(progressEpisode.watchProgress).to.equal(null);","  const free = detail.episodes.filter(e => e.pricePoints === 0);","  pm.expect(free.length).to.be.above(0);","  free.forEach(e => pm.expect(e.isUnlocked).to.equal(true));","});"]}}],
       "request": {"method":"GET","header":[],"url":"{{baseUrl}}/dramas/{{entitlementDramaUuid}}?userUuid={{unentitledUserUuid}}"}
     },
     {
       "name": "Drama detail without user",
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));","const detail = pm.response.json();","pm.test(\"Without user, only free episodes are unlocked\", () => {","  pm.expect(detail.episodes.length).to.be.above(0);","  detail.episodes.filter(e => e.pricePoints === 0).forEach(e => pm.expect(e.isUnlocked).to.equal(true));","  detail.episodes.filter(e => e.pricePoints > 0).forEach(e => pm.expect(e.isUnlocked).to.equal(false));","});"]}}],
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));","const detail = pm.response.json();","const progressEpisodeUuid = pm.variables.get(\"watchProgressEpisodeUuid\");","const progressEpisode = detail.episodes.find(e => e.uuid === progressEpisodeUuid);","pm.test(\"Without user, only free episodes are unlocked and progress is null\", () => {","  pm.expect(detail.episodes.length).to.be.above(0);","  pm.expect(progressEpisode).to.be.an(\"object\");","  pm.expect(progressEpisode.watchProgress).to.equal(null);","  detail.episodes.filter(e => e.pricePoints === 0).forEach(e => pm.expect(e.isUnlocked).to.equal(true));","  detail.episodes.filter(e => e.pricePoints > 0).forEach(e => pm.expect(e.isUnlocked).to.equal(false));","});"]}}],
       "request": {"method":"GET","header":[],"url":"{{baseUrl}}/dramas/{{entitlementDramaUuid}}"}
     },
     {
