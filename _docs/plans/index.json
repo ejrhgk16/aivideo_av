@@ -162,6 +162,12 @@
       "directory": "plan-27-front-episode-purchase",
       "title": "공통 회차 팝업 구매 API 연결과 구매 후 재생",
       "status": "completed"
+    },
+    {
+      "id": "plan-28-episode-dialog-dismissal",
+      "directory": "plan-28-episode-dialog-dismissal",
+      "title": "회차 팝업 닫힘 표시 유지와 완료 후 재생 이동",
+      "status": "completed"
     }
   ]
 }

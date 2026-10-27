@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "plan_id": "plan-28-episode-dialog-dismissal",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "회차 팝업 닫힘 수명주기와 회귀 테스트",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/components/EpisodeUnlockDialog.tsx",
+        "front/tests/unit/episodeUnlockDialog.test.ts",
+        "front/scripts/test-front.cjs"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-27T12:46:42.626Z",
+      "summary": "공통 팝업에서 표시값을 닫힘 애니메이션 동안 고정하고, 애니메이션 완료 및 플랫폼별 Modal 숨김 확인 뒤 닫기·충전·구매 콜백을 실행하도록 구현했습니다. 구매 중 문구 고정, 중복 입력, 조기 onDismiss, 실패·재시도, 재오픈을 회귀 테스트로 확인했습니다. typecheck, 테스트 26개, web/iOS/Android export가 통과했습니다. front 8081과 back 3000은 HTTP 200이지만 브라우저·기기 도구가 없어 실제 화면 전환과 재생은 검증하지 못했습니다.",
+      "completed_at": "2026-10-27T12:57:16.237Z"
+    }
+  ]
+}
