@@ -1,12 +1,16 @@
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { colors } from '@/common/theme/tokens';
 import { UserProvider } from '@/features/user/UserProvider';
+import { useUser } from '@/features/user/UserProvider';
+import { SessionExpiredDialog } from '@/components/SessionExpiredDialog';
 
 function AppNavigation() {
+  const router = useRouter();
+  const { sessionExpired, dismissSessionExpired } = useUser();
   return <View style={styles.root}>
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
       <Stack.Screen name="(tabs)" />
@@ -16,6 +20,14 @@ function AppNavigation() {
       <Stack.Screen name="points" />
       <Stack.Screen name="login" />
     </Stack>
+    <SessionExpiredDialog
+      visible={sessionExpired}
+      onDismiss={dismissSessionExpired}
+      onLogin={() => {
+        dismissSessionExpired();
+        router.push('/login');
+      }}
+    />
   </View>;
 }
 

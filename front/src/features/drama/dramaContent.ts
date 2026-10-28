@@ -1,3 +1,5 @@
+import { apiRequest } from '../user/sessionClient';
+
 export interface DramaContent {
   uuid: string;
   slug: string;
@@ -50,35 +52,10 @@ export interface DramaSummary {
   freeEpisodeCount: number;
 }
 
-function joinApiUrl(baseUrl: string, path: string): string {
-  return `${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+export function getDramaContent(dramaId: string): Promise<DramaContent> {
+  return apiRequest<DramaContent>(`/dramas/${encodeURIComponent(dramaId)}`, { auth: 'optional' });
 }
 
-export async function getDramaContent(dramaId: string, userUuid?: string): Promise<DramaContent> {
-  const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
-  if (!baseUrl) {
-    throw new Error('EXPO_PUBLIC_API_BASE_URL must be set to fetch drama content.');
-  }
-
-  const query = userUuid ? `?userUuid=${encodeURIComponent(userUuid)}` : '';
-  const response = await fetch(joinApiUrl(baseUrl, `dramas/${encodeURIComponent(dramaId)}${query}`));
-  if (!response.ok) {
-    throw new Error(`Failed to fetch drama '${dramaId}': ${response.status}`);
-  }
-
-  return (await response.json()) as DramaContent;
-}
-
-export async function getDramaList(): Promise<DramaSummary[]> {
-  const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
-  if (!baseUrl) {
-    throw new Error('EXPO_PUBLIC_API_BASE_URL must be set to fetch drama list.');
-  }
-
-  const response = await fetch(joinApiUrl(baseUrl, 'dramas?sort=latest'));
-  if (!response.ok) {
-    throw new Error(`Failed to fetch drama list: ${response.status}`);
-  }
-
-  return (await response.json()) as DramaSummary[];
+export function getDramaList(): Promise<DramaSummary[]> {
+  return apiRequest<DramaSummary[]>('/dramas?sort=latest', { auth: 'public' });
 }

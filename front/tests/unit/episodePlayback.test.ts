@@ -2,7 +2,17 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { ApiError } from '../../src/common/http/api';
 import { getEpisodePlayback } from '../../src/features/playback/episodePlayback';
+import { configureSessionClient } from '../../src/features/user/sessionClient';
+
+function configureApiClient() {
+  configureSessionClient({
+    baseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? '',
+    storage: { read: async () => null, write: async () => {}, remove: async () => {} },
+    fetcher: ((input, init) => globalThis.fetch(input, init)) as typeof fetch,
+  });
+}
 
 test('episode playback encodes the id and resolves relative video URLs', async () => {
   const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -16,11 +26,12 @@ test('episode playback encodes the id and resolves relative video URLs', async (
   }) as typeof fetch;
 
   try {
-    assert.deepEqual(await getEpisodePlayback('episode/1', 'user/1'), {
+    configureApiClient();
+    assert.deepEqual(await getEpisodePlayback('episode/1'), {
       ...body,
       url: 'http://localhost:3000/media/video.mp4',
     });
-    assert.deepEqual(urls, ['http://localhost:3000/api/episodes/episode%2F1/playback?userUuid=user%2F1']);
+    assert.deepEqual(urls, ['http://localhost:3000/api/episodes/episode%2F1/playback']);
   } finally {
     globalThis.fetch = originalFetch;
     if (baseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -40,6 +51,7 @@ test('episode playback requests anonymously without adding an empty user query',
   }) as typeof fetch;
 
   try {
+    configureApiClient();
     await getEpisodePlayback('episode-1');
     assert.deepEqual(urls, ['http://localhost:3000/api/episodes/episode-1/playback']);
     assert.equal(urls[0].includes('undefined'), false);
@@ -50,7 +62,7 @@ test('episode playback requests anonymously without adding an empty user query',
   }
 });
 
-test('episode playback includes the UUID for each requested user', async () => {
+test('episode playback cannot select a caller-provided user UUID', async () => {
   const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   const originalFetch = globalThis.fetch;
   const urls: string[] = [];
@@ -62,11 +74,10 @@ test('episode playback includes the UUID for each requested user', async () => {
   }) as typeof fetch;
 
   try {
-    await getEpisodePlayback('episode-1', 'user-1');
-    await getEpisodePlayback('episode-1', 'user-2');
+    configureApiClient();
+    await getEpisodePlayback('episode-1');
     assert.deepEqual(urls, [
-      'http://localhost:3000/api/episodes/episode-1/playback?userUuid=user-1',
-      'http://localhost:3000/api/episodes/episode-1/playback?userUuid=user-2',
+      'http://localhost:3000/api/episodes/episode-1/playback',
     ]);
   } finally {
     globalThis.fetch = originalFetch;
@@ -83,6 +94,7 @@ test('episode playback preserves absolute URLs', async () => {
   globalThis.fetch = (async () => ({ ok: true, json: async () => body }) as Response) as typeof fetch;
 
   try {
+    configureApiClient();
     assert.deepEqual(await getEpisodePlayback('episode-2'), body);
   } finally {
     globalThis.fetch = originalFetch;
@@ -98,7 +110,8 @@ test('episode playback reports failed responses', async () => {
   globalThis.fetch = (async () => ({ ok: false, status: 404 }) as Response) as typeof fetch;
 
   try {
-    await assert.rejects(getEpisodePlayback('unknown'), /Failed to fetch playback for episode 'unknown': 404/);
+    configureApiClient();
+    await assert.rejects(getEpisodePlayback('unknown'), (error) => error instanceof ApiError && error.status === 404);
   } finally {
     globalThis.fetch = originalFetch;
     if (baseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -106,17 +119,3 @@ test('episode playback reports failed responses', async () => {
   }
 });
 
-test('episode playback requires an API base URL', async () => {
-  const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
-  const originalFetch = globalThis.fetch;
-  delete process.env.EXPO_PUBLIC_API_BASE_URL;
-  globalThis.fetch = (async () => { throw new Error('fetch should not be called'); }) as typeof fetch;
-
-  try {
-    await assert.rejects(getEpisodePlayback('episode-1'), /EXPO_PUBLIC_API_BASE_URL must be set to fetch episode playback/);
-  } finally {
-    globalThis.fetch = originalFetch;
-    if (baseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
-    else process.env.EXPO_PUBLIC_API_BASE_URL = baseUrl;
-  }
-});

@@ -1,3 +1,5 @@
+import { apiRequest } from '../user/sessionClient';
+
 export interface HomeCollectionDrama {
   displayOrder: number;
   uuid: string;
@@ -25,20 +27,6 @@ export interface HomeCollection {
   dramas: HomeCollectionDrama[];
 }
 
-function joinApiUrl(baseUrl: string, path: string): string {
-  return `${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
-}
-
 export async function getHomeCollection(code: string): Promise<HomeCollection> {
-  const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
-  if (!baseUrl) {
-    throw new Error('EXPO_PUBLIC_API_BASE_URL must be set to fetch home content.');
-  }
-
-  const response = await fetch(joinApiUrl(baseUrl, `collections/${code.replace(/^\/+/, '')}`));
-  if (!response.ok) {
-    throw new Error(`Failed to fetch collection '${code}': ${response.status}`);
-  }
-
-  return (await response.json()) as HomeCollection;
+  return apiRequest<HomeCollection>(`/collections/${encodeURIComponent(code.replace(/^\/+/, ''))}`, { auth: 'public' });
 }

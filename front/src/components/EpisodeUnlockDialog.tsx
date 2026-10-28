@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { AppText, Button, Icon } from '@/components/ui';
+import { ApiError } from '@/common/http/api';
+import { getErrorMessage } from '@/common/http/errorMessages';
 import { colors } from '@/common/theme/tokens';
 import type { DramaContent } from '@/features/drama/dramaContent';
-import { EpisodePurchaseError, purchaseEpisode, type EpisodePurchaseResponse } from '@/features/economy/episodePurchase';
+import { purchaseEpisode } from '@/features/economy/episodePurchase';
 import { useUser } from '@/features/user/UserProvider';
 
 type Episode = DramaContent['episodes'][number];
-type CloseAction = { kind: 'dismiss' } | { kind: 'purchase'; episode: Episode } | { kind: 'charge' };
+type CloseAction = { kind: 'dismiss' } | { kind: 'purchase'; episode: Episode; version: number } | { kind: 'charge' };
 type PopupDisplay = {
   dramaTitle: string;
   episodeNumber: number | undefined;
@@ -25,8 +27,11 @@ export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge, on
   onCharge: () => void;
   onPurchased: (episode: Episode) => void;
 }) {
-  const { user, points, setPoints } = useUser();
+  const { user, points, setPoints, sessionVersion, isCurrentSession, sessionExpired } = useUser();
   const inFlight = useRef(false);
+  const purchaseRequest = useRef(0);
+  const sessionExpiredRef = useRef(sessionExpired);
+  sessionExpiredRef.current = sessionExpired;
   const closing = useRef(false);
   const mounted = useRef(true);
   const hiddenReady = useRef(false);
@@ -34,6 +39,7 @@ export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge, on
   const animation = useRef<ReturnType<typeof Animated.timing> | null>(null);
   const opacity = useRef(new Animated.Value(episode === null ? 0 : 1)).current;
   const previousEpisode = useRef(episode);
+  const previousSessionVersion = useRef(sessionVersion);
   const [modalVisible, setModalVisible] = useState(episode !== null);
   const [isClosing, setIsClosing] = useState(false);
   const [awaitingDismiss, setAwaitingDismiss] = useState(false);
@@ -50,9 +56,9 @@ export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge, on
     episodeNumber: episode?.episodeNumber,
     pricePoints: episode?.pricePoints,
     amount,
-    notice: canPurchase ? '보유 포인트로 바로 구매할 수 있어요.' : pointsDescription,
+    notice: user === null ? '로그인 후 회차를 구매할 수 있어요.' : canPurchase ? '보유 포인트로 바로 구매할 수 있어요.' : pointsDescription,
     error: purchaseError,
-    buttonLabel: purchasing ? '구매 중…' : canPurchase ? '구매하기' : '포인트 충전하기',
+    buttonLabel: purchasing ? '구매 중…' : user === null ? '로그인하기' : canPurchase ? '구매하기' : '포인트 충전하기',
   };
   const latestDisplay = useRef(liveDisplay);
   if (!closing.current && episode !== null) latestDisplay.current = liveDisplay;
@@ -66,7 +72,7 @@ export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge, on
     setAwaitingDismiss(false);
     setClosingDisplay(null);
     onClose();
-    if (action.kind === 'purchase') onPurchased(action.episode);
+    if (action.kind === 'purchase' && isCurrentSession(action.version)) onPurchased(action.episode);
     if (action.kind === 'charge') onCharge();
   };
 
@@ -109,6 +115,26 @@ export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge, on
   }, [episode]);
 
   useEffect(() => {
+    if (previousSessionVersion.current === sessionVersion) return;
+    previousSessionVersion.current = sessionVersion;
+    purchaseRequest.current += 1;
+    inFlight.current = false;
+    setPurchaseError(null);
+    setPurchasing(false);
+    if (pendingAction.current?.kind === 'purchase') {
+      pendingAction.current = null;
+      hiddenReady.current = false;
+      closing.current = false;
+      animation.current?.stop();
+      opacity.stopAnimation();
+      setIsClosing(false);
+      setAwaitingDismiss(false);
+      setClosingDisplay(null);
+      setModalVisible(episode !== null);
+    }
+  }, [sessionVersion, episode, opacity]);
+
+  useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
@@ -139,26 +165,29 @@ export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge, on
   const purchase = async () => {
     if (!canPurchase || !user || !episode || inFlight.current || closing.current) return;
     const selectedEpisode = episode;
+    const version = sessionVersion;
+    const requestId = ++purchaseRequest.current;
     inFlight.current = true;
     setPurchasing(true);
     setPurchaseError(null);
     latestDisplay.current = { ...latestDisplay.current, error: null, buttonLabel: '구매 중…' };
-    let result: EpisodePurchaseResponse;
     try {
-      result = await purchaseEpisode(user.uuid, selectedEpisode.uuid);
+      const result = await purchaseEpisode(selectedEpisode.uuid);
+      if (!mounted.current || !isCurrentSession(version) || requestId !== purchaseRequest.current) return;
+      beginClose({ kind: 'purchase', episode: selectedEpisode, version });
+      setPoints(result.availablePoints);
     } catch (error) {
-      setPurchaseError(error instanceof EpisodePurchaseError
-        && error.errorCode === 'POINT_INSUFFICIENT_BALANCE'
-        ? '포인트가 부족해요. 포인트 충전 후 다시 시도해 주세요.'
-        : '회차를 구매하지 못했어요. 다시 시도해 주세요.');
-      inFlight.current = false;
-      setPurchasing(false);
-      return;
+      const sessionExpiry = sessionExpiredRef.current && error instanceof ApiError
+        && error.status === 401 && error.errorCode === 'AUTH_INVALID_TOKEN';
+      if (mounted.current && isCurrentSession(version) && requestId === purchaseRequest.current && !sessionExpiry) {
+        setPurchaseError(getErrorMessage(error));
+      }
+    } finally {
+      if (mounted.current && requestId === purchaseRequest.current) {
+        inFlight.current = false;
+        setPurchasing(false);
+      }
     }
-    beginClose({ kind: 'purchase', episode: selectedEpisode });
-    setPoints(result.availablePoints);
-    inFlight.current = false;
-    setPurchasing(false);
   };
 
   return (

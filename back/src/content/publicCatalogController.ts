@@ -1,6 +1,10 @@
-import { BadRequestException, Controller, Get, Param, Query, UseFilters } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Param, Query, Req, UseFilters, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
 import { PublicCatalogService } from './publicCatalogService.js';
 import { AllExceptionFilter } from '../common/error/error.filter.js';
+import { OptionalJwtAuthGuard } from '../identity/optionalJwtAuthGuard.js';
+
+type AuthenticatedRequest = Request & { user?: { uuid: string } };
 
 @Controller()
 export class PublicCatalogController {
@@ -15,32 +19,23 @@ export class PublicCatalogController {
   }
 
   @Get('dramas/:dramaId')
+  @UseGuards(OptionalJwtAuthGuard)
+  @UseFilters(AllExceptionFilter)
   getDrama(
     @Param('dramaId') dramaId: string,
-    @Query('userUuid') userUuid?: unknown,
+    @Req() request: AuthenticatedRequest,
   ) {
-    if (userUuid !== undefined && (
-      typeof userUuid !== 'string' ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userUuid)
-    )) {
-      throw new BadRequestException('userUuid must be a UUID');
-    }
-    return this.publicCatalogService.getDrama(dramaId, undefined, userUuid);
+    return this.publicCatalogService.getDrama(dramaId, undefined, request.user?.uuid);
   }
 
   @Get('episodes/:episodeId/playback')
+  @UseGuards(OptionalJwtAuthGuard)
   @UseFilters(AllExceptionFilter)
   getEpisodePlayback(
     @Param('episodeId') episodeId: string,
-    @Query('userUuid') userUuid?: unknown,
+    @Req() request: AuthenticatedRequest,
   ) {
-    if (userUuid !== undefined && (
-      typeof userUuid !== 'string' ||
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userUuid)
-    )) {
-      throw new BadRequestException('userUuid must be a UUID');
-    }
-    return this.publicCatalogService.getEpisodePlaybackUrl(episodeId, userUuid);
+    return this.publicCatalogService.getEpisodePlaybackUrl(episodeId, request.user?.uuid);
   }
 
   @Get('dramas/:dramaId/previews/:videoId/playback')

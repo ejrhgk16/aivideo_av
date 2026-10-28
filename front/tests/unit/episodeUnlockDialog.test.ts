@@ -16,11 +16,17 @@ function createDialog(platform: 'ios' | 'android' | 'web' = 'web', initialPoints
   const refs: { current: unknown }[] = [];
   const effects: { effect: () => void | (() => void); deps?: unknown[]; cleanup?: () => void }[] = [];
   const animations: ((result: { finished: boolean }) => void)[] = [];
+  class ApiErrorMock extends Error {
+    constructor(public status: number, public errorCode: string | null) { super(errorCode ?? `HTTP_${status}`); }
+  }
   let hook = 0;
   let tree: Node | null = null;
   let needsRender = false;
   let props: Record<string, unknown>;
   let points = initialPoints;
+  let user: { uuid: string } | null = { uuid: 'user-1' };
+  let sessionVersion = 0;
+  let sessionExpired = false;
   let purchaseCalls = 0;
   let purchase: () => Promise<unknown> = async () => ({ availablePoints: 70 });
   let setPointsCalls: number[] = [];
@@ -73,12 +79,13 @@ function createDialog(platform: 'ios' | 'android' | 'web' = 'web', initialPoints
       Icon: (config: Record<string, unknown>) => jsx('Icon', config),
     },
     '@/common/theme/tokens': { colors: { muted: '#aaa', accent: '#0f0', text: '#fff', surface: '#111', border: '#333', background: '#000', danger: '#f00' } },
+    '@/common/http/errorMessages': { getErrorMessage: () => '요청에 실패했어요.' },
+    '@/common/http/api': { ApiError: ApiErrorMock },
     '@/features/economy/episodePurchase': {
-      EpisodePurchaseError: class EpisodePurchaseError extends Error { constructor(public status: number, public errorCode?: string) { super(); } },
       purchaseEpisode: () => { purchaseCalls += 1; return purchase(); },
     },
     '@/features/user/UserProvider': {
-      useUser: () => ({ user: { uuid: 'user-1' }, points, setPoints: (next: number) => { points = next; setPointsCalls.push(next); } }),
+      useUser: () => ({ user, points, sessionVersion, isCurrentSession: (version: number) => sessionVersion === version, sessionExpired, setPoints: (next: number) => { points = next; setPointsCalls.push(next); } }),
     },
   };
   const module = { exports: {} as Record<string, unknown> };
@@ -139,9 +146,13 @@ function createDialog(platform: 'ios' | 'android' | 'web' = 'web', initialPoints
   function update(next: Record<string, unknown>) { props = { ...props, ...next }; return commit(); }
   function fireAnimation(finished = true, rerender = true) { const callback = animations.shift(); assert.ok(callback); callback({ finished }); if (rerender) commit(); }
   function setPurchase(fn: () => Promise<unknown>) { purchase = fn; }
+  function setSessionVersion(value: number) { sessionVersion = value; commit(); }
+  function setUser(value: { uuid: string } | null) { user = value; }
+  function setSessionExpired(value: boolean) { sessionExpired = value; commit(); }
+  function makeApiError(status: number, errorCode: string) { return new ApiErrorMock(status, errorCode); }
 
   return {
-    commit, update, find, invoke, text, fireAnimation, setPurchase,
+    commit, update, find, invoke, text, fireAnimation, setPurchase, setSessionVersion, setUser, setSessionExpired, makeApiError,
     get animations() { return animations.length; },
     get purchaseCalls() { return purchaseCalls; },
     get points() { return points; },
@@ -222,17 +233,17 @@ test('purchase failure stays visible through dismiss and a later open uses fresh
   dialog.invoke(dialog.find('Button', '구매하기'), 'onPress');
   await new Promise<void>((resolve) => setImmediate(resolve));
   dialog.commit();
-  assert.match(dialog.text(dialog.find('Modal')), /회차를 구매하지 못했어요/);
+  assert.match(dialog.text(dialog.find('Modal')), /요청에 실패했어요/);
   dialog.invoke(dialog.find('Pressable', '닫기'), 'onPress');
   dialog.update({ episode: null });
-  assert.match(dialog.text(dialog.find('Modal')), /회차를 구매하지 못했어요/);
+  assert.match(dialog.text(dialog.find('Modal')), /요청에 실패했어요/);
   dialog.fireAnimation();
   dialog.invoke(dialog.find('Modal'), 'onDismiss');
 
   dialog.update({ episode: { ...episode, uuid: 'episode-10', episodeNumber: 10, pricePoints: 130 } });
   assert.equal(dialog.find('Button', '포인트 충전하기').props.label, '포인트 충전하기');
   assert.match(dialog.text(dialog.find('Modal')), /작품 A · 10화/);
-  assert.doesNotMatch(dialog.text(dialog.find('Modal')), /회차를 구매하지 못했어요/);
+  assert.doesNotMatch(dialog.text(dialog.find('Modal')), /요청에 실패했어요/);
   assert.equal(cb.calls.purchased.length, 0);
 });
 
@@ -258,4 +269,68 @@ test('charge callback waits for Android hidden commit; stopped fade never dismis
   interrupted.unmount();
   interrupted.fireAnimation(true, false);
   assert.equal(other.calls.close, 0);
+});
+
+test('anonymous locked episode offers login without calling the purchase API', () => {
+  const dialog = createDialog();
+  const cb = callbacks();
+  dialog.setUser(null);
+  dialog.props = { episode, dramaTitle: '작품 A', ...cb };
+  assert.match(dialog.text(dialog.find('Modal')), /로그인 후 회차를 구매할 수 있어요/);
+  dialog.invoke(dialog.find('Button', '로그인하기'), 'onPress');
+  dialog.fireAnimation();
+  dialog.invoke(dialog.find('Modal'), 'onDismiss');
+  assert.equal(cb.calls.charge, 1);
+  assert.equal(dialog.purchaseCalls, 0);
+});
+
+test('session change ignores the old purchase and allows a new session purchase', async () => {
+  const dialog = createDialog();
+  const cb = callbacks();
+  dialog.props = { episode, dramaTitle: '작품 A', ...cb };
+  let resolvePurchase!: (value: { availablePoints: number }) => void;
+  dialog.setPurchase(() => new Promise((resolve) => { resolvePurchase = resolve; }));
+  dialog.invoke(dialog.find('Button', '구매하기'), 'onPress');
+  dialog.setSessionVersion(1);
+  resolvePurchase({ availablePoints: 70 });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  dialog.commit();
+  assert.equal(dialog.points, 120);
+  assert.equal(dialog.setPointsCalls.length, 0);
+  assert.equal(cb.calls.purchased.length, 0);
+  dialog.setPurchase(async () => ({ availablePoints: 80 }));
+  dialog.invoke(dialog.find('Button', '구매하기'), 'onPress');
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  dialog.commit();
+  assert.equal(dialog.points, 80);
+  assert.equal(dialog.setPointsCalls.length, 1);
+});
+
+test('session change during the purchase dismissal animation cancels navigation', async () => {
+  const dialog = createDialog('web');
+  const cb = callbacks();
+  dialog.props = { episode, dramaTitle: '작품 A', ...cb };
+  dialog.invoke(dialog.find('Button', '구매하기'), 'onPress');
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  dialog.commit();
+  dialog.fireAnimation(true, false);
+  dialog.setSessionVersion(1);
+  dialog.invoke(dialog.find('Modal'), 'onDismiss');
+  assert.equal(cb.calls.purchased.length, 0);
+  assert.equal(cb.calls.charge, 0);
+});
+
+test('a purchase 401 covered by the root expiration dialog is not duplicated in the purchase dialog', async () => {
+  const dialog = createDialog();
+  const cb = callbacks();
+  dialog.props = { episode, dramaTitle: '작품 A', ...cb };
+  let rejectPurchase!: (error: Error) => void;
+  dialog.setPurchase(() => new Promise((_resolve, reject) => { rejectPurchase = reject; }));
+  dialog.invoke(dialog.find('Button', '구매하기'), 'onPress');
+  dialog.setSessionExpired(true);
+  rejectPurchase(dialog.makeApiError(401, 'AUTH_INVALID_TOKEN'));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  dialog.commit();
+  assert.doesNotMatch(dialog.text(dialog.find('Modal')), /요청에 실패했어요/);
+  assert.equal(cb.calls.purchased.length, 0);
 });

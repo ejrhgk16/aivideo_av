@@ -2,6 +2,8 @@ import { Redirect, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { colors } from '@/common/theme/tokens';
+import { ApiError } from '@/common/http/api';
+import { getErrorMessage } from '@/common/http/errorMessages';
 import { useUser } from '@/features/user/UserProvider';
 import { useLogin } from '@/features/user/useLogin';
 
@@ -26,7 +28,7 @@ export default function LoginRoute() {
       return;
     }
     void login({ loginId, password }).catch((reason: unknown) => {
-      if (mounted.current) setError(reason instanceof Error ? reason.message : '로그인에 실패했습니다.');
+      if (mounted.current) setError(getErrorMessage(reason));
     });
   }, [isRestoring, login, loginId, password, user]);
 
@@ -35,7 +37,7 @@ export default function LoginRoute() {
 
   return <View style={styles.container}>
     {error === null ? <ActivityIndicator color={colors.accent} /> : null}
-    <Text style={styles.message}>{error ?? restoreError ?? '로그인 중입니다.'}</Text>
+    <Text style={styles.message}>{error ?? (restoreError ? getErrorMessage(restoreError.startsWith('AUTH_') ? new ApiError(401, restoreError) : new Error(restoreError)) : '로그인 중입니다.')}</Text>
   </View>;
 }
 

@@ -2,7 +2,18 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { ApiError } from '../../src/common/http/api';
 import { getDramaContent, getDramaList, type DramaContent } from '../../src/features/drama/dramaContent';
+import { configureSessionClient } from '../../src/features/user/sessionClient';
+
+function configureApiClient() {
+  return configureSessionClient({
+    baseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? '',
+    storage: { read: async () => null, write: async () => {}, remove: async () => {} },
+    fetcher: ((input, init) => globalThis.fetch(input, init)) as typeof fetch,
+    loginRequest: async () => ({ uuid: 'user-1', displayName: null, accountType: 'MEMBER', availablePoints: 80, accessToken: 'access-token', refreshToken: 'refresh-token', expiresIn: 900 }),
+  });
+}
 
 test('drama list requests the latest public catalog and returns the API response', async () => {
   const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -28,6 +39,7 @@ test('drama list requests the latest public catalog and returns the API response
   }) as typeof fetch;
 
   try {
+    configureApiClient();
     const result = await getDramaList();
 
     assert.deepEqual(requestedUrls, ['http://localhost:3000/dramas?sort=latest']);
@@ -46,7 +58,8 @@ test('drama list request reports an unsuccessful response', async () => {
   globalThis.fetch = (async () => ({ ok: false, status: 503 }) as Response) as typeof fetch;
 
   try {
-    await assert.rejects(getDramaList(), /Failed to fetch drama list: 503/);
+    configureApiClient();
+    await assert.rejects(getDramaList(), (error) => error instanceof ApiError && error.status === 503);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -119,7 +132,7 @@ test('drama detail requests use the configured API base URL and return the API c
   }
 });
 
-test('drama detail passes and URL-encodes the optional user UUID', async () => {
+test('drama detail does not accept a caller-selected user UUID', async () => {
   const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   const originalFetch = globalThis.fetch;
   const requestedUrls: string[] = [];
@@ -130,9 +143,33 @@ test('drama detail passes and URL-encodes the optional user UUID', async () => {
   }) as typeof fetch;
 
   try {
-    const result = await getDramaContent('drama id', 'user+one@example.com');
-    assert.deepEqual(requestedUrls, ['http://localhost:3000/dramas/drama%20id?userUuid=user%2Bone%40example.com']);
+    configureApiClient();
+    const result = await getDramaContent('drama id');
+    assert.deepEqual(requestedUrls, ['http://localhost:3000/dramas/drama%20id']);
     assert.equal(result.episodes[0].isUnlocked, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    else process.env.EXPO_PUBLIC_API_BASE_URL = originalBaseUrl;
+  }
+});
+
+test('optional drama detail sends the current Access token without a user UUID query', async () => {
+  const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+  const originalFetch = globalThis.fetch;
+  const requests: Array<{ url: string; headers: HeadersInit | undefined }> = [];
+  process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
+  globalThis.fetch = (async (input, init) => {
+    requests.push({ url: String(input), headers: init?.headers });
+    return { ok: true, json: async () => ({ episodes: [] }) } as Response;
+  }) as typeof fetch;
+
+  try {
+    const client = configureApiClient();
+    await client.login({ loginId: 'test', password: 'test' });
+    await getDramaContent('drama-1');
+    assert.equal(requests[0].url, 'http://localhost:3000/dramas/drama-1');
+    assert.equal((requests[0].headers as Record<string, string>).Authorization, 'Bearer access-token');
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -147,7 +184,8 @@ test('drama detail request reports an unsuccessful response', async () => {
   globalThis.fetch = (async () => ({ ok: false, status: 404 }) as Response) as typeof fetch;
 
   try {
-    await assert.rejects(getDramaContent('unknown'), /Failed to fetch drama 'unknown': 404/);
+    configureApiClient();
+    await assert.rejects(getDramaContent('unknown'), (error) => error instanceof ApiError && error.status === 404);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;

@@ -18,9 +18,15 @@ function createScreen() {
   let tree: Node | null = null;
   let dirty = false;
   let user: { uuid: string } | null = null;
-  let requests: { id: string; userUuid?: string; resolve: (content: typeof drama) => void; reject: (error: Error) => void }[] = [];
+  let sessionVersion = 0;
+  let isRestoring = false;
+  let requests: { id: string; resolve: (content: typeof drama) => void; reject: (error: Error) => void }[] = [];
   const pushes: unknown[] = [];
   let dialogProps: Record<string, unknown> | null = null;
+  class ApiErrorMock extends Error {
+    constructor(public status: number, public errorCode: string | null = null) { super(errorCode ?? `HTTP_${status}`); }
+  }
+  const isCurrentSession = (version: number) => sessionVersion === version;
   const jsx = (type: unknown, props: Record<string, unknown>, key?: string): Node => ({ type, props, key });
   const react = {
     useState<T>(initial: T | (() => T)) {
@@ -50,9 +56,11 @@ function createScreen() {
     '@/components/ui': { AppText: passthrough('AppText'), EmptyState: passthrough('EmptyState'), Icon: passthrough('Icon'), Page: passthrough('Page') },
     '@/components/EpisodeUnlockDialog': { EpisodeUnlockDialog: dialog },
     '@/common/media': { resolveApiImageUrl: (value: unknown) => value },
+    '@/common/http/api': { ApiError: ApiErrorMock, SessionChangedError: class SessionChangedError extends Error {} },
+    '@/common/http/errorMessages': { getErrorMessage: () => '요청을 처리하지 못했습니다.' },
     '@/common/theme/tokens': { colors: { muted: '#aaa', accent: '#0f0', text: '#fff', surface: '#111', border: '#333' } },
-    '@/features/drama/dramaContent': { getDramaContent: (id: string, userUuid?: string) => new Promise((resolve, reject) => requests.push({ id, userUuid, resolve, reject })) },
-    '@/features/user/UserProvider': { useUser: () => ({ user }) },
+    '@/features/drama/dramaContent': { getDramaContent: (id: string) => new Promise((resolve, reject) => requests.push({ id, resolve, reject })) },
+    '@/features/user/UserProvider': { useUser: () => ({ user, isRestoring, sessionVersion, isCurrentSession }) },
   };
   const module = { exports: {} as Record<string, unknown> };
   vm.runInNewContext(compiled, { exports: module.exports, require: (id: string) => {
@@ -109,7 +117,10 @@ function createScreen() {
   return {
     commit, find, findAllByText, settle, load, requests, pushes,
     get visibleText() { return text(tree); },
-    set user(value: { uuid: string } | null) { user = value; commit(); },
+    set user(value: { uuid: string } | null) { user = value; sessionVersion += 1; commit(); },
+    set restoring(value: boolean) { isRestoring = value; commit(); },
+    advanceSession() { sessionVersion += 1; commit(); },
+    makeApiError(status: number, errorCode?: string) { return new ApiErrorMock(status, errorCode); },
     get dialogProps() { dialogProps = null; nodes(tree); return dialogProps as Record<string, unknown> | null; },
     unmount() { for (const effect of effects) effect?.cleanup?.(); },
   };
@@ -130,7 +141,7 @@ const drama = {
 test('drama detail distinguishes free, purchased and locked episodes', async () => {
   const screen = createScreen();
   screen.user = { uuid: 'user-1' };
-  assert.equal(screen.requests.at(-1)?.userUuid, 'user-1');
+  assert.equal(screen.requests.at(-1)?.id, 'drama-1');
   screen.load();
   await screen.settle();
 
@@ -174,7 +185,7 @@ test('drama detail reloads permissions on user changes and ignores stale respons
   const staleIndex = screen.requests.length - 1;
   screen.user = { uuid: 'user-b' };
   const currentIndex = screen.requests.length - 1;
-  assert.equal(screen.requests[currentIndex].userUuid, 'user-b');
+  assert.equal(screen.requests[currentIndex].id, 'drama-1');
   screen.load(staleIndex);
   await screen.settle();
   assert.equal(screen.find('EmptyState', undefined).props.title, '작품 정보를 불러오는 중이에요');
@@ -184,7 +195,7 @@ test('drama detail reloads permissions on user changes and ignores stale respons
   screen.commit();
   assert.equal((screen.dialogProps?.episode as { uuid: string }).uuid, 'locked');
   screen.user = null;
-  assert.equal(screen.requests.at(-1)?.userUuid, undefined);
+  assert.equal(screen.requests.at(-1)?.id, 'drama-1');
   assert.equal((screen.dialogProps?.episode as unknown) ?? null, null);
   screen.unmount();
 });
@@ -206,4 +217,28 @@ test('purchased callback unlocks only that episode locally before navigating', a
   assert.equal((screen.dialogProps?.episode as unknown) ?? null, null);
   assert.equal((screen.pushes.at(-1) as { params: { id: string } }).params.id, 'locked');
   screen.unmount();
+});
+
+test('detail waits for restore, shows 404 as not found, and retries other failures inline', async () => {
+  const screen = createScreen();
+  screen.restoring = true;
+  assert.equal(screen.requests.length, 0);
+  screen.restoring = false;
+  assert.equal(screen.requests.length, 1);
+  screen.requests[0].reject(screen.makeApiError(404, 'CONTENT_NOT_FOUND'));
+  await screen.settle();
+  assert.equal(screen.find('EmptyState').props.title, '작품을 찾을 수 없어요');
+  screen.unmount();
+
+  const offline = createScreen();
+  offline.user = { uuid: 'user-a' };
+  offline.requests[0].reject(new Error('network unavailable'));
+  await offline.settle();
+  const failed = offline.find('EmptyState');
+  assert.equal(failed.props.action, '다시 시도');
+  assert.match(String(failed.props.description), /요청을 처리하지 못했습니다/);
+  (failed.props.onAction as () => void)();
+  offline.commit();
+  assert.equal(offline.requests.length, 2);
+  offline.unmount();
 });

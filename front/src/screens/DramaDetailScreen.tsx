@@ -4,8 +4,10 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AppText, EmptyState, Icon, Page } from '@/components/ui';
 import { EpisodeUnlockDialog } from '@/components/EpisodeUnlockDialog';
+import { ApiError, SessionChangedError } from '@/common/http/api';
 import { resolveApiImageUrl } from '@/common/media';
 import { colors } from '@/common/theme/tokens';
+import { getErrorMessage } from '@/common/http/errorMessages';
 import { getDramaContent, type DramaContent } from '@/features/drama/dramaContent';
 import { useUser } from '@/features/user/UserProvider';
 
@@ -13,45 +15,54 @@ type LoadState = 'loading' | 'loaded' | 'not-found' | 'error';
 
 export function DramaDetailScreen({ id }: { id: string }) {
   const router = useRouter();
-  const { user } = useUser();
-  const userUuid = user?.uuid;
+  const { isRestoring, sessionVersion, isCurrentSession, user } = useUser();
   const params = useLocalSearchParams<{ tab?: string }>();
   const [drama, setDrama] = useState<DramaContent | null>(null);
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [imageFailed, setImageFailed] = useState(false);
   const [selectedTab, setSelectedTab] = useState<'소개' | '회차' | null>(null);
   const [lockedEpisode, setLockedEpisode] = useState<DramaContent['episodes'][number] | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
   const tab = selectedTab ?? (params.tab === 'episodes' || params.tab === '회차' ? '회차' : '소개');
 
   useEffect(() => {
+    if (isRestoring) {
+      setDrama(null);
+      setLockedEpisode(null);
+      setLoadState('loading');
+      return;
+    }
     let active = true;
+    const version = sessionVersion;
     setDrama(null);
     setLockedEpisode(null);
     setImageFailed(false);
+    setErrorMessage('');
     setLoadState('loading');
 
-    getDramaContent(id, userUuid).then((content) => {
-      if (!active) return;
+    getDramaContent(id).then((content) => {
+      if (!active || !isCurrentSession(version)) return;
       setDrama(content);
       setLoadState('loaded');
     }).catch((error: unknown) => {
-      if (!active) return;
-      const message = error instanceof Error ? error.message : '';
-      setLoadState(/:\s*404\b/.test(message) ? 'not-found' : 'error');
+      if (!active || !isCurrentSession(version) || error instanceof SessionChangedError) return;
+      setErrorMessage(getErrorMessage(error));
+      setLoadState(error instanceof ApiError && error.status === 404 ? 'not-found' : 'error');
     });
 
     return () => { active = false; };
-  }, [id, userUuid]);
+  }, [id, isRestoring, sessionVersion, retryCount, isCurrentSession]);
 
   const back = () => router.canGoBack() ? router.back() : router.replace('/');
-  if (loadState === 'loading') {
+  if (isRestoring || loadState === 'loading') {
     return <Page><EmptyState title="작품 정보를 불러오는 중이에요" description="잠시만 기다려 주세요." /></Page>;
   }
   if (loadState === 'not-found') {
     return <Page><EmptyState title="작품을 찾을 수 없어요" description="공개된 작품이 아니거나 삭제되었어요." action="홈으로" onAction={() => router.replace('/')} /></Page>;
   }
   if (loadState === 'error' || !drama) {
-    return <Page><EmptyState title="작품 정보를 불러오지 못했어요" description="네트워크를 확인한 뒤 다시 시도해 주세요." action="홈으로" onAction={() => router.replace('/')} /></Page>;
+    return <Page><EmptyState title="작품 정보를 불러오지 못했어요" description={errorMessage || '요청을 처리하지 못했습니다. 다시 시도해 주세요.'} action="다시 시도" onAction={() => setRetryCount((count) => count + 1)} /></Page>;
   }
 
   const coverUrl = resolveApiImageUrl(drama.imageUrls.detailCover);
@@ -106,7 +117,7 @@ export function DramaDetailScreen({ id }: { id: string }) {
         onClose={() => setLockedEpisode(null)}
         onCharge={() => {
           setLockedEpisode(null);
-          router.push('/points');
+          router.push(user === null ? '/login' : '/points');
         }}
         onPurchased={(episode) => {
           setDrama((current) => current === null ? null : {

@@ -1,4 +1,8 @@
 import { NotFoundException } from '@nestjs/common';
+import { EpisodeAccessDeniedException, InvalidTokenException } from '../../../src/common/error/error.customExceptions.js';
+import { PublicCatalogController } from '../../../src/content/publicCatalogController.js';
+import { OptionalJwtAuthGuard } from '../../../src/identity/optionalJwtAuthGuard.js';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PublicCatalogService } from '../../../src/content/publicCatalogService.js';
 import { UserWatchProgress } from '../../../src/playback/entities/userWatchProgress.entity.js';
@@ -161,6 +165,39 @@ describe('PublicCatalogService publication boundaries', () => {
       .rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it('returns anonymous detail with no user progress and only free episodes unlocked', async () => {
+    const query = {
+      leftJoin: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      addSelect: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      andWhere: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      getRawMany: vi.fn().mockResolvedValue([
+        { id: 1, uuid: 'free', episodeNumber: 1, title: null, synopsis: null, durationMs: 1000, pricePoints: 0,
+          unlocked: '1', progressEpisodeId: null, positionMs: null, isCompleted: null, lastPlayedAt: null },
+        { id: 2, uuid: 'paid', episodeNumber: 2, title: null, synopsis: null, durationMs: 1000, pricePoints: 10,
+          unlocked: '0', progressEpisodeId: null, positionMs: null, isCompleted: null, lastPlayedAt: null },
+      ]),
+    };
+    const drama = { id: 7, uuid: 'drama', status: 'PUBLISHED', publishedAt: new Date('2026-10-08T00:00:00Z'),
+      productionCompanyId: 1, publicSlug: 'drama', title: 'Drama', shortDescription: '', synopsis: '' };
+    const dramas = repository();
+    dramas.findOne.mockResolvedValue(drama);
+    const service = new PublicCatalogService(
+      dramas as never, repository() as never, repository() as never, repository() as never,
+      repository() as never, repository() as never,
+      { ...repository(), createQueryBuilder: vi.fn().mockReturnValue(query) } as never,
+    );
+
+    const detail = await service.getDrama('drama');
+
+    expect(detail.episodes.map(({ isUnlocked, watchProgress }) => [isUnlocked, watchProgress]))
+      .toEqual([[true, null], [false, null]]);
+    expect(query.leftJoin).toHaveBeenCalledWith(expect.any(Function), 'entitlement',
+      'entitlement.episodeId = episode.id AND entitlement.userId = :userId', { userId: null });
+  });
+
   it.each([null, new Date('2999-01-01T00:00:00Z')])(
     'rejects preview playback before publication: %s',
     async (publishedAt) => {
@@ -197,5 +234,55 @@ describe('PublicCatalogService publication boundaries', () => {
     await expect(service.getDramaPreviewPlaybackUrl('drama', 'preview'))
       .rejects.toBeInstanceOf(NotFoundException);
     expect(dramas.findOne).not.toHaveBeenCalled();
+  });
+
+  it('distinguishes anonymous paid playback from an authenticated missing entitlement', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    const query = {
+      innerJoin: vi.fn().mockReturnThis(),
+      leftJoin: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      addSelect: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      andWhere: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      getRawOne: vi.fn().mockResolvedValue({ storageKey: 'episode.mp4', title: 'Episode', episodeNumber: 1,
+        durationMs: 1000, userId: null, pricePoints: 10, entitlementId: null }),
+    };
+    const episodes = { ...repository(), createQueryBuilder: vi.fn().mockReturnValue(query) };
+    const service = new PublicCatalogService(
+      repository() as never, repository() as never, repository() as never, repository() as never,
+      repository() as never, repository() as never, episodes as never,
+    );
+
+    await expect(service.getEpisodePlaybackUrl('episode')).rejects.toBeInstanceOf(InvalidTokenException);
+    query.getRawOne.mockResolvedValueOnce({ storageKey: 'episode.mp4', title: 'Episode', episodeNumber: 1,
+      durationMs: 1000, userId: 5, pricePoints: 10, entitlementId: null });
+    await expect(service.getEpisodePlaybackUrl('episode', 'user-uuid'))
+      .rejects.toBeInstanceOf(EpisodeAccessDeniedException);
+  });
+});
+
+describe('PublicCatalogController optional identity', () => {
+  it('uses only request.user for detail and playback while leaving other catalog routes public', async () => {
+    const service = {
+      getDrama: vi.fn(),
+      getEpisodePlaybackUrl: vi.fn(),
+    };
+    const controller = new PublicCatalogController(service as never);
+    const request = { user: { uuid: 'jwt-user' } } as never;
+
+    controller.getDrama('drama', request);
+    controller.getEpisodePlayback('episode', request);
+
+    expect(service.getDrama).toHaveBeenCalledWith('drama', undefined, 'jwt-user');
+    expect(service.getEpisodePlaybackUrl).toHaveBeenCalledWith('episode', 'jwt-user');
+    expect(Reflect.getMetadata(GUARDS_METADATA, PublicCatalogController.prototype.getDrama))
+      .toEqual([OptionalJwtAuthGuard]);
+    expect(Reflect.getMetadata(GUARDS_METADATA, PublicCatalogController.prototype.getEpisodePlayback))
+      .toEqual([OptionalJwtAuthGuard]);
+    expect(Reflect.getMetadata(GUARDS_METADATA, PublicCatalogController.prototype.listDramas)).toBeUndefined();
+    expect(Reflect.getMetadata(GUARDS_METADATA, PublicCatalogController.prototype.getDramaPreviewPlayback)).toBeUndefined();
   });
 });

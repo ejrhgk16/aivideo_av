@@ -1,0 +1,108 @@
+{
+  "version": 1,
+  "plan_id": "plan-34-jwt-api-client",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "backend-jwt-product-api",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/identity/optionalJwtAuthGuard.ts",
+        "back/src/identity/identity.module.ts",
+        "back/src/content/content.module.ts",
+        "back/src/content/publicCatalogController.ts",
+        "back/src/content/publicCatalogService.ts",
+        "back/src/economy/economy.module.ts",
+        "back/src/economy/pointController.ts",
+        "back/test/unit/identity/jwtStrategy.spec.ts",
+        "back/test/unit/content/publicCatalogService.spec.ts",
+        "back/test/unit/economy/pointController.spec.ts",
+        "back/test/api/public.postman_collection.json",
+        "back/test/api/README.md",
+        "_docs/api/00-overview/authentication.md",
+        "_docs/api/00-overview/conventions.md",
+        "_docs/api/02-content/dramas.md",
+        "_docs/api/04-playback/episodes.md",
+        "_docs/api/05-economy/points.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-28T17:04:57.971Z",
+      "summary": "Updated backend JWT guards and user-scoped APIs, tests, Postman coverage, and API docs. Lint, unit tests, build, and full API suite passed; live checks confirmed authenticated identity, ignored UUID spoofing, and expected 401/404 responses.",
+      "completed_at": "2026-10-28T17:28:37.112Z"
+    },
+    {
+      "id": "task-2",
+      "name": "front-api-session-errors",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/common/http/api.ts",
+        "front/src/common/http/errorMessages.ts",
+        "front/src/features/user/sessionClient.ts",
+        "front/src/features/user/session.ts",
+        "front/src/features/user/login.ts",
+        "front/src/features/user/UserProvider.tsx",
+        "front/tests/unit/api.test.ts",
+        "front/tests/unit/errorMessages.test.ts",
+        "front/tests/unit/session.test.ts",
+        "front/tests/unit/login.test.ts",
+        "front/scripts/test-front.cjs"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-28T17:05:15.504Z",
+      "summary": "공통 API 요청·오류 코드 안내와 세션 갱신/세대 관리, 만료 상태 Provider 연결을 구현했습니다. 동시·지연 401, 세션 변경, Refresh 실패와 회전 중 로그아웃을 포함해 64개 테스트가 통과했고 typecheck 및 Expo export도 통과했습니다.",
+      "completed_at": "2026-10-28T17:16:37.490Z"
+    },
+    {
+      "id": "task-3",
+      "name": "front-jwt-screens-expiration-dialog",
+      "status": "completed",
+      "depends_on": [
+        "task-1",
+        "task-2"
+      ],
+      "files": [
+        "front/src/features/home/homeContent.ts",
+        "front/src/features/drama/dramaContent.ts",
+        "front/src/features/playback/episodePlayback.ts",
+        "front/src/features/playback/previewPlayback.ts",
+        "front/src/features/economy/episodePurchase.ts",
+        "front/src/screens/DramaDetailScreen.tsx",
+        "front/src/screens/playbackScreen_episode.tsx",
+        "front/src/components/EpisodeUnlockDialog.tsx",
+        "front/src/components/SessionExpiredDialog.tsx",
+        "front/src/app/_layout.tsx",
+        "front/src/app/login.tsx",
+        "front/tests/unit/homeContent.test.ts",
+        "front/tests/unit/dramaContent.test.ts",
+        "front/tests/unit/dramaDetailScreen.test.ts",
+        "front/tests/unit/episodePlayback.test.ts",
+        "front/tests/unit/previewPlayback.test.ts",
+        "front/tests/unit/episodePurchase.test.ts",
+        "front/tests/unit/episodeUnlockDialog.test.ts",
+        "front/tests/unit/playbackScreenEpisode.test.ts",
+        "front/tests/unit/sessionExpiredDialog.test.ts",
+        "front/scripts/test-front.cjs",
+        "_docs/ARCHITECTURE.md",
+        "_docs/api/00-overview/authentication.md"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-28T17:28:44.093Z",
+      "summary": "화면 API를 JWT 공통 요청으로 연결하고 사용자 UUID 입력을 제거했습니다. 세션 만료 모달, 로그인·구매 안내, 조회 재시도와 세션 전환 시 지연 응답 무시를 구현했습니다. typecheck, 테스트 80개, Expo 전체 플랫폼 export가 통과했습니다. 네이티브 실기기 검증은 하지 않았습니다.",
+      "completed_at": "2026-10-28T17:45:35.563Z"
+    }
+  ]
+}

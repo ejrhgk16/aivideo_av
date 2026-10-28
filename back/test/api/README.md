@@ -46,9 +46,9 @@ The identity requests check `POST /auth/login` with the seeded `admin` / `admin`
 
 Refresh history is append-only. Tests only create, rotate, and revoke sessions created by their own login requests. A replay's 401 is followed by another HTTP request to prove the revocation was committed rather than rolled back. The HTTP collection does not receive signing keys; a unit test signs a valid Refresh JWT with a local key but no matching history and verifies rejection before starting a transaction.
 
-The collection checks the root endpoint, genre/catalog response shapes and public UUIDs, default/invalid sort, detail/catalog consistency, public episode counts and ordering, anonymous and user-aware free playback, owned and denied paid playback, preview playback and ownership, missing-resource errors, four home collections and their ordering, and allowed/disallowed CORS origins and preflight. It also checks POST preflight for the development-only point increase and single-episode purchase paths. Preflight verifies CORS negotiation only; it does not prove the POST route or any balance, ledger, or entitlement change.
+The collection first logs in as the entitled and unentitled fixture users using environment credentials and verifies that each login UUID matches its configured fixture. It then checks the root endpoint, genre/catalog response shapes and public UUIDs, default/invalid sort, detail/catalog consistency, public episode counts and ordering, anonymous and authenticated free playback, owned and denied paid playback, preview playback and ownership, missing-resource errors, four home collections and their ordering, and allowed/disallowed CORS origins and preflight. JWT preflights request both `authorization` and `content-type`. Legacy `userUuid` query values are tested to confirm they cannot select another user.
 
-The collection checks the existing catalog, POST preflight, custom point error responses, including invalid input, missing user/episode, insufficient balance, and idempotency conflict. The insufficient-balance case requires a development test user `00000012-0000-4000-8000-000000000001` with an existing zero-point wallet. Prepare it in the configured development database with:
+The collection checks unauthenticated `/me` requests, custom point errors including invalid input, missing episode, insufficient balance, and idempotency conflict. It then performs one minimal idempotent point increase and an actual purchase against the separately configured `purchaseTestEpisodeUuid`, repeating both operations to verify no second balance change or charge. This paid episode must be public and available in the development database; do not use `lockedEpisodeUuid`, since that fixture must remain unowned for the read-only authorization checks. The purchase test user must have enough points. These final mutation requests run after catalog, entitlement, and insufficient-balance checks. The insufficient-balance case requires a development test user `00000012-0000-4000-8000-000000000001` with an existing zero-point wallet. Prepare it in the configured development database with:
 
 ```sql
 INSERT IGNORE INTO users
@@ -61,33 +61,38 @@ SELECT id, 0 FROM users
 WHERE uuid = '00000012-0000-4000-8000-000000000001';
 ```
 
-The key-conflict case uses the admin's seeded `seed:admin:initial-points:v1` key and makes no data change. Other requests do not mutate balances, ledgers, or entitlements. API responses do not expose publication timestamps or all hidden records, so latest publication ordering and every hidden/scheduled-content boundary cannot be proven from these HTTP responses alone. Focused unit tests retain publication/environment/scheduling boundaries and internal database/seed/storage rules.
+The key-conflict case uses the admin's seeded `seed:admin:initial-points:v1` key and makes no data change. The final idempotency and purchase checks mutate only their named development test records. API responses do not expose publication timestamps or all hidden records, so latest publication ordering and every hidden/scheduled-content boundary cannot be proven from these HTTP responses alone. Focused unit tests retain publication/environment/scheduling boundaries and internal database/seed/storage rules.
 
 ### Drama detail entitlement fixtures
 
-The detail collection cases also compare a user's entitlement with a second user's response. The collection variables provide defaults for these existing development records, so `npm --prefix back run test` and `test:api` work without extra arguments. Postman environment variables can override the defaults:
+The detail collection cases compare two users' entitlements. The UUID defaults below identify existing development fixtures. Login credentials and the isolated purchase test episode must be supplied through Postman environment variables or CLI arguments:
 
 | Variable | Current development value | Purpose |
 | --- | --- | --- |
 | `entitledUserUuid` | `00000010-0000-4000-8000-000000000001` | Existing admin user with a paid entitlement |
 | `unentitledUserUuid` | `00000012-0000-4000-8000-000000000001` | Existing user with no entitlement to the drama episodes |
+| `entitledLoginId` / `entitledPassword` | supplied in Postman environment | Credentials for the existing entitled user |
+| `unentitledLoginId` / `unentitledPassword` | supplied in Postman environment | Credentials for the existing unentitled user |
+| `purchaseTestEpisodeUuid` | `00000004-0000-4000-8000-000000000004` | Separate public paid episode used only by the final purchase mutation check |
 | `entitlementDramaUuid` | `00000002-0000-4000-8000-000000000001` | Drama containing the fixture episodes |
 | `entitledEpisodeUuid` | `00000004-0000-4000-8000-000000000002` | Paid episode owned by the first user |
 | `lockedEpisodeUuid` | `00000004-0000-4000-8000-000000000003` | Paid episode owned by neither user |
 
 The current DB was inspected using SELECT statements only. The same drama also contains a free episode (`00000004-0000-4000-8000-000000000001`). If local development data differs, set equivalent IDs for existing users, drama, and episodes in the Postman environment. The API collection must not create an entitlement or change point balances to prepare these cases.
 
-The playback checks reuse these fixtures: the admin can play `entitledEpisodeUuid`, while `unentitledUserUuid` and an anonymous request receive the custom 403 for that paid episode. Both users and an anonymous request can play the free episode. `lockedEpisodeUuid` verifies that entitlement to one episode does not unlock another episode. Playback requests do not mutate users, point balances, or entitlements.
+The playback checks reuse these fixtures: the entitled user can play `entitledEpisodeUuid`, while the unentitled user's JWT receives the custom 403 even when its request spoofs the entitled UUID in a legacy query. Anonymous playback of the public paid episode returns `AUTH_INVALID_TOKEN`(401). Both users and an anonymous request can play the free episode. `lockedEpisodeUuid` verifies that entitlement to one episode does not unlock another episode. Read checks do not mutate entitlements.
 
-To override the fixture defaults, pass environment values to Postman CLI:
+Provide the four login credential variables through the Postman environment or CLI. Never put passwords in the collection. The current default fixture UUIDs require logins to return those exact UUIDs. The development setup may temporarily assign a generated test login to the existing unentitled fixture user when its `login_id` is null; the test runner restores the fixture credentials to null afterward. It does not overwrite an existing unrelated login, reset the database, or create entitlements to make read tests pass. The configured purchase episode is separate from the read-only entitlement fixtures and has a price within the existing admin balance. Test sessions are logged out at the end of the collection.
+
+To pass credentials and override fixture values, supply Postman environment values. Keep credential values in your local shell or Postman environment and do not commit or print them:
 
 ```powershell
-npm --prefix back run test -- -- --env-var entitledUserUuid=00000010-0000-4000-8000-000000000001 --env-var unentitledUserUuid=00000012-0000-4000-8000-000000000001 --env-var entitlementDramaUuid=00000002-0000-4000-8000-000000000001 --env-var entitledEpisodeUuid=00000004-0000-4000-8000-000000000002 --env-var lockedEpisodeUuid=00000004-0000-4000-8000-000000000003
+npm --prefix back run test -- -- --env-var entitledLoginId=admin --env-var entitledPassword=<temporary-test-password> --env-var unentitledLoginId=jwt-plan34-unentitled --env-var unentitledPassword=<temporary-test-password>
 ```
 
-The detail checks verify the owned paid episode is unlocked only for its owner, another paid episode stays locked, free episodes are unlocked for both users, and omitting `userUuid` does not expose a stored entitlement. Playback separately requires a matching entitlement for paid episodes; omitted `userUuid` remains valid for free episodes and previews.
+The detail checks verify the owned paid episode is unlocked only for its owner, another paid episode stays locked, free episodes are unlocked for both users, and anonymous requests expose no stored entitlement. Playback separately requires a matching entitlement for paid episodes; anonymous access remains valid for free episodes and previews.
 
-The drama detail collection requires one watch-progress fixture for the entitled user. It compares the response with `watchProgressEpisodeUuid`, `watchProgressPositionMs`, `watchProgressIsCompleted`, and `watchProgressLastPlayedAt`; the same episode must return `watchProgress: null` for `unentitledUserUuid` and with `userUuid` omitted. Defaults match the development fixture below. If local UUIDs differ, set these variables to the equivalent records in the Postman environment.
+The drama detail collection requires one watch-progress fixture for the entitled user. It compares the response with `watchProgressEpisodeUuid`, `watchProgressPositionMs`, `watchProgressIsCompleted`, and `watchProgressLastPlayedAt`; the same episode must return `watchProgress: null` for the unentitled user and for anonymous requests. Defaults match the development fixture below. If local UUIDs differ, set these variables to equivalent records in the Postman environment.
 
 Inspect candidate records using this query:
 

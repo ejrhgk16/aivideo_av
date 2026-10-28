@@ -13,7 +13,7 @@ import { User } from '../identity/entities/user.entity.js';
 import { UserWatchProgress } from '../playback/entities/userWatchProgress.entity.js';
 import { createDramaImageUrls } from './mediaUrl.js';
 import { S3VideoUrlService } from './s3VideoUrlService.js';
-import { EpisodeAccessDeniedException } from '../common/error/error.customExceptions.js';
+import { EpisodeAccessDeniedException, InvalidTokenException } from '../common/error/error.customExceptions.js';
 
 const PUBLIC_STATUS = 'PUBLISHED';
 
@@ -333,6 +333,9 @@ export class PublicCatalogService {
 
     if (!video) throw new NotFoundException(`Episode '${episodeId}' was not found`);
     if (userUuid !== undefined && video.userId === null) throw new NotFoundException('User not found');
+    if (Number(video.pricePoints) !== 0 && userUuid === undefined) {
+      throw new InvalidTokenException();
+    }
     if (Number(video.pricePoints) !== 0 && video.entitlementId === null) {
       throw new EpisodeAccessDeniedException();
     }

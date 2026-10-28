@@ -103,17 +103,15 @@
 
 #### Query parameter
 
-| 이름 | 필수 | 타입 | 설명 |
-| --- | --- | --- | --- |
-| `userUuid` | 아니요 | string | 회차별 보유 권한과 시청기록을 조회할 사용자 UUID. 현재 인증 토큰 대신 전달하며, 생략하면 시청기록은 모두 `null`이고 무료 회차만 `isUnlocked: true` |
+없음. 기존 `userUuid` query는 무시하며 사용자를 선택하지 않는다.
 
 #### 인증
 
-불필요
+선택적 JWT 인증. `Authorization` 헤더가 없으면 익명이며, 있으면 유효한 Access JWT가 필요하다. 빈 값·잘못된 스킴·만료·변조·Refresh token은 `AUTH_INVALID_TOKEN`(401)이다.
 
 #### 200 Response
 
-응답 본문은 작품 상세 객체다. 공개된 회차는 DB에서 `episodeNumber` 오름차순으로 반환한다. `userUuid`가 유효하면 해당 사용자의 회차 권한을 함께 조회한다.
+응답 본문은 작품 상세 객체다. 공개된 회차는 DB에서 `episodeNumber` 오름차순으로 반환한다. Access가 있으면 토큰 사용자 본인의 회차 권한과 시청기록만 포함한다.
 
 ```json
 {
@@ -171,7 +169,7 @@
 }
 ```
 
-기록이 없거나 `userUuid`를 생략하면 `null`이다. `positionMs`가 `0`이거나 `isCompleted`가 `false`여도 기록이 존재하면 객체를 반환한다.
+익명 요청이거나 기록이 없으면 `null`이다. `positionMs`가 `0`이거나 `isCompleted`가 `false`여도 기록이 존재하면 객체를 반환한다.
 
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
@@ -202,31 +200,25 @@
 | `episodes[].durationMs` | number | 재생 시간(밀리초) |
 | `episodes[].pricePoints` | number | 회차 해제에 필요한 포인트. `0`이면 무료이고, `0`보다 크면 해제에 포인트가 필요하다 |
 | `episodes[].image` | string \| null | 회차 커버 이미지 storage key |
-| `episodes[].isUnlocked` | boolean | 무료 회차이거나 제공한 `userUuid`에 권한이 있으면 `true`. 유료 회차는 사용자가 권한을 보유한 경우에만 `true`이며, `userUuid`를 생략하면 `false` |
-| `episodes[].watchProgress` | object \| null | 제공한 `userUuid`의 시청기록. 기록이 없거나 `userUuid`를 생략하면 `null` |
+| `episodes[].isUnlocked` | boolean | 무료 회차이거나 인증된 사용자가 권한을 보유하면 `true`. 익명은 무료 회차만 `true` |
+| `episodes[].watchProgress` | object \| null | 인증된 사용자의 시청기록. 익명 요청 또는 기록이 없으면 `null` |
 | `episodes[].watchProgress.positionMs` | number | 마지막 재생 위치(밀리초) |
 | `episodes[].watchProgress.isCompleted` | boolean | 회차 완주 여부 |
 | `episodes[].watchProgress.lastPlayedAt` | string | 마지막 재생 시각(UTC ISO 8601) |
 
-`userUuid`는 인증 수단이 아니다. UUID 형식이 아니거나 빈 값이면 `400 Bad Request`, 형식은 맞지만 사용자가 존재하지 않으면 `404 Not Found`다.
+작품 상세의 `userUuid` query는 인증 입력이 아니며 결과의 사용자 선택에도 사용되지 않는다.
 
-잘못된 형식의 `userUuid`는 다음 응답을 반환한다.
+#### 401 Response
 
-```json
-{
-  "statusCode": 400,
-  "error": "Bad Request",
-  "message": "userUuid must be a UUID"
-}
-```
-
-존재하지 않는 사용자를 지정하면 다음 응답을 반환한다.
+Authorization 헤더가 있지만 Access JWT가 비어 있거나 잘못됐거나 만료됐거나 Refresh token인 경우 반환한다. 응답은 `{ errorCode, errorName, statusCode, timestamp, path }` 형식이다.
 
 ```json
 {
-  "statusCode": 404,
-  "error": "Not Found",
-  "message": "User not found"
+  "errorCode": "AUTH_INVALID_TOKEN",
+  "errorName": "InvalidToken",
+  "statusCode": 401,
+  "timestamp": "2026-10-29T00:00:00.000Z",
+  "path": "/dramas/00000002-0000-4000-8000-000000000001"
 }
 ```
 
@@ -247,10 +239,10 @@
 - 작품은 `status = PUBLISHED`이고 `published_at`이 현재 시각 이하인 경우에만 반환한다.
 - 회차는 `status = PUBLISHED`이고 `published_at`이 `null`이 아니며 현재 시각 이하인 경우에만 반환한다.
 - 회차의 공개 조건과 `episodeNumber` 오름차순은 DB 조회에서 처리한다.
-- 회차 권한은 해당 `userUuid`의 `episode_entitlements` 행을 회차 조회에 `LEFT JOIN`해서 표시한다. 사용자 조건은 JOIN에 있어 미보유 회차도 목록에 남는다. 권한 취득 종류에 따른 구분은 없다.
-- `userUuid`를 생략하면 권한 행을 조회하지 않으며 무료 회차만 `isUnlocked: true`다.
-- 시청기록은 해당 `userUuid`의 `user_watch_progress` 행을 회차 조회에 `LEFT JOIN`해서 표시한다. 사용자와 회차 조건은 JOIN에 있어 기록이 없는 회차도 목록에 남고, 다른 사용자의 기록은 노출되지 않는다.
-- `userUuid`를 생략하거나 해당 사용자의 시청기록이 없으면 `watchProgress`는 `null`이다. 시청기록은 회차 수, 공개 조건, 정렬, `isUnlocked`에 영향을 주지 않는다.
+- 회차 권한은 검증된 Access 사용자와 `episode_entitlements`를 회차 조회에 `LEFT JOIN`해서 표시한다. 사용자 조건은 JOIN에 있어 미보유 회차도 목록에 남는다. 권한 취득 종류에 따른 구분은 없다.
+- 익명 요청은 사용자 권한 행을 조회하지 않으며 무료 회차만 `isUnlocked: true`다.
+- 시청기록은 검증된 Access 사용자와 `user_watch_progress`를 회차 조회에 `LEFT JOIN`해서 표시한다. 기록이 없는 회차도 목록에 남고, 다른 사용자의 기록은 노출되지 않는다.
+- 익명 요청이거나 시청기록이 없으면 `watchProgress`는 `null`이다. 시청기록은 회차 수, 공개 조건, 정렬, `isUnlocked`에 영향을 주지 않는다.
 - `imageUrls`에는 버킷과 리전 설정이 있을 때 공개 이미지의 직접 S3 URL을 제공한다. 이미지가 없으면 `null` 또는 빈 배열이다. 공개 URL은 `dramas/*/images/*/*.webp`, `dramas/*/episodes/*/images/*.webp`, `genres/*/images/*.webp` 키에만 허용한다.
 - 사용자별 구매·해제 여부는 재생 API 접근을 제한하지 않는다. 재생 API의 공개 규칙은 별도 정의를 따른다.
 

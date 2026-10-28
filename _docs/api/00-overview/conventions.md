@@ -19,11 +19,12 @@
 
 - 이미지와 영상의 `storageKey`는 저장소 내부 키다. `imageUrls`는 공개 이미지 키 패턴에 해당하는 S3 직접 URL을 제공하며, 개발용 로컬 이미지 API는 없다. FULL·PREVIEW 영상의 재생 API는 개발 환경에서만 S3 객체 GET 서명 URL을 발급하며 3600초 후 만료된다.
 - 현재 정의된 홈 콘텐츠 API는 인증을 요구하지 않는다.
-- `GET /dramas/:dramaId`는 선택 `userUuid`를 받아 회차별 `isUnlocked`를 표시할 수 있다. 로그인은 JWT를 발급하지만 이 endpoint는 아직 JWT 인증을 사용하지 않는다. `userUuid`는 사용자 식별 값이며 인증·권한 부여 수단이 아니다. 생략 시 무료 회차만 열림으로 표시한다.
-- `GET /episodes/:episodeId/playback`는 선택 `userUuid`를 받아 유료 회차 entitlement를 확인한다. 사용자 UUID는 인증 수단이 아니다. 익명 요청은 무료 회차만 재생할 수 있고, 유료 회차는 해당 사용자와 회차가 일치하는 entitlement가 있어야 한다. 권한 거부는 `EPISODE_ACCESS_DENIED`(403)이며 회차 재생 endpoint에서 `{ errorCode, errorName, statusCode, timestamp, path }` 형식으로 반환한다.
+- `GET /dramas/:dramaId`와 `GET /episodes/:episodeId/playback`는 선택 JWT 인증을 사용한다. 헤더가 없으면 익명이며, 헤더가 있으면 유효한 Access JWT가 필요하다. `userUuid` query는 사용자 선택에 사용하지 않는다.
+- 익명 작품 상세에는 무료 회차만 잠금 해제되고 시청기록은 `null`이다. 회차 재생은 익명 무료 회차를 허용하고 유료 익명 요청은 `AUTH_INVALID_TOKEN`(401), 인증된 미구매 요청은 `EPISODE_ACCESS_DENIED`(403)다.
 - `POST /auth/login`은 제공된 loginId/password를 확인해 사용자 정보, 현재 포인트 잔액, 15분 Access JWT, 14일 Refresh JWT를 반환한다. Refresh는 매번 회전하며 해시 이력은 append-only다. 사용된 Refresh 재제출은 해당 로그인 전체를 폐기한다. 동시 갱신에서도 한 요청만 성공하고 후행 재사용은 로그인 전체를 폐기하므로 응답 유실 뒤 재시도는 재로그인을 요구할 수 있다. `POST /auth/logout`은 토큰 이력의 로그인만 폐기하며 반복 요청에도 204다. Access JWT는 로그아웃 후 최대 15분 유효할 수 있다.
-- Passport JWT Strategy와 Guard는 Access 인증에 사용할 수 있지만 현재 UUID 기반 제품 API에는 적용하지 않았다. 기존 선택 `userUuid` 값은 여전히 인증 수단이 아니다.
-- 로그인·토큰 저장·복원·갱신·폐기와 기능 API의 JWT 전환 예정 규칙은 [전체 인증 방식](authentication.md)을 기준으로 한다. 전환 예정 정책은 아직 구현되지 않았다.
+- Passport JWT Strategy와 필수·선택 Guard는 제품 API에 적용한다. 사용자 귀속 API는 검증된 payload UUID만 사용한다.
+- `POST /me/points/increase`와 `POST /me/episodes/:episodeUuid/purchaseSingle`은 Access JWT 필수다. 개발 환경 제한은 인증 통과 뒤 적용된다.
+- 로그인·토큰 저장·복원·갱신·폐기 및 제품 API 인증 규칙은 [전체 인증 방식](authentication.md)을 기준으로 한다. 프론트 공통 요청과 실행 중 갱신은 구현 중이다.
 - 개발 웹 클라이언트 `http://localhost:8081`만 CORS 요청 origin으로 허용한다.
 - CORS는 와일드카드 origin을 사용하지 않으며, 운영 origin과 credentials는 별도 계약에서 정의한다.
 - 회차 재생은 공개 콘텐츠 조건과 유료 회차의 사용자별 entitlement를 확인한다. 프리뷰 재생은 공개 작품과 해당 작품 소유의 프리뷰 영상 여부만 확인하며 회차 entitlement와 무관하다.

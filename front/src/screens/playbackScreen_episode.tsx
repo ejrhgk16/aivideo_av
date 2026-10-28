@@ -7,7 +7,9 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText, Button, EmptyState, Icon, Page } from '@/components/ui';
 import { EpisodeUnlockDialog } from '@/components/EpisodeUnlockDialog';
+import { ApiError, SessionChangedError } from '@/common/http/api';
 import { colors } from '@/common/theme/tokens';
+import { getErrorMessage } from '@/common/http/errorMessages';
 import { getDramaContent, type DramaContent } from '@/features/drama/dramaContent';
 import { getEpisodePlayback, type EpisodePlayback } from '@/features/playback/episodePlayback';
 import { useUser } from '@/features/user/UserProvider';
@@ -17,36 +19,52 @@ type Props = { id: string; dramaId?: string };
 
 export function PlaybackScreenEpisode({ id, dramaId }: Props) {
   const router = useRouter();
-  const { user } = useUser();
-  const userUuid = user?.uuid;
+  const { isRestoring, sessionVersion, isCurrentSession, sessionExpired, user } = useUser();
   const [playback, setPlayback] = useState<EpisodePlayback | null>(null);
   const [loadState, setLoadState] = useState<LoadState>('loading');
+  const [error, setError] = useState<unknown>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
+    if (isRestoring) {
+      setPlayback(null);
+      setError(null);
+      setLoadState('loading');
+      return;
+    }
     let active = true;
+    const version = sessionVersion;
     setPlayback(null);
+    setError(null);
     setLoadState('loading');
-    getEpisodePlayback(id, userUuid).then((result) => {
-      if (!active) return;
+    getEpisodePlayback(id).then((result) => {
+      if (!active || !isCurrentSession(version)) return;
       setPlayback(result);
       setLoadState('loaded');
     }).catch((error: unknown) => {
-      if (!active) return;
-      const message = error instanceof Error ? error.message : '';
-      setLoadState(/:\s*404\b/.test(message) ? 'not-found' : 'error');
+      if (!active || !isCurrentSession(version) || error instanceof SessionChangedError) return;
+      setError(error);
+      setLoadState(error instanceof ApiError && error.status === 404 ? 'not-found' : 'error');
     });
     return () => { active = false; };
-  }, [id, userUuid]);
+  }, [id, isRestoring, sessionVersion, retryCount, isCurrentSession]);
 
   const back = () => router.canGoBack() ? router.back() : router.replace('/');
-  if (loadState === 'loading') {
+  if (isRestoring || loadState === 'loading') {
     return <Page><EmptyState title="영상을 불러오는 중이에요" description="잠시만 기다려 주세요." /></Page>;
   }
   if (loadState === 'not-found') {
     return <Page><EmptyState title="재생할 영상을 찾을 수 없어요" description="공개된 회차가 아니거나 영상이 없어요." action="뒤로 가기" onAction={back} /></Page>;
   }
   if (loadState === 'error' || !playback) {
-    return <Page><EmptyState title="영상 정보를 불러오지 못했어요" description="네트워크를 확인한 뒤 다시 시도해 주세요." action="뒤로 가기" onAction={back} /></Page>;
+    const needsLogin = error instanceof ApiError && error.status === 401 && !sessionExpired;
+    const denied = error instanceof ApiError && error.errorCode === 'EPISODE_ACCESS_DENIED';
+    return <Page><EmptyState
+      title={needsLogin ? '로그인이 필요해요' : denied ? '구매 후 재생할 수 있어요' : '영상 정보를 불러오지 못했어요'}
+      description={needsLogin ? '로그인한 뒤 회차를 이용해 주세요.' : denied ? '작품의 회차 목록에서 구매할 수 있어요.' : getErrorMessage(error)}
+      action={needsLogin ? '로그인' : denied && dramaId ? '회차 보기' : '다시 시도'}
+      onAction={needsLogin ? () => router.push('/login') : denied && dramaId ? () => router.replace({ pathname: '/drama/[id]', params: { id: dramaId, tab: 'episodes' } }) : () => setRetryCount((count) => count + 1)}
+    /></Page>;
   }
 
   return <PlaybackVideo id={id} playback={playback} dramaId={dramaId} onBack={back} />;
@@ -56,6 +74,7 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
   id: string; playback: EpisodePlayback; dramaId?: string; onBack: () => void;
 }) {
   const router = useRouter();
+  const { isRestoring, sessionVersion, isCurrentSession, user } = useUser();
   const [drama, setDrama] = useState<DramaContent | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [lockedEpisode, setLockedEpisode] = useState<DramaContent['episodes'][number] | null>(null);
@@ -77,14 +96,22 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
 
   useEffect(() => {
     if (!dramaId) return;
+    if (isRestoring) {
+      setDrama(null);
+      setLockedEpisode(null);
+      return;
+    }
     let active = true;
+    const version = sessionVersion;
+    setDrama(null);
+    setLockedEpisode(null);
     void getDramaContent(dramaId).then((result) => {
-      if (active) setDrama(result);
+      if (active && isCurrentSession(version)) setDrama(result);
     }).catch(() => {
-      if (active) setDrama(null);
+      if (active && isCurrentSession(version)) setDrama(null);
     });
     return () => { active = false; };
-  }, [dramaId]);
+  }, [dramaId, isRestoring, sessionVersion, isCurrentSession]);
 
   const episodes = [...(drama?.episodes ?? [])].sort((first, second) => first.episodeNumber - second.episodeNumber);
   const currentIndex = episodes.findIndex((episode) => episode.uuid === id);
@@ -302,7 +329,7 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
       onClose={() => setLockedEpisode(null)}
       onCharge={() => {
         setLockedEpisode(null);
-        router.push('/points');
+        router.push(user === null ? '/login' : '/points');
       }}
       onPurchased={(episode) => {
         if (!dramaId) return;

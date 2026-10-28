@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { JwtService } from '@nestjs/jwt';
 import { InvalidTokenException } from '../../../src/common/error/error.customExceptions.js';
 import { JwtAuthGuard } from '../../../src/identity/jwtAuthGuard.js';
+import { OptionalJwtAuthGuard } from '../../../src/identity/optionalJwtAuthGuard.js';
 import { JwtStrategy } from '../../../src/identity/jwtStrategy.js';
 
 const userUuid = '00000010-0000-4000-8000-000000000001';
@@ -75,5 +76,29 @@ describe('JwtAuthGuard', () => {
 
     expect(() => guard.handleRequest(null, null)).toThrow(InvalidTokenException);
     expect(guard.handleRequest(null, { uuid: userUuid })).toEqual({ uuid: userUuid });
+  });
+});
+
+describe('OptionalJwtAuthGuard', () => {
+  it('allows anonymous requests only when Authorization is absent', async () => {
+    const guard = new OptionalJwtAuthGuard();
+    const context = (authorization?: string) => ({
+      switchToHttp: () => ({ getRequest: () => ({ headers: authorization === undefined ? {} : { authorization } }) }),
+    }) as never;
+
+    expect(guard.canActivate(context())).toBe(true);
+  });
+
+  it('delegates every present Authorization header to JWT validation', async () => {
+    const guard = new OptionalJwtAuthGuard();
+    const validate = vi.spyOn(JwtAuthGuard.prototype, 'canActivate').mockResolvedValue(true);
+    const context = (authorization: string) => ({
+      switchToHttp: () => ({ getRequest: () => ({ headers: { authorization } }) }),
+    }) as never;
+
+    await expect(guard.canActivate(context(''))).resolves.toBe(true);
+    await expect(guard.canActivate(context('Basic invalid'))).resolves.toBe(true);
+    expect(validate).toHaveBeenCalledTimes(2);
+    validate.mockRestore();
   });
 });

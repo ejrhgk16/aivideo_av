@@ -198,6 +198,12 @@
       "directory": "plan-33-jwt-auth-session",
       "title": "JWT 발급·갱신·폐기와 프론트 세션 저장",
       "status": "completed"
+    },
+    {
+      "id": "plan-34-jwt-api-client",
+      "directory": "plan-34-jwt-api-client",
+      "title": "JWT 공통 API 요청·오류 처리와 세션 만료 팝업",
+      "status": "completed"
     }
   ]
 }

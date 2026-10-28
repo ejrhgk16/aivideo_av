@@ -5,15 +5,22 @@ import {
   NotFoundException,
   Param,
   Post,
+  Req,
   UseFilters,
+  UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { Request } from 'express';
 import { PointService, type IncreasePointsInput } from './pointService.js';
 import { InvalidPointIncreaseException } from '../common/error/error.customExceptions.js';
 import { AllExceptionFilter } from '../common/error/error.filter.js';
+import { JwtAuthGuard } from '../identity/jwtAuthGuard.js';
 
-@Controller('users/:userUuid')
+type AuthenticatedRequest = Request & { user: { uuid: string } };
+
+@Controller('me')
 @UseFilters(AllExceptionFilter)
+@UseGuards(JwtAuthGuard)
 export class PointController {
   constructor(
     private readonly configService: ConfigService,
@@ -22,19 +29,19 @@ export class PointController {
 
   @Post('points/increase')
   @HttpCode(200)
-  increase(@Param('userUuid') userUuid: string, @Body() body: unknown) {
+  increase(@Req() request: AuthenticatedRequest, @Body() body: unknown) {
     this.assertDevelopment();
-    return this.pointService.increase(userUuid, this.parseIncreaseInput(body));
+    return this.pointService.increase(request.user.uuid, this.parseIncreaseInput(body));
   }
 
   @Post('episodes/:episodeUuid/purchaseSingle')
   @HttpCode(200)
   purchaseSingle(
-    @Param('userUuid') userUuid: string,
+    @Req() request: AuthenticatedRequest,
     @Param('episodeUuid') episodeUuid: string,
   ) {
     this.assertDevelopment();
-    return this.pointService.purchaseSingle(userUuid, episodeUuid);
+    return this.pointService.purchaseSingle(request.user.uuid, episodeUuid);
   }
 
   private assertDevelopment(): void {

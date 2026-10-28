@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Wallet } from '../economy/entities/index.js';
 import { AuthSession, RefreshToken, User } from './entities/index.js';
 import { JwtAuthGuard } from './jwtAuthGuard.js';
+import { OptionalJwtAuthGuard } from './optionalJwtAuthGuard.js';
 import { JwtStrategy } from './jwtStrategy.js';
 import { LoginController } from './loginController.js';
 import { LoginService } from './loginService.js';
@@ -28,7 +29,7 @@ import { TokenService } from './tokenService.js';
     }),
   ],
   controllers: [LoginController],
-  providers: [LoginService, TokenService, JwtStrategy, JwtAuthGuard],
-  exports: [JwtAuthGuard],
+  providers: [LoginService, TokenService, JwtStrategy, JwtAuthGuard, OptionalJwtAuthGuard],
+  exports: [JwtAuthGuard, OptionalJwtAuthGuard, PassportModule],
 })
 export class IdentityModule {}

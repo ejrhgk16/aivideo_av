@@ -2,6 +2,7 @@
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { ApiError } from '../../src/common/http/api';
 import { login } from '../../src/features/user/login';
 
 const responseBody = {
@@ -68,10 +69,10 @@ test('login propagates HTTP errors', async (t) => {
   try {
     for (const status of [400, 401, 404]) {
       await t.test(String(status), async () => {
-        globalThis.fetch = (async () => ({ ok: false, status }) as Response) as typeof fetch;
+        globalThis.fetch = (async () => ({ ok: false, status, json: async () => ({ errorCode: status === 401 ? 'AUTH_LOGIN_FAILED' : 'AUTH_INVALID_LOGIN_INPUT' }) }) as Response) as typeof fetch;
         await assert.rejects(
           login({ loginId: 'admin', password: 'admin' }),
-          new RegExp(`Failed to log in: ${status}`),
+          (error) => error instanceof ApiError && error.status === status && error.errorCode !== null,
         );
       });
     }

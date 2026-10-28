@@ -3,7 +3,8 @@
 ## 공통 동작
 
 - 아래 변경 API는 개발 환경에서만 사용할 수 있다. `NODE_ENV`가 없으면 development로 취급한다. 다른 환경에서는 404를 반환한다.
-- 인증은 구현되어 있지 않으며 두 API 모두 `userUuid` 경로 값으로 사용자를 식별한다. 신뢰할 수 있는 운영 API로 공개하지 않는다.
+- 두 API 모두 `Authorization: Bearer <accessToken>`이 필요하고, 검증된 JWT payload의 사용자 UUID로 처리한다. 요청 경로·본문·query에서 사용자 UUID를 받지 않는다.
+- 기존 `POST /users/:userUuid/points/increase`와 `POST /users/:userUuid/episodes/:episodeUuid/purchaseSingle` 경로는 제거했으며 요청 시 404다.
 - 경로 값의 UUID 형식을 별도로 검사하지 않고 DB에서 조회한다. 조회되는 리소스가 없으면 404를 반환한다. 숫자 ID는 응답에 노출하지 않는다.
 - 성공 요청은 envelope 없이 JSON 응답을 반환한다. 업무 오류는 아래 공통 필드의 포인트 커스텀 오류 형식으로 반환한다.
 
@@ -13,7 +14,7 @@
   "errorName": "InsufficientPoints",
   "statusCode": 409,
   "timestamp": "2026-10-27T07:00:00.000Z",
-  "path": "/users/<userUuid>/episodes/<episodeUuid>/purchaseSingle"
+  "path": "/me/episodes/<episodeUuid>/purchaseSingle"
 }
 ```
 
@@ -21,7 +22,7 @@
 
 ## 포인트 지급
 
-### `POST /users/:userUuid/points/increase`
+### `POST /me/points/increase`
 
 사용자 지갑에 포인트를 지급하고 `ADMIN_ADJUSTMENT` 원장을 기록한다.
 
@@ -29,7 +30,7 @@
 
 | 이름 | 필수 | 설명 |
 | --- | --- | --- |
-| `userUuid` | 예 | 지급할 사용자의 UUID |
+사용자는 Access JWT에서 결정한다. Request body에 사용자 UUID를 보내도 무시된다.
 
 #### Request body
 
@@ -61,14 +62,14 @@
 | --- | --- | --- | --- |
 | 400 | `POINT_INVALID_INCREASE` | `InvalidPointIncrease` | body가 유효하지 않음 |
 | 400 | `POINT_BALANCE_OVERFLOW` | `PointBalanceOverflow` | 지급 후 INT 잔액 범위 초과 |
-| 404 | `POINT_USER_NOT_FOUND` | `PointUserNotFound` | 사용자가 없음 |
 | 404 | `POINT_WALLET_NOT_FOUND` | `PointWalletNotFound` | 사용자 지갑이 없음 |
 | 409 | `POINT_IDEMPOTENCY_CONFLICT` | `PointIdempotencyConflict` | 키가 다른 요청에 이미 사용됨 |
-| 404 | — | — | 개발 환경 외 접근 (기본 NestJS 오류) |
+| 401 | `AUTH_INVALID_TOKEN` | `InvalidToken` | Access JWT 누락·오류 |
+| 404 | — | — | 인증 성공 후 개발 환경 외 접근 (기본 NestJS 오류) |
 
 ## 회차 단건 구매
 
-### `POST /users/:userUuid/episodes/:episodeUuid/purchaseSingle`
+### `POST /me/episodes/:episodeUuid/purchaseSingle`
 
 공개된 회차 하나를 현재 서버 가격으로 구매한다. 요청 body는 없다. 금액과 원장 중복 방지 키를 클라이언트에서 받지 않는다.
 
@@ -76,8 +77,9 @@
 
 | 이름 | 필수 | 설명 |
 | --- | --- | --- |
-| `userUuid` | 예 | 구매할 사용자의 UUID |
 | `episodeUuid` | 예 | 구매할 회차의 UUID |
+
+구매 사용자는 Access JWT에서 결정한다. 요청에 사용자 UUID를 추가해도 대상 사용자가 바뀌지 않는다.
 
 작품과 회차 모두 `PUBLISHED` 상태이고 `publishedAt`이 현재 시각 이하이어야 한다. 서버는 회차의 `pricePoints`를 사용한다. 없는 회차, 비공개 회차·작품, 공개 예정 회차·작품은 모두 `404 Episode not found`다.
 
@@ -98,10 +100,10 @@
 
 | HTTP | errorCode | errorName | 의미 |
 | --- | --- | --- | --- |
-| 404 | `POINT_USER_NOT_FOUND` | `PointUserNotFound` | 사용자가 없음 |
 | 404 | `POINT_WALLET_NOT_FOUND` | `PointWalletNotFound` | 지갑이 없음 |
 | 404 | `POINT_EPISODE_NOT_FOUND` | `PointEpisodeNotFound` | 회차 없음, 비공개 또는 공개 예정 |
 | 409 | `POINT_INSUFFICIENT_BALANCE` | `InsufficientPoints` | 잔액 부족 |
-| 404 | — | — | 개발 환경 외 접근 (기본 NestJS 오류) |
+| 401 | `AUTH_INVALID_TOKEN` | `InvalidToken` | Access JWT 누락·오류 |
+| 404 | — | — | 인증 성공 후 개발 환경 외 접근 (기본 NestJS 오류) |
 
 현재 회차 재생 URL API는 구매 권한을 확인하지 않는다. 이 구매 API를 추가해도 재생 접근 제어는 바뀌지 않는다.
