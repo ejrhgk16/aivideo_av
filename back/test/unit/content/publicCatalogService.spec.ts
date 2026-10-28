@@ -189,6 +189,11 @@ describe('PublicCatalogService publication boundaries', () => {
 
     await expect(service.getEpisodePlaybackUrl('episode'))
       .rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.getEpisodePlaybackUrl(
+      'episode',
+      '00000010-0000-4000-8000-000000000001',
+    ))
+      .rejects.toBeInstanceOf(NotFoundException);
     await expect(service.getDramaPreviewPlaybackUrl('drama', 'preview'))
       .rejects.toBeInstanceOf(NotFoundException);
     expect(dramas.findOne).not.toHaveBeenCalled();

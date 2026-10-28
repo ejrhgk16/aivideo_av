@@ -59,3 +59,9 @@ export class InsufficientPointsException extends BaseException {
     super(ErrorCodeEnum.InsufficientPoints, 'InsufficientPoints', HttpStatus.CONFLICT);
   }
 }
+
+export class EpisodeAccessDeniedException extends BaseException {
+  constructor() {
+    super(ErrorCodeEnum.EpisodeAccessDenied, 'EpisodeAccessDenied', HttpStatus.FORBIDDEN);
+  }
+}

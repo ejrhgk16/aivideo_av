@@ -20,7 +20,8 @@
 - 이미지와 영상의 `storageKey`는 저장소 내부 키다. `imageUrls`는 공개 이미지 키 패턴에 해당하는 S3 직접 URL을 제공하며, 개발용 로컬 이미지 API는 없다. FULL·PREVIEW 영상의 재생 API는 개발 환경에서만 S3 객체 GET 서명 URL을 발급하며 3600초 후 만료된다.
 - 현재 정의된 홈 콘텐츠 API는 인증을 요구하지 않는다.
 - `GET /dramas/:dramaId`는 선택 `userUuid`를 받아 회차별 `isUnlocked`를 표시할 수 있다. 현재 로그인은 토큰이나 세션을 발급하지 않으므로 이 값은 사용자 식별 값이며 인증·권한 부여 수단이 아니다. 생략 시 무료 회차만 열림으로 표시한다.
+- `GET /episodes/:episodeId/playback`는 선택 `userUuid`를 받아 유료 회차 entitlement를 확인한다. 사용자 UUID는 인증 수단이 아니다. 익명 요청은 무료 회차만 재생할 수 있고, 유료 회차는 해당 사용자와 회차가 일치하는 entitlement가 있어야 한다. 권한 거부는 `EPISODE_ACCESS_DENIED`(403)이며 회차 재생 endpoint에서 `{ errorCode, errorName, statusCode, timestamp, path }` 형식으로 반환한다.
 - `POST /auth/login`은 loginId/password를 확인해 사용자 정보와 현재 포인트 잔액을 반환한다. 현재 개발 시드는 admin/admin이며 로그인 응답은 토큰이나 세션 쿠키를 발급하지 않는다.
 - 개발 웹 클라이언트 `http://localhost:8081`만 CORS 요청 origin으로 허용한다.
 - CORS는 와일드카드 origin을 사용하지 않으며, 운영 origin과 credentials는 별도 계약에서 정의한다.
-- 회차와 프리뷰 재생 URL은 공개 콘텐츠 조건을 확인하지만 사용자별 구매·해제 상태는 확인하지 않는다. 가격과 무관하게 공개 회차의 본편 영상 URL을 제공한다. 사용자별 접근 제어는 별도 인증 API 계약에서 정의한다.
+- 회차 재생은 공개 콘텐츠 조건과 유료 회차의 사용자별 entitlement를 확인한다. 프리뷰 재생은 공개 작품과 해당 작품 소유의 프리뷰 영상 여부만 확인하며 회차 entitlement와 무관하다.

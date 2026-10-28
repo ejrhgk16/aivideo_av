@@ -8,4 +8,5 @@ export enum ErrorCodeEnum {
   PointBalanceOverflow = 'POINT_BALANCE_OVERFLOW',
   PointIdempotencyConflict = 'POINT_IDEMPOTENCY_CONFLICT',
   InsufficientPoints = 'POINT_INSUFFICIENT_BALANCE',
+  EpisodeAccessDenied = 'EPISODE_ACCESS_DENIED',
 }

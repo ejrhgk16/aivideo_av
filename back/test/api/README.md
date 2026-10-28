@@ -44,7 +44,7 @@ Tests may prepare the required development data through database setup, seeds, a
 
 The login collection requests `POST /auth/login` with the seeded `admin` / `admin` credentials, repeats login with another well-formed pair (the controller currently substitutes admin/admin), and checks the public user/points response and custom 400 errors for malformed input.
 
-The collection checks the root endpoint, genre/catalog response shapes and public UUIDs, default/invalid sort, detail/catalog consistency, public episode counts and ordering, free/paid episode playback, preview playback and ownership, missing-resource errors, four home collections and their ordering, and allowed/disallowed CORS origins and preflight. It also checks POST preflight for the development-only point increase and single-episode purchase paths. Preflight verifies CORS negotiation only; it does not prove the POST route or any balance, ledger, or entitlement change.
+The collection checks the root endpoint, genre/catalog response shapes and public UUIDs, default/invalid sort, detail/catalog consistency, public episode counts and ordering, anonymous and user-aware free playback, owned and denied paid playback, preview playback and ownership, missing-resource errors, four home collections and their ordering, and allowed/disallowed CORS origins and preflight. It also checks POST preflight for the development-only point increase and single-episode purchase paths. Preflight verifies CORS negotiation only; it does not prove the POST route or any balance, ledger, or entitlement change.
 
 The collection checks the existing catalog, POST preflight, custom point error responses, including invalid input, missing user/episode, insufficient balance, and idempotency conflict. The insufficient-balance case requires a development test user `00000012-0000-4000-8000-000000000001` with an existing zero-point wallet. Prepare it in the configured development database with:
 
@@ -75,13 +75,15 @@ The detail collection cases also compare a user's entitlement with a second user
 
 The current DB was inspected using SELECT statements only. The same drama also contains a free episode (`00000004-0000-4000-8000-000000000001`). If local development data differs, set equivalent IDs for existing users, drama, and episodes in the Postman environment. The API collection must not create an entitlement or change point balances to prepare these cases.
 
+The playback checks reuse these fixtures: the admin can play `entitledEpisodeUuid`, while `unentitledUserUuid` and an anonymous request receive the custom 403 for that paid episode. Both users and an anonymous request can play the free episode. `lockedEpisodeUuid` verifies that entitlement to one episode does not unlock another episode. Playback requests do not mutate users, point balances, or entitlements.
+
 To override the fixture defaults, pass environment values to Postman CLI:
 
 ```powershell
 npm --prefix back run test -- -- --env-var entitledUserUuid=00000010-0000-4000-8000-000000000001 --env-var unentitledUserUuid=00000012-0000-4000-8000-000000000001 --env-var entitlementDramaUuid=00000002-0000-4000-8000-000000000001 --env-var entitledEpisodeUuid=00000004-0000-4000-8000-000000000002 --env-var lockedEpisodeUuid=00000004-0000-4000-8000-000000000003
 ```
 
-The detail checks verify the owned paid episode is unlocked only for its owner, another paid episode stays locked, free episodes are unlocked for both users, and omitting `userUuid` does not expose a stored entitlement.
+The detail checks verify the owned paid episode is unlocked only for its owner, another paid episode stays locked, free episodes are unlocked for both users, and omitting `userUuid` does not expose a stored entitlement. Playback separately requires a matching entitlement for paid episodes; omitted `userUuid` remains valid for free episodes and previews.
 
 The drama detail collection requires one watch-progress fixture for the entitled user. It compares the response with `watchProgressEpisodeUuid`, `watchProgressPositionMs`, `watchProgressIsCompleted`, and `watchProgressLastPlayedAt`; the same episode must return `watchProgress: null` for `unentitledUserUuid` and with `userUuid` omitted. Defaults match the development fixture below. If local UUIDs differ, set these variables to the equivalent records in the Postman environment.
 

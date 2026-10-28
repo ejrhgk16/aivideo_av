@@ -13,6 +13,7 @@ import { User } from '../identity/entities/user.entity.js';
 import { UserWatchProgress } from '../playback/entities/userWatchProgress.entity.js';
 import { createDramaImageUrls } from './mediaUrl.js';
 import { S3VideoUrlService } from './s3VideoUrlService.js';
+import { EpisodeAccessDeniedException } from '../common/error/error.customExceptions.js';
 
 const PUBLIC_STATUS = 'PUBLISHED';
 
@@ -294,7 +295,7 @@ export class PublicCatalogService {
     };
   }
 
-  private async getEpisodeVideo(episodeId: string, now: Date): Promise<{ storageKey: string; title: string | null; episodeNumber: number; durationMs: number }> {
+  private async getEpisodeVideo(episodeId: string, userUuid: string | undefined, now: Date): Promise<{ storageKey: string; title: string | null; episodeNumber: number; durationMs: number; userId: number | null; pricePoints: number | string; entitlementId: number | null }> {
     const video = await this.episodeRepository
       .createQueryBuilder('episode')
       .innerJoin(Drama, 'drama', 'drama.id = episode.dramaId AND drama.status = :dramaStatus AND drama.publishedAt <= :now', {
@@ -305,24 +306,42 @@ export class PublicCatalogService {
         contentType: 'EPISODE',
         kind: 'FULL',
       })
+      .leftJoin(User, 'playbackUser', 'playbackUser.uuid = :userUuid', { userUuid: userUuid ?? null })
+      .leftJoin(EpisodeEntitlement, 'entitlement',
+        'entitlement.userId = playbackUser.id AND entitlement.episodeId = episode.id')
       .select('video.storageKey', 'storageKey')
       .addSelect('video.durationMs', 'durationMs')
       .addSelect('episode.title', 'title')
       .addSelect('episode.episodeNumber', 'episodeNumber')
+      .addSelect('playbackUser.id', 'userId')
+      .addSelect('episode.pricePoints', 'pricePoints')
+      .addSelect('entitlement.id', 'entitlementId')
       .where('episode.uuid = :episodeUuid', { episodeUuid: episodeId })
       .andWhere('episode.status = :episodeStatus', { episodeStatus: PUBLIC_STATUS })
       .andWhere('episode.publishedAt <= :now', { now })
       .orderBy('video.displayOrder', 'ASC')
       .limit(1)
-      .getRawOne<{ storageKey: string; title: string | null; episodeNumber: number; durationMs: number }>();
+      .getRawOne<{
+        storageKey: string;
+        title: string | null;
+        episodeNumber: number;
+        durationMs: number;
+        userId: number | null;
+        pricePoints: number | string;
+        entitlementId: number | null;
+      }>();
 
     if (!video) throw new NotFoundException(`Episode '${episodeId}' was not found`);
+    if (userUuid !== undefined && video.userId === null) throw new NotFoundException('User not found');
+    if (Number(video.pricePoints) !== 0 && video.entitlementId === null) {
+      throw new EpisodeAccessDeniedException();
+    }
     return video;
   }
 
-  async getEpisodePlaybackUrl(episodeId: string, now = new Date()): Promise<{ url: string; title: string | null; episodeNumber: number; durationMs: number }> {
+  async getEpisodePlaybackUrl(episodeId: string, userUuid?: string, now = new Date()): Promise<{ url: string; title: string | null; episodeNumber: number; durationMs: number }> {
     if (process.env.NODE_ENV !== 'development') throw new NotFoundException(`Episode '${episodeId}' was not found`);
-    const { storageKey, title, episodeNumber, durationMs } = await this.getEpisodeVideo(episodeId, now);
+    const { storageKey, title, episodeNumber, durationMs } = await this.getEpisodeVideo(episodeId, userUuid, now);
     const url = await this.s3VideoUrlService.createSignedGetUrl(storageKey);
     return { url, title, episodeNumber, durationMs };
   }

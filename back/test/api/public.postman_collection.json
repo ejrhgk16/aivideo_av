@@ -330,7 +330,7 @@
     },
     {
       "name": "Drama detail for entitled user",
-      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));","const detail = pm.response.json();","const owned = detail.episodes.find(e => e.uuid === pm.variables.get(\"entitledEpisodeUuid\"));","const locked = detail.episodes.find(e => e.uuid === pm.variables.get(\"lockedEpisodeUuid\"));","const progressEpisodeUuid = pm.variables.get(\"watchProgressEpisodeUuid\");","const progressEpisode = detail.episodes.find(e => e.uuid === progressEpisodeUuid);","pm.test(\"The user's paid entitlement unlocks only owned episodes\", () => {","  pm.expect(owned).to.be.an(\"object\");","  pm.expect(owned.pricePoints).to.be.above(0);","  pm.expect(owned.isUnlocked).to.equal(true);","  pm.expect(locked).to.be.an(\"object\");","  pm.expect(locked.pricePoints).to.be.above(0);","  pm.expect(locked.isUnlocked).to.equal(false);","  const free = detail.episodes.filter(e => e.pricePoints === 0);","  pm.expect(free.length).to.be.above(0);","  free.forEach(e => pm.expect(e.isUnlocked).to.equal(true));","});","pm.test(\"Configured existing watch progress matches its SELECT fixture\", () => {","  pm.expect(progressEpisodeUuid, \"Set watchProgress* variables from an existing DB row\").to.match(/^[0-9a-f-]{36}$/i);","  pm.expect(progressEpisode).to.be.an(\"object\");","  pm.expect(progressEpisode.watchProgress).to.deep.equal({","    positionMs: Number(pm.variables.get(\"watchProgressPositionMs\")),","    isCompleted: pm.variables.get(\"watchProgressIsCompleted\") === \"true\",","    lastPlayedAt: pm.variables.get(\"watchProgressLastPlayedAt\"),","  });","});"]}}],
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));","const detail = pm.response.json();","const owned = detail.episodes.find(e => e.uuid === pm.variables.get(\"entitledEpisodeUuid\"));","const locked = detail.episodes.find(e => e.uuid === pm.variables.get(\"lockedEpisodeUuid\"));","const progressEpisodeUuid = pm.variables.get(\"watchProgressEpisodeUuid\");","const progressEpisode = detail.episodes.find(e => e.uuid === progressEpisodeUuid);","pm.test(\"The user's paid entitlement unlocks only owned episodes\", () => {","  pm.expect(owned).to.be.an(\"object\");","  pm.expect(owned.pricePoints).to.be.above(0);","  pm.expect(owned.isUnlocked).to.equal(true);","  pm.expect(locked).to.be.an(\"object\");","  pm.expect(locked.pricePoints).to.be.above(0);","  pm.expect(locked.isUnlocked).to.equal(false);","  const free = detail.episodes.filter(e => e.pricePoints === 0);","  pm.expect(free.length).to.be.above(0);","  free.forEach(e => pm.expect(e.isUnlocked).to.equal(true));","});","pm.collectionVariables.set(\"fixtureEntitledEpisode\", JSON.stringify(owned));","pm.test(\"Configured existing watch progress matches its SELECT fixture\", () => {","  pm.expect(progressEpisodeUuid, \"Set watchProgress* variables from an existing DB row\").to.match(/^[0-9a-f-]{36}$/i);","  pm.expect(progressEpisode).to.be.an(\"object\");","  pm.expect(progressEpisode.watchProgress).to.deep.equal({","    positionMs: Number(pm.variables.get(\"watchProgressPositionMs\")),","    isCompleted: pm.variables.get(\"watchProgressIsCompleted\") === \"true\",","    lastPlayedAt: pm.variables.get(\"watchProgressLastPlayedAt\"),","  });","});"]}}],
       "request": {"method":"GET","header":[],"url":"{{baseUrl}}/dramas/{{entitlementDramaUuid}}?userUuid={{entitledUserUuid}}"}
     },
     {
@@ -397,6 +397,16 @@
       }
     },
     {
+      "name": "Free episode playback for entitled user",
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"Free episode playback accepts a user UUID\", () => pm.response.to.have.status(200));","pm.expect(pm.response.json().url).to.be.a(\"string\");"]}}],
+      "request": {"method":"GET","header":[],"url":"{{baseUrl}}/episodes/{{freeEpisodeId}}/playback?userUuid={{entitledUserUuid}}"}
+    },
+    {
+      "name": "Free episode playback for unentitled user",
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"Free episode playback accepts an unentitled user UUID\", () => pm.response.to.have.status(200));","pm.expect(pm.response.json().url).to.be.a(\"string\");"]}}],
+      "request": {"method":"GET","header":[],"url":"{{baseUrl}}/episodes/{{freeEpisodeId}}/playback?userUuid={{unentitledUserUuid}}"}
+    },
+    {
       "name": "Paid episode playback",
       "event": [
         {
@@ -407,7 +417,7 @@
               "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
               "",
               "const body = pm.response.json();",
-              "const episode = JSON.parse(pm.collectionVariables.get(\"paidEpisode\"));",
+              "const episode = JSON.parse(pm.collectionVariables.get(\"fixtureEntitledEpisode\"));",
               "pm.test(\"Playback matches the selected episode\", () => {",
               "  pm.expect(body.title).to.equal(episode.title);",
               "  pm.expect(body.episodeNumber).to.equal(episode.episodeNumber);",
@@ -426,8 +436,43 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": "{{baseUrl}}/episodes/{{paidEpisodeId}}/playback"
+        "url": "{{baseUrl}}/episodes/{{entitledEpisodeUuid}}/playback?userUuid={{entitledUserUuid}}"
       }
+    },
+    {
+      "name": "Paid episode playback denied for another user",
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"Paid episode requires this user entitlement\", () => {","  pm.response.to.have.status(403);","  const body = pm.response.json();","  pm.expect(body.errorCode).to.equal(\"EPISODE_ACCESS_DENIED\");","  pm.expect(body.errorName).to.equal(\"EpisodeAccessDenied\");","  pm.expect(body.statusCode).to.equal(403);","  pm.expect(body.timestamp).to.be.a(\"string\");","  pm.expect(Number.isNaN(Date.parse(body.timestamp))).to.equal(false);","  pm.expect(body.path).to.equal(`/episodes/${pm.variables.get(\"entitledEpisodeUuid\")}/playback?userUuid=${pm.variables.get(\"unentitledUserUuid\")}`);","  pm.expect(body).not.to.have.property(\"url\");","});"]}}],
+      "request": {"method":"GET","header":[],"url":"{{baseUrl}}/episodes/{{entitledEpisodeUuid}}/playback?userUuid={{unentitledUserUuid}}"}
+    },
+    {
+      "name": "Paid episode playback denied without user",
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"Anonymous paid playback is denied with custom error\", () => {","  pm.response.to.have.status(403);","  const body = pm.response.json();","  pm.expect(body.errorCode).to.equal(\"EPISODE_ACCESS_DENIED\");","  pm.expect(body.errorName).to.equal(\"EpisodeAccessDenied\");","  pm.expect(body.statusCode).to.equal(403);","  pm.expect(body.path).to.equal(`/episodes/${pm.variables.get(\"entitledEpisodeUuid\")}/playback`);","  pm.expect(body).not.to.have.property(\"url\");","});"]}}],
+      "request": {"method":"GET","header":[],"url":"{{baseUrl}}/episodes/{{entitledEpisodeUuid}}/playback"}
+    },
+    {
+      "name": "Entitled user denied on a different paid episode",
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"Entitlement is scoped to one episode\", () => {","  pm.response.to.have.status(403);","  const body = pm.response.json();","  pm.expect(body.errorCode).to.equal(\"EPISODE_ACCESS_DENIED\");","  pm.expect(body.errorName).to.equal(\"EpisodeAccessDenied\");","  pm.expect(body.statusCode).to.equal(403);","  pm.expect(body.path).to.equal(`/episodes/${pm.variables.get(\"lockedEpisodeUuid\")}/playback?userUuid=${pm.variables.get(\"entitledUserUuid\")}`);","  pm.expect(body).not.to.have.property(\"url\");","});"]}}],
+      "request": {"method":"GET","header":[],"url":"{{baseUrl}}/episodes/{{lockedEpisodeUuid}}/playback?userUuid={{entitledUserUuid}}"}
+    },
+    {
+      "name": "Malformed playback user UUID",
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"Malformed user UUID returns HTTP 400\", () => {","  pm.response.to.have.status(400);","  pm.expect(pm.response.json().message).to.equal('userUuid must be a UUID');","});"]}}],
+      "request": {"method":"GET","header":[],"url":"{{baseUrl}}/episodes/{{entitledEpisodeUuid}}/playback?userUuid=invalid"}
+    },
+    {
+      "name": "Empty playback user UUID",
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"Empty user UUID returns HTTP 400\", () => {","  pm.response.to.have.status(400);","  pm.expect(pm.response.json().message).to.equal('userUuid must be a UUID');","});"]}}],
+      "request": {"method":"GET","header":[],"url":"{{baseUrl}}/episodes/{{entitledEpisodeUuid}}/playback?userUuid="}
+    },
+    {
+      "name": "Repeated playback user UUID",
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"Repeated user UUID returns HTTP 400\", () => {","  pm.response.to.have.status(400);","  pm.expect(pm.response.json().message).to.equal('userUuid must be a UUID');","});"]}}],
+      "request": {"method":"GET","header":[],"url":"{{baseUrl}}/episodes/{{entitledEpisodeUuid}}/playback?userUuid={{entitledUserUuid}}&userUuid={{unentitledUserUuid}}"}
+    },
+    {
+      "name": "Unknown playback user UUID",
+      "event": [{"listen":"test","script":{"type":"text/javascript","exec":["pm.test(\"Unknown user UUID returns HTTP 404\", () => {","  pm.response.to.have.status(404);","  pm.expect(pm.response.json().message).to.equal('User not found');","});"]}}],
+      "request": {"method":"GET","header":[],"url":"{{baseUrl}}/episodes/{{freeEpisodeId}}/playback?userUuid={{missingId}}"}
     },
     {
       "name": "Preview playback",
@@ -501,7 +546,7 @@
       "request": {
         "method": "GET",
         "header": [],
-        "url": "{{baseUrl}}/episodes/{{missingId}}/playback"
+        "url": "{{baseUrl}}/episodes/{{missingId}}/playback?userUuid={{entitledUserUuid}}"
       }
     },
     {

@@ -1,5 +1,6 @@
-import { BadRequestException, Controller, Get, Param, Query } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Param, Query, UseFilters } from '@nestjs/common';
 import { PublicCatalogService } from './publicCatalogService.js';
+import { AllExceptionFilter } from '../common/error/error.filter.js';
 
 @Controller()
 export class PublicCatalogController {
@@ -28,8 +29,18 @@ export class PublicCatalogController {
   }
 
   @Get('episodes/:episodeId/playback')
-  getEpisodePlayback(@Param('episodeId') episodeId: string) {
-    return this.publicCatalogService.getEpisodePlaybackUrl(episodeId);
+  @UseFilters(AllExceptionFilter)
+  getEpisodePlayback(
+    @Param('episodeId') episodeId: string,
+    @Query('userUuid') userUuid?: unknown,
+  ) {
+    if (userUuid !== undefined && (
+      typeof userUuid !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userUuid)
+    )) {
+      throw new BadRequestException('userUuid must be a UUID');
+    }
+    return this.publicCatalogService.getEpisodePlaybackUrl(episodeId, userUuid);
   }
 
   @Get('dramas/:dramaId/previews/:videoId/playback')

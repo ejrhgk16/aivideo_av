@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "plan_id": "plan-32-episode-playback-entitlements",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "episode-playback-entitlements",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/content/publicCatalogController.ts",
+        "back/src/content/publicCatalogService.ts",
+        "back/src/common/error/error.enum.ts",
+        "back/src/common/error/error.customExceptions.ts",
+        "back/test/unit/content/publicCatalogService.spec.ts",
+        "back/test/api/public.postman_collection.json",
+        "back/test/api/README.md",
+        "_docs/api/04-playback/episodes.md",
+        "_docs/api/00-overview/conventions.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-28T08:35:39.305Z",
+      "summary": "Implemented optional userUuid validation and LEFT JOIN entitlement checks for episode playback. Anonymous free playback remains available; paid playback without a matching entitlement returns EPISODE_ACCESS_DENIED (403). Updated Postman coverage and API docs. Verified localhost:3000 reflected the changes. npm --prefix back run lint, npm --prefix back run test (68 unit tests and 51 API requests passed), and npm --prefix back run build all passed.",
+      "completed_at": "2026-10-28T08:44:17.397Z"
+    },
+    {
+      "id": "task-2",
+      "name": "front-playback-user-uuid",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/src/screens/playbackScreen_episode.tsx",
+        "front/src/features/playback/episodePlayback.ts",
+        "front/tests/unit/episodePlayback.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-28T08:44:28.282Z",
+      "summary": "Connected UserProvider UUID to episode playback requests; anonymous requests still omit the query and proceed. Playback reloads on user changes and ignores stale responses. Typecheck passed, npm test passed (30 tests), Expo export passed for web/iOS/Android, and episodePlayback.test.ts passed separately (6/6). The existing npm test runner does not include episodePlayback.test.ts.",
+      "completed_at": "2026-10-28T08:47:03.355Z"
+    }
+  ]
+}

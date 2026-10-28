@@ -186,6 +186,12 @@
       "directory": "plan-31-drama-detail-watch-progress",
       "title": "드라마 상세 시청기록 JOIN과 회차 색상 표시",
       "status": "completed"
+    },
+    {
+      "id": "plan-32-episode-playback-entitlements",
+      "directory": "plan-32-episode-playback-entitlements",
+      "title": "회차 재생 사용자별 권한 검사와 커스텀 오류",
+      "status": "completed"
     }
   ]
 }

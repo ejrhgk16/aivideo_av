@@ -16,11 +16,58 @@ test('episode playback encodes the id and resolves relative video URLs', async (
   }) as typeof fetch;
 
   try {
-    assert.deepEqual(await getEpisodePlayback('episode/1'), {
+    assert.deepEqual(await getEpisodePlayback('episode/1', 'user/1'), {
       ...body,
       url: 'http://localhost:3000/media/video.mp4',
     });
-    assert.deepEqual(urls, ['http://localhost:3000/api/episodes/episode%2F1/playback']);
+    assert.deepEqual(urls, ['http://localhost:3000/api/episodes/episode%2F1/playback?userUuid=user%2F1']);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (baseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    else process.env.EXPO_PUBLIC_API_BASE_URL = baseUrl;
+  }
+});
+
+test('episode playback requests anonymously without adding an empty user query', async () => {
+  const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+  const originalFetch = globalThis.fetch;
+  const urls: string[] = [];
+  const body = { url: '/media/video.mp4', title: null, episodeNumber: 1, durationMs: 420000 };
+  process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000/api';
+  globalThis.fetch = (async (input) => {
+    urls.push(String(input));
+    return { ok: true, json: async () => body } as Response;
+  }) as typeof fetch;
+
+  try {
+    await getEpisodePlayback('episode-1');
+    assert.deepEqual(urls, ['http://localhost:3000/api/episodes/episode-1/playback']);
+    assert.equal(urls[0].includes('undefined'), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (baseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    else process.env.EXPO_PUBLIC_API_BASE_URL = baseUrl;
+  }
+});
+
+test('episode playback includes the UUID for each requested user', async () => {
+  const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+  const originalFetch = globalThis.fetch;
+  const urls: string[] = [];
+  const body = { url: '/media/video.mp4', title: null, episodeNumber: 1, durationMs: 420000 };
+  process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000/api';
+  globalThis.fetch = (async (input) => {
+    urls.push(String(input));
+    return { ok: true, json: async () => body } as Response;
+  }) as typeof fetch;
+
+  try {
+    await getEpisodePlayback('episode-1', 'user-1');
+    await getEpisodePlayback('episode-1', 'user-2');
+    assert.deepEqual(urls, [
+      'http://localhost:3000/api/episodes/episode-1/playback?userUuid=user-1',
+      'http://localhost:3000/api/episodes/episode-1/playback?userUuid=user-2',
+    ]);
   } finally {
     globalThis.fetch = originalFetch;
     if (baseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;

@@ -10,12 +10,15 @@ import { EpisodeUnlockDialog } from '@/components/EpisodeUnlockDialog';
 import { colors } from '@/common/theme/tokens';
 import { getDramaContent, type DramaContent } from '@/features/drama/dramaContent';
 import { getEpisodePlayback, type EpisodePlayback } from '@/features/playback/episodePlayback';
+import { useUser } from '@/features/user/UserProvider';
 
 type LoadState = 'loading' | 'loaded' | 'not-found' | 'error';
 type Props = { id: string; dramaId?: string };
 
 export function PlaybackScreenEpisode({ id, dramaId }: Props) {
   const router = useRouter();
+  const { user } = useUser();
+  const userUuid = user?.uuid;
   const [playback, setPlayback] = useState<EpisodePlayback | null>(null);
   const [loadState, setLoadState] = useState<LoadState>('loading');
 
@@ -23,7 +26,7 @@ export function PlaybackScreenEpisode({ id, dramaId }: Props) {
     let active = true;
     setPlayback(null);
     setLoadState('loading');
-    getEpisodePlayback(id).then((result) => {
+    getEpisodePlayback(id, userUuid).then((result) => {
       if (!active) return;
       setPlayback(result);
       setLoadState('loaded');
@@ -33,7 +36,7 @@ export function PlaybackScreenEpisode({ id, dramaId }: Props) {
       setLoadState(/:\s*404\b/.test(message) ? 'not-found' : 'error');
     });
     return () => { active = false; };
-  }, [id]);
+  }, [id, userUuid]);
 
   const back = () => router.canGoBack() ? router.back() : router.replace('/');
   if (loadState === 'loading') {
