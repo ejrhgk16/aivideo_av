@@ -1,3 +1,13 @@
+## JWT development keys
+
+Development uses separate `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` values in the Git-ignored `.env.development`. Generate each independently from 64 random bytes and keep the values out of source control and logs:
+
+```powershell
+node -e "const c=require('node:crypto');console.log(c.randomBytes(64).toString('base64url'))"
+```
+
+To rotate keys, generate two new values, replace both settings in `.env.development`, and restart every backend instance so all instances use the same pair. Rotation invalidates existing access and refresh JWTs; users must sign in again. The retained refresh-token hash history remains in the database and contains no raw token values.
+
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>

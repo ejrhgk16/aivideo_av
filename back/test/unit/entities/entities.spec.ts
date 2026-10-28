@@ -4,6 +4,7 @@ import { getMetadataArgsStorage } from 'typeorm';
 import {
   AdRewardClaim,
   AdRewardOffer,
+  AuthSession,
   ContentCollection,
   ContentImage,
   ContentVideo,
@@ -15,6 +16,7 @@ import {
   PointPurchaseOrder,
   PointTransaction,
   ProductionCompany,
+  RefreshToken,
   Drama,
   User,
   UserPreference,
@@ -29,6 +31,8 @@ import {
 const expectedTableNames = new Set([
   'users',
   'user_preferences',
+  'auth_sessions',
+  'refresh_tokens',
   'production_companies',
   'dramas',
   'genres',
@@ -82,7 +86,7 @@ describe('AI DRAMA entity registry', () => {
       return table.name;
     });
 
-    expect(tableNames).toHaveLength(22);
+    expect(tableNames).toHaveLength(24);
     expect(new Set(tableNames).size).toBe(tableNames.length);
     expect(new Set(tableNames)).toEqual(expectedTableNames);
   });
@@ -185,6 +189,8 @@ describe('AI DRAMA entity registry', () => {
 
   it('uses unsigned integer columns for migrated parent references', () => {
     const references = [
+      [AuthSession, 'userId'],
+      [RefreshToken, 'authSessionId'],
       [User, 'productionCompanyId'],
       [UserPreference, 'userId'],
       [Drama, 'productionCompanyId'],
@@ -224,6 +230,51 @@ describe('AI DRAMA entity registry', () => {
         }),
       );
     }
+  });
+
+  it('defines auth session and refresh token storage metadata', () => {
+    for (const entity of [AuthSession, RefreshToken]) {
+      expect(metadataStorage.columns).toContainEqual(
+        expect.objectContaining({
+          target: entity,
+          propertyName: 'id',
+          options: expect.objectContaining({ primary: true, type: 'int', unsigned: true }),
+        }),
+      );
+      expect(metadataStorage.generations).toContainEqual(
+        expect.objectContaining({ target: entity, propertyName: 'id', strategy: 'increment' }),
+      );
+    }
+    expect(metadataStorage.columns).toContainEqual(
+      expect.objectContaining({
+        target: AuthSession,
+        propertyName: 'revokedAt',
+        options: expect.objectContaining({ name: 'revoked_at', type: 'datetime', precision: 3, nullable: true }),
+      }),
+    );
+    expect(metadataStorage.columns).toContainEqual(
+      expect.objectContaining({
+        target: RefreshToken,
+        propertyName: 'tokenHash',
+        options: expect.objectContaining({ name: 'token_hash', type: 'char', length: 64, unique: true }),
+      }),
+    );
+    expect(metadataStorage.columns).toContainEqual(
+      expect.objectContaining({
+        target: RefreshToken,
+        propertyName: 'usedAt',
+        options: expect.objectContaining({ name: 'used_at', type: 'datetime', precision: 3, nullable: true }),
+      }),
+    );
+    expect(metadataStorage.indices).toContainEqual(
+      expect.objectContaining({ target: AuthSession, name: 'idx_auth_sessions_user_id', columns: ['userId'] }),
+    );
+    expect(metadataStorage.indices).toContainEqual(
+      expect.objectContaining({ target: RefreshToken, name: 'idx_refresh_tokens_auth_session_id', columns: ['authSessionId'] }),
+    );
+    expect(metadataStorage.indices).toContainEqual(
+      expect.objectContaining({ target: RefreshToken, name: 'idx_refresh_tokens_expires_at', columns: ['expiresAt'] }),
+    );
   });
 
   it('does not register object relations for the documented entities', () => {

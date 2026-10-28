@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "plan_id": "plan-33-jwt-auth-session",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "auth-session-storage",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/identity/entities/authSession.entity.ts",
+        "back/src/identity/entities/refreshToken.entity.ts",
+        "back/src/identity/entities/index.ts",
+        "back/src/common/database/entities.ts",
+        "back/src/common/database/migrations/20261028000000AddAuthSessions.ts",
+        "back/test/unit/entities/entities.spec.ts",
+        "_docs/AI_DRAMA_data_model/README.md",
+        "_docs/AI_DRAMA_data_model/00-overview/README.md",
+        "_docs/AI_DRAMA_data_model/00-overview/scope.md",
+        "_docs/AI_DRAMA_data_model/00-overview/ERD.md",
+        "_docs/AI_DRAMA_data_model/01-identity/README.md",
+        "_docs/AI_DRAMA_data_model/01-identity/auth_sessions.md",
+        "_docs/AI_DRAMA_data_model/01-identity/refresh_tokens.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-28T10:31:11.514Z",
+      "summary": "Added and registered auth_sessions and refresh_tokens entities, migration, metadata tests, and updated the data model docs. Lint, all 69 unit tests, build, and API checks passed (51 requests, 0 failures). Confirmed localhost:3000 returned HTTP 200 and both tables exist in the registered schema. No JWT keys were changed.",
+      "completed_at": "2026-10-28T10:35:20.771Z"
+    },
+    {
+      "id": "task-2",
+      "name": "jwt-auth-api",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/package.json",
+        "back/package-lock.json",
+        "back/README.md",
+        "back/.env.development",
+        "back/src/identity/identity.module.ts",
+        "back/src/identity/loginController.ts",
+        "back/src/identity/loginService.ts",
+        "back/src/identity/tokenService.ts",
+        "back/src/identity/jwtStrategy.ts",
+        "back/src/identity/jwtAuthGuard.ts",
+        "back/src/common/error/error.enum.ts",
+        "back/src/common/error/error.customExceptions.ts",
+        "back/test/unit/loginController.spec.ts",
+        "back/test/unit/identity/tokenService.spec.ts",
+        "back/test/unit/identity/jwtStrategy.spec.ts",
+        "back/test/api/public.postman_collection.json",
+        "back/test/api/README.md",
+        "_docs/api/01-identity/README.md",
+        "_docs/api/01-identity/login.md",
+        "_docs/api/01-identity/refresh.md",
+        "_docs/api/01-identity/logout.md",
+        "_docs/api/00-overview/conventions.md",
+        "_docs/ARCHITECTURE.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-28T10:35:45.247Z",
+      "summary": "Implemented JWT login, refresh rotation, replay revocation, logout, and Passport Access authentication; configured separate ignored development keys. The existing localhost:3000 server reflected the changes. Lint and build passed; test passed with 86 unit tests, 79 API requests, and 197 assertions, with zero failures.",
+      "completed_at": "2026-10-28T10:51:54.329Z"
+    },
+    {
+      "id": "task-3",
+      "name": "front-auth-session",
+      "status": "completed",
+      "depends_on": [
+        "task-2"
+      ],
+      "files": [
+        "front/package.json",
+        "front/package-lock.json",
+        "front/app.json",
+        "front/src/common/storage/refreshTokenStorage.ts",
+        "front/src/common/storage/refreshTokenStorage.web.ts",
+        "front/src/features/user/login.ts",
+        "front/src/features/user/session.ts",
+        "front/src/features/user/UserProvider.tsx",
+        "front/src/features/user/useLogin.ts",
+        "front/src/app/login.tsx",
+        "front/tests/unit/login.test.ts",
+        "front/tests/unit/session.test.ts",
+        "front/scripts/test-front.cjs"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-28T10:52:20.844Z",
+      "summary": "Implemented native SecureStore and memory-only web refresh-token storage, serialized session restore/login/logout, and guarded late state updates. Checks passed: typecheck; 44 tests; export for web, iOS, and Android. Native device login, restart restoration, and logout remain unverified; no device automation was available.",
+      "completed_at": "2026-10-28T10:59:57.461Z"
+    }
+  ]
+}

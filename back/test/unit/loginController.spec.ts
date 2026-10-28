@@ -7,15 +7,16 @@ import { LoginService } from '../../src/identity/loginService.js';
 
 function createController() {
   const loginService = { login: vi.fn().mockResolvedValue({ uuid: 'user-uuid' }) };
-  return { controller: new LoginController(loginService as never), loginService };
+  const tokenService = { refresh: vi.fn(), logout: vi.fn() };
+  return { controller: new LoginController(loginService as never, tokenService as never), loginService };
 }
 
 describe('LoginController', () => {
-  it('validates request fields, then temporarily sends admin credentials to the service', async () => {
+  it('validates request fields and passes the supplied credentials to the service', async () => {
     const { controller, loginService } = createController();
 
     await controller.login({ loginId: 'any-user', password: 'provided-password' });
-    expect(loginService.login).toHaveBeenCalledWith({ loginId: 'admin', password: 'admin' });
+    expect(loginService.login).toHaveBeenCalledWith({ loginId: 'any-user', password: 'provided-password' });
   });
 
   it.each([
@@ -55,20 +56,35 @@ function createLoginService(result: object | undefined) {
     getRawOne: vi.fn().mockResolvedValue(result),
   };
   const repository = { createQueryBuilder: vi.fn().mockReturnValue(query) };
-  return { service: new LoginService(repository as never), query };
+  const tokenService = {
+    generateTokens: vi.fn().mockResolvedValue({ accessToken: 'access', refreshToken: 'refresh', refreshExpiresAt: new Date('2030-01-01T00:00:00Z') }),
+    saveRefreshToken: vi.fn().mockResolvedValue(undefined),
+  };
+  return { service: new LoginService(repository as never, tokenService as never), query, tokenService };
 }
 
 describe('LoginService', () => {
   it('checks credentials and active status in one wallet join and returns only the public login data', async () => {
     const row = {
       uuid: 'public-uuid',
+      id: 17,
       displayName: 'Admin',
       accountType: 'OPERATOR',
       availablePoints: 42,
     };
-    const { service, query } = createLoginService(row);
+    const { service, query, tokenService } = createLoginService(row);
 
-    await expect(service.login({ loginId: 'provided-id', password: 'provided-password' })).resolves.toEqual(row);
+    await expect(service.login({ loginId: 'provided-id', password: 'provided-password' })).resolves.toEqual({
+      uuid: row.uuid,
+      displayName: row.displayName,
+      accountType: row.accountType,
+      availablePoints: row.availablePoints,
+      accessToken: 'access',
+      refreshToken: 'refresh',
+      expiresIn: 900,
+    });
+    expect(tokenService.generateTokens).toHaveBeenCalledWith(row.uuid);
+    expect(tokenService.saveRefreshToken).toHaveBeenCalledWith(17, 'refresh', expect.any(Date));
     expect(query.leftJoin).toHaveBeenCalledTimes(1);
     expect(query.leftJoin.mock.calls[0][2]).toBe('wallet.userId = user.id');
     expect(query.where).toHaveBeenCalledWith('user.loginId = :loginId', { loginId: 'provided-id' });
@@ -79,12 +95,13 @@ describe('LoginService', () => {
     expect(query.andWhere).toHaveBeenCalledWith('user.status = :status', { status: 'ACTIVE' });
     const selectedFields = query.select.mock.calls.concat(query.addSelect.mock.calls).flat();
     expect(selectedFields.join(' ')).not.toContain('password');
-    expect(selectedFields.join(' ')).not.toContain('user.id');
+    expect(selectedFields.join(' ')).toContain('user.id');
   });
 
   it.each([null, 0, 17])('normalizes wallet balance %s', async (availablePoints) => {
     const { service } = createLoginService({
       uuid: 'public-uuid',
+      id: 17,
       displayName: null,
       accountType: 'MEMBER',
       availablePoints,

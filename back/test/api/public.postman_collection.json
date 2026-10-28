@@ -1048,9 +1048,9 @@
       }
     },
     {
-      "name": "Login returns admin user and points",
+      "name": "Login returns admin user, points, and tokens",
       "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
-        "pm.test('Admin login returns public user fields and points', () => { const body = pm.response.json(); pm.response.to.have.status(200); pm.expect(Object.keys(body).sort()).to.eql(['accountType','availablePoints','displayName','uuid']); pm.expect(body.uuid).to.be.a('string'); pm.expect(body.accountType).to.be.a('string'); pm.expect(body.availablePoints).to.be.a('number').and.at.least(0); pm.expect(body).not.to.have.property('password'); pm.expect(body).not.to.have.property('id'); pm.expect(pm.response.headers.has('Set-Cookie')).to.equal(false); pm.collectionVariables.set('loginUserUuid', body.uuid); });"
+        "pm.test('Admin login returns public fields and an access/refresh pair', () => { const body = pm.response.json(); pm.response.to.have.status(200); pm.expect(Object.keys(body).sort()).to.eql(['accessToken','accountType','availablePoints','displayName','expiresIn','refreshToken','uuid']); pm.expect(body.uuid).to.be.a('string'); pm.expect(body.accountType).to.be.a('string'); pm.expect(body.availablePoints).to.be.a('number').and.at.least(0); pm.expect(body.accessToken).to.be.a('string').and.not.be.empty; pm.expect(body.refreshToken).to.be.a('string').and.not.be.empty; pm.expect(body.expiresIn).to.equal(900); pm.expect(body).not.to.have.property('password'); pm.expect(body).not.to.have.property('id'); pm.expect(pm.response.headers.has('Set-Cookie')).to.equal(false); pm.collectionVariables.set('loginUserUuid', body.uuid); pm.collectionVariables.set('loginAccessToken', body.accessToken); pm.collectionVariables.set('loginRefresh0', body.refreshToken); const parts = body.refreshToken.split('.'); parts[2] = (parts[2][0] === 'A' ? 'B' : 'A') + parts[2].slice(1); pm.collectionVariables.set('tamperedRefresh', parts.join('.')); });"
       ] } }],
       "request": {
         "method": "POST",
@@ -1060,9 +1060,16 @@
       }
     },
     {
-      "name": "Login is repeatable",
+      "name": "Establish independent login B before login A rotation",
       "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
-        "pm.test('Repeated login succeeds with the same user', () => { const body = pm.response.json(); pm.response.to.have.status(200); pm.expect(body.uuid).to.equal(pm.collectionVariables.get('loginUserUuid')); pm.expect(body.availablePoints).to.be.a('number').and.at.least(0); });"
+        "pm.test('Independent login B succeeds before login A rotates', () => { const body = pm.response.json(); pm.response.to.have.status(200); pm.collectionVariables.set('loginBRefresh0', body.refreshToken); });"
+      ] } }],
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"loginId\":\"admin\",\"password\":\"admin\"}" }, "url": "{{baseUrl}}/auth/login" }
+    },
+    {
+      "name": "Login rejects incorrect credentials",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('An unmatched well-formed credential pair returns the existing login 401', () => { const body = pm.response.json(); pm.response.to.have.status(401); pm.expect(body).to.include({ errorCode: 'AUTH_LOGIN_FAILED', errorName: 'LoginFailed', statusCode: 401, path: '/auth/login' }); });"
       ] } }],
       "request": {
         "method": "POST",
@@ -1106,6 +1113,149 @@
         "body": { "mode": "raw", "raw": "{\"loginId\":123,\"password\":\"admin\"}" },
         "url": "{{baseUrl}}/auth/login"
       }
+    },
+    {
+      "name": "Victim-first rotation followed by replay revokes the login",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "const body = pm.response.json();",
+        "pm.test('Refresh returns the login response shape and rotates the token', () => { pm.response.to.have.status(200); pm.expect(Object.keys(body).sort()).to.eql(['accessToken','accountType','availablePoints','displayName','expiresIn','refreshToken','uuid']); pm.expect(body.uuid).to.equal(pm.collectionVariables.get('loginUserUuid')); pm.expect(body.expiresIn).to.equal(900); pm.expect(body.refreshToken).not.to.equal(pm.collectionVariables.get('loginRefresh0')); });",
+        "pm.collectionVariables.set('loginRefresh1', body.refreshToken);"
+      ] } }],
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"refreshToken\":\"{{loginRefresh0}}\"}" }, "url": "{{baseUrl}}/auth/refresh" }
+    },
+    {
+      "name": "Refresh chain advances to a second token",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "const body = pm.response.json();",
+        "pm.test('The second refresh succeeds and returns another token', () => { pm.response.to.have.status(200); pm.expect(body.uuid).to.equal(pm.collectionVariables.get('loginUserUuid')); pm.expect(body.refreshToken).not.to.equal(pm.collectionVariables.get('loginRefresh1')); });",
+        "pm.collectionVariables.set('loginRefresh2', body.refreshToken);"
+      ] } }],
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"refreshToken\":\"{{loginRefresh1}}\"}" }, "url": "{{baseUrl}}/auth/refresh" }
+    },
+    {
+      "name": "Refresh rejects a replayed token and commits session revocation",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Replayed refresh is a generic custom 401', () => { const body = pm.response.json(); pm.response.to.have.status(401); pm.expect(body).to.include({ errorCode: 'AUTH_INVALID_TOKEN', errorName: 'InvalidToken', statusCode: 401, path: '/auth/refresh' }); });"
+      ] } }],
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"refreshToken\":\"{{loginRefresh0}}\"}" }, "url": "{{baseUrl}}/auth/refresh" }
+    },
+    {
+      "name": "Replay revocation also rejects the latest token",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('A token from the revoked login is rejected on a later request', () => { const body = pm.response.json(); pm.response.to.have.status(401); pm.expect(body.errorCode).to.equal('AUTH_INVALID_TOKEN'); });"
+      ] } }],
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"refreshToken\":\"{{loginRefresh2}}\"}" }, "url": "{{baseUrl}}/auth/refresh" }
+    },
+    {
+      "name": "A separate login survives the first login replay",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "const body = pm.response.json();",
+        "pm.test('Pre-existing login B can still refresh after login A replay', () => { pm.response.to.have.status(200); pm.expect(body.uuid).to.equal(pm.collectionVariables.get('loginUserUuid')); });",
+        "pm.collectionVariables.set('loginRefreshB1', body.refreshToken);"
+      ] } }],
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"refreshToken\":\"{{loginBRefresh0}}\"}" }, "url": "{{baseUrl}}/auth/refresh" }
+    },
+    {
+      "name": "Logout login A after replay revocation",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Logout after replay remains idempotently successful', () => pm.response.to.have.status(204));"
+      ] } }],
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"refreshToken\":\"{{loginRefresh0}}\"}" }, "url": "{{baseUrl}}/auth/logout" }
+    },
+    {
+      "name": "Login B remains usable after login A logout",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "const body = pm.response.json();",
+        "pm.test('Login B refresh succeeds after login A logout', () => { pm.response.to.have.status(200); pm.expect(body.uuid).to.equal(pm.collectionVariables.get('loginUserUuid')); });",
+        "pm.collectionVariables.set('loginRefreshB2', body.refreshToken);"
+      ] } }],
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"refreshToken\":\"{{loginRefreshB1}}\"}" }, "url": "{{baseUrl}}/auth/refresh" }
+    },
+    {
+      "name": "Logout accepts an already used token and revokes its login",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Logout of a previous used token returns 204 and revokes the full login', () => pm.response.to.have.status(204));"
+      ] } }],
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"refreshToken\":\"{{loginBRefresh0}}\"}" }, "url": "{{baseUrl}}/auth/logout" }
+    },
+    {
+      "name": "Logout is idempotent for an already revoked login",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Repeated logout returns 204', () => pm.response.to.have.status(204));"
+      ] } }],
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"refreshToken\":\"{{loginBRefresh0}}\"}" }, "url": "{{baseUrl}}/auth/logout" }
+    },
+    {
+      "name": "Logout blocks later refresh",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Refresh after logout returns 401', () => { const body = pm.response.json(); pm.response.to.have.status(401); pm.expect(body.errorCode).to.equal('AUTH_INVALID_TOKEN'); });"
+      ] } }],
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"refreshToken\":\"{{loginRefreshB1}}\"}" }, "url": "{{baseUrl}}/auth/refresh" }
+    },
+    {
+      "name": "Refresh rejects malformed body",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Malformed refresh input returns custom 400', () => { const body = pm.response.json(); pm.response.to.have.status(400); pm.expect(body).to.include({ errorCode: 'AUTH_INVALID_TOKEN_INPUT', errorName: 'InvalidTokenInput', statusCode: 400, path: '/auth/refresh' }); });"
+      ] } }],
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"refreshToken\":\"   \"}" }, "url": "{{baseUrl}}/auth/refresh" }
+    },
+    {
+      "name": "Refresh rejects malformed signed token input",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Malformed token returns custom 401', () => { const body = pm.response.json(); pm.response.to.have.status(401); pm.expect(body).to.include({ errorCode: 'AUTH_INVALID_TOKEN', errorName: 'InvalidToken', statusCode: 401, path: '/auth/refresh' }); });"
+      ] } }],
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"refreshToken\":\"not-a-jwt\"}" }, "url": "{{baseUrl}}/auth/refresh" }
+    },
+    {
+      "name": "Refresh rejects an access token",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Access token cannot be used for refresh', () => { const body = pm.response.json(); pm.response.to.have.status(401); pm.expect(body.errorCode).to.equal('AUTH_INVALID_TOKEN'); });"
+      ] } }],
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"refreshToken\":\"{{loginAccessToken}}\"}" }, "url": "{{baseUrl}}/auth/refresh" }
+    },
+    {
+      "name": "Refresh rejects a tampered signature",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('A one-character signature mutation returns generic 401', () => { const body = pm.response.json(); pm.response.to.have.status(401); pm.expect(body.errorCode).to.equal('AUTH_INVALID_TOKEN'); });"
+      ] } }],
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"refreshToken\":\"{{tamperedRefresh}}\"}" }, "url": "{{baseUrl}}/auth/refresh" }
+    },
+    {
+      "name": "Attacker-first refresh is revoked when the user retries the old token",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "const send = options => new Promise((resolve, reject) => pm.sendRequest(options, (error, response) => error ? reject(error) : resolve(response)));",
+        "(async () => { const baseUrl = pm.variables.replaceIn('{{baseUrl}}'); const login = await send({ url: baseUrl + '/auth/login', method: 'POST', header: { 'Content-Type': 'application/json' }, body: { mode: 'raw', raw: JSON.stringify({ loginId: 'admin', password: 'admin' }) } }); const oldToken = login.json().refreshToken; const rotate = token => send({ url: baseUrl + '/auth/refresh', method: 'POST', header: { 'Content-Type': 'application/json' }, body: { mode: 'raw', raw: JSON.stringify({ refreshToken: token }) } }); const attacker = await rotate(oldToken); pm.test('Attacker-first refresh receives the first successful rotation', () => pm.expect(attacker.code).to.equal(200)); const victimRetry = await rotate(oldToken); pm.test('Victim retry detects the replay and revokes that login', () => { pm.expect(victimRetry.code).to.equal(401); pm.expect(victimRetry.json().errorCode).to.equal('AUTH_INVALID_TOKEN'); }); const newest = await rotate(attacker.json().refreshToken); pm.test('The attacker-first response token is rejected after replay detection', () => pm.expect(newest.code).to.equal(401)); })().catch(error => pm.test('Attacker-first refresh scenario completes', () => { throw error; }));"
+      ] } }],
+      "request": { "method": "OPTIONS", "header": [{ "key": "Origin", "value": "http://localhost:8081" }, { "key": "Access-Control-Request-Method", "value": "POST" }], "url": "{{baseUrl}}/auth/refresh" }
+    },
+    {
+      "name": "Create a login for current-token logout",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Current-token logout fixture login succeeds', () => { const body = pm.response.json(); pm.response.to.have.status(200); pm.collectionVariables.set('currentLogoutRefresh', body.refreshToken); });"
+      ] } }],
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"loginId\":\"admin\",\"password\":\"admin\"}" }, "url": "{{baseUrl}}/auth/login" }
+    },
+    {
+      "name": "Current refresh token logout revokes its login",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Logout with the current refresh token returns 204', () => pm.response.to.have.status(204));"
+      ] } }],
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"refreshToken\":\"{{currentLogoutRefresh}}\"}" }, "url": "{{baseUrl}}/auth/logout" }
+    },
+    {
+      "name": "Current-token logout blocks refresh",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Current-token logout revokes the session', () => { const body = pm.response.json(); pm.response.to.have.status(401); pm.expect(body.errorCode).to.equal('AUTH_INVALID_TOKEN'); });"
+      ] } }],
+      "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\"refreshToken\":\"{{currentLogoutRefresh}}\"}" }, "url": "{{baseUrl}}/auth/refresh" }
+    },
+    {
+      "name": "Concurrent refresh permits one response and revokes the resulting session on replay",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "const send = options => new Promise((resolve, reject) => pm.sendRequest(options, (error, response) => error ? reject(error) : resolve(response)));",
+        "(async () => { const login = await send({ url: pm.variables.replaceIn('{{baseUrl}}/auth/login'), method: 'POST', header: { 'Content-Type': 'application/json' }, body: { mode: 'raw', raw: JSON.stringify({ loginId: 'admin', password: 'admin' }) } }); pm.test('Concurrency fixture login succeeds', () => pm.expect(login.code).to.equal(200)); const token = login.json().refreshToken; const request = { url: pm.variables.replaceIn('{{baseUrl}}/auth/refresh'), method: 'POST', header: { 'Content-Type': 'application/json' }, body: { mode: 'raw', raw: JSON.stringify({ refreshToken: token }) } }; const pair = await Promise.all([send(request), send(request)]); const codes = pair.map(response => response.code).sort(); pm.test('Exactly one simultaneous refresh succeeds', () => pm.expect(codes).to.eql([200, 401])); const success = pair.find(response => response.code === 200).json(); const replay = await send({ url: pm.variables.replaceIn('{{baseUrl}}/auth/refresh'), method: 'POST', header: { 'Content-Type': 'application/json' }, body: { mode: 'raw', raw: JSON.stringify({ refreshToken: success.refreshToken }) } }); pm.test('Successful response token is rejected after concurrent replay detection', () => { pm.expect(replay.code).to.equal(401); pm.expect(replay.json().errorCode).to.equal('AUTH_INVALID_TOKEN'); }); })().catch(error => pm.test('Concurrent refresh scenario completes', () => { throw error; }));"
+      ] } }],
+      "request": { "method": "OPTIONS", "header": [{ "key": "Origin", "value": "http://localhost:8081" }, { "key": "Access-Control-Request-Method", "value": "POST" }], "url": "{{baseUrl}}/auth/refresh" }
     }
   ]
 }

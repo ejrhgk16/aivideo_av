@@ -9,6 +9,9 @@ const responseBody = {
   displayName: 'admin',
   accountType: 'OPERATOR' as const,
   availablePoints: 0,
+  accessToken: 'access-token',
+  refreshToken: 'refresh-token',
+  expiresIn: 900,
 };
 
 test('login sends the supplied credentials to the configured endpoint and returns the response', async () => {

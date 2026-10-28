@@ -28,7 +28,7 @@ NestJS API server. Own `package.json` and lockfile.
 |---|---|
 | `src/` | NestJS modules, controllers, and services. |
 | `src/{domain}/entities/` | Domain-specific Entity classes and persistence metadata. |
-| `src/identity/` | User identity entity, login API, and credential lookup. The development seed supplies admin/admin; the current login response does not issue tokens or sessions. |
+| `src/identity/` | User identity, credential lookup, login/refresh/logout APIs, JWT issuance, Passport Access validation, and session-scoped Refresh rotation/revocation. |
 | `src/common/entities/` | Shared persistence base entities and metadata. |
 | `src/common/error/` | Shared custom HTTP error base, error codes, concrete exceptions, and response filter used by opted-in controllers. |
 | `src/common/database/` | Shared TypeORM configuration and Entity registry, CLI `DataSource`, explicit development seed CLI, and migration files. |
@@ -69,6 +69,13 @@ The temporary frontend `/login` route calls the existing `useLogin` hook, which 
 - `npm --prefix back run test` runs focused unit tests followed by the Postman CLI API collection. `test:unit` and `test:api` run each separately.
 - API tests use the existing development server at `http://localhost:3000` by default, with its configured MySQL connection. The server must reflect the code being verified. The collection discovers public UUIDs from responses; tests may prepare development-only fixtures and mutate data as needed.
 - `back/test/api/README.md` defines startup, target URL overrides, required existing content, and coverage limits. Missing server/data or failed assertions fail verification.
+
+## Backend identity sessions
+
+- `auth_sessions` records one login instance per successful sign-in and links to the user's internal numeric database ID. `refresh_tokens` stores one SHA-256 hash per issued Refresh JWT, its expiry and use time, linked through the internal auth session ID. Token rows are append-only; raw JWTs exist only in responses and client memory/secure storage.
+- Refresh rotation and logout lock the auth session row before the refresh token row. Rotation marks the old token used and appends the replacement in one transaction. Replaying any used token commits session revocation before returning 401, so every Refresh from that login is rejected; other device sessions remain independent.
+- Passport's HS256 Strategy checks Access purpose, expiry, and active user. `JwtAuthGuard` is exported for future protected routes; existing UUID-based product endpoints do not yet use it. Session revocation does not revoke existing Access tokens, which can remain valid for up to 15 minutes. Until an old Refresh is replayed, the server cannot identify an attacker's first use.
+- The frontend session layer stores the Refresh JWT in secure platform storage, restores a session with `/auth/refresh`, and clears it through `/auth/logout`. A concurrent refresh or lost refresh response can trigger strict replay detection and require the user to sign in again.
 
 ## Media storage
 

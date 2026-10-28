@@ -1,11 +1,24 @@
-import type { User } from './UserProvider';
-
 export interface LoginInput {
   loginId: string;
   password: string;
 }
 
-export type LoginResponse = User & { availablePoints: number };
+export type LoginResponse = {
+  uuid: string;
+  displayName: string | null;
+  accountType: 'GUEST' | 'MEMBER' | 'OPERATOR' | 'PARTNER';
+  availablePoints: number;
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+};
+
+export class AuthRequestError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = 'AuthRequestError';
+  }
+}
 
 export async function login(input: LoginInput): Promise<LoginResponse> {
   const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -19,7 +32,7 @@ export async function login(input: LoginInput): Promise<LoginResponse> {
     body: JSON.stringify(input),
   });
   if (!response.ok) {
-    throw new Error(`Failed to log in: ${response.status}`);
+    throw new AuthRequestError(`Failed to log in: ${response.status}`, response.status);
   }
 
   return (await response.json()) as LoginResponse;

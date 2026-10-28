@@ -1,6 +1,6 @@
 # POST /auth/login
 
-사용자의 loginId와 비밀번호를 확인하고 사용자 식별 정보 및 포인트 잔액을 반환한다.
+`loginId`와 비밀번호를 확인하고 사용자 요약과 Access/Refresh 토큰 쌍을 반환한다.
 
 ## 요청
 
@@ -13,7 +13,7 @@
 }
 ```
 
-두 필드는 공백뿐인 값을 허용하지 않는다. `loginId`는 100자 이하여야 한다.
+두 필드는 공백뿐인 값을 허용하지 않는다. `loginId`는 100자 이하여야 한다. 제공된 자격 증명 자체를 확인하며, 개발 시드 계정은 admin/admin이다.
 
 ## 성공 응답 — 200
 
@@ -22,13 +22,14 @@
   "uuid": "00000010-0000-4000-8000-000000000001",
   "displayName": "admin",
   "accountType": "OPERATOR",
-  "availablePoints": 100
+  "availablePoints": 100,
+  "accessToken": "<signed-jwt>",
+  "refreshToken": "<signed-jwt>",
+  "expiresIn": 900
 }
 ```
 
-사용자·지갑을 한 번의 DB 조회로 읽는다. 지갑이 없으면 `availablePoints`는 `0`이다. 비밀번호, 내부 숫자 `id`, 사용자 상태는 응답하지 않는다. 토큰이나 세션 쿠키는 발급하지 않는다.
-
-현재 개발 단계에서는 컨트롤러가 요청 형식을 검증한 뒤 서비스 입력을 `admin` / `admin`으로 치환한다. 따라서 형식이 유효한 요청은 개발 시드 admin 계정으로 처리된다. 이 두 임시 대입문을 제거하면 요청의 loginId와 password로 사용자를 확인한다.
+사용자·지갑을 조회하며 지갑이 없으면 `availablePoints`는 `0`이다. 비밀번호, 내부 숫자 `id`, 사용자 상태는 응답하지 않는다. Access JWT는 HS256, `sub` 사용자 UUID, `tokenType: "access"`, 900초 만료다. Refresh JWT는 별도 HS256 키, `sub`, `tokenType: "refresh"`, 고유 `jti`, 1,209,600초(14일) 만료를 사용한다. `expiresIn`은 Access 만료 초다. 원문 토큰은 응답에만 반환되며 DB에는 SHA-256 해시만 저장한다. Refresh는 클라이언트가 안전한 로컬 저장소에 보관해야 한다.
 
 ## 오류
 

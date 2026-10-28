@@ -14,6 +14,18 @@ export class LoginFailedException extends BaseException {
   }
 }
 
+export class InvalidTokenInputException extends BaseException {
+  constructor() {
+    super(ErrorCodeEnum.InvalidTokenInput, 'InvalidTokenInput', HttpStatus.BAD_REQUEST);
+  }
+}
+
+export class InvalidTokenException extends BaseException {
+  constructor() {
+    super(ErrorCodeEnum.InvalidToken, 'InvalidToken', HttpStatus.UNAUTHORIZED);
+  }
+}
+
 export class PointUserNotFoundException extends BaseException {
   constructor() {
     super(ErrorCodeEnum.PointUserNotFound, 'PointUserNotFound', HttpStatus.NOT_FOUND);

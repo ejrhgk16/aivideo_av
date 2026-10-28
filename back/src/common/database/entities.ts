@@ -5,6 +5,8 @@ export * from '../../playback/entities/index.js';
 export * from '../../economy/entities/index.js';
 
 import {
+  AuthSession,
+  RefreshToken,
   User,
   UserPreference,
 } from '../../identity/entities/index.js';
@@ -40,6 +42,8 @@ import {
 export const aiDramaEntities = [
   User,
   UserPreference,
+  AuthSession,
+  RefreshToken,
   ProductionCompany,
   Drama,
   Genre,

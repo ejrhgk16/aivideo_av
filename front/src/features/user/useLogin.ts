@@ -1,14 +1,9 @@
 import { useCallback } from 'react';
 import { useUser } from './UserProvider';
-import { login, type LoginInput } from './login';
+import type { LoginInput } from './login';
 
 export function useLogin() {
-  const { setUser } = useUser();
+  const { login } = useUser();
 
-  return useCallback(async (input: LoginInput) => {
-    const response = await login(input);
-    const { availablePoints, ...user } = response;
-    setUser(user, availablePoints);
-    return response;
-  }, [setUser]);
+  return useCallback((input: LoginInput) => login(input), [login]);
 }
