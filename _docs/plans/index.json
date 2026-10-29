@@ -216,6 +216,12 @@
       "directory": "plan-36-web-refresh-cookie",
       "title": "웹 Refresh HttpOnly 쿠키 저장과 새로고침 세션 복원",
       "status": "completed"
+    },
+    {
+      "id": "plan-37-completed-episode-highlight",
+      "directory": "plan-37-completed-episode-highlight",
+      "title": "시청 완료 회차만 배경색 표시",
+      "status": "completed"
     }
   ]
 }

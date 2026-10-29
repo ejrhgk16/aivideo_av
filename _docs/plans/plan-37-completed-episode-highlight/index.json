@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "plan_id": "plan-37-completed-episode-highlight",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "시청 완료 회차만 배경색 표시",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/screens/DramaDetailScreen.tsx",
+        "front/tests/unit/dramaDetailScreen.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-29T11:18:13.222Z",
+      "summary": "Changed episode highlighting to require watchProgress.isCompleted === true and updated the false-progress test expectation. The regression reproduced before the screen change. Typecheck passed, all 102 frontend tests passed, and Expo export succeeded for web, iOS, and Android.",
+      "completed_at": "2026-10-29T11:21:14.382Z"
+    }
+  ]
+}

@@ -153,7 +153,7 @@ test('drama detail distinguishes free, purchased and locked episodes', async () 
   const hasBackground = (node: Node, color: string) => (node.props.style as unknown[]).some(
     (style) => typeof style === 'object' && style !== null && (style as { backgroundColor?: string }).backgroundColor === color,
   );
-  assert.equal(hasBackground(free, '#CBF46A18'), true);
+  assert.equal(hasBackground(free, '#CBF46A18'), false);
   assert.equal(hasBackground(locked, '#CBF46A18'), true);
   assert.equal(hasBackground(owned, '#CBF46A18'), false);
   assert.equal(hasBackground(locked2, '#CBF46A18'), false);
