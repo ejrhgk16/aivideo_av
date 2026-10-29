@@ -37,12 +37,17 @@ async function main() {
   const root = await fetch(baseUrl, { signal: AbortSignal.timeout(10000) }).catch(() => null);
   if (!root?.ok) throw new Error('API unavailable. Run: npm --prefix back run start:dev');
 
+  for (const key of ['DB_HOST', 'DB_PORT', 'DB_USERNAME', 'DB_PASSWORD', 'DB_DATABASE']) {
+    if (process.env[key] === undefined || process.env[key] === '') {
+      throw new Error(`Required environment variable is missing: ${key}`);
+    }
+  }
   const db = await createConnection({
-    host: process.env.DB_HOST ?? '127.0.0.1',
-    port: Number(process.env.DB_PORT ?? '3306'),
-    user: process.env.DB_USERNAME ?? 'root',
-    password: process.env.DB_PASSWORD ?? '',
-    database: process.env.DB_DATABASE ?? 'aivideodb',
+    host: process.env.DB_HOST,
+    port: Number(process.env.DB_PORT),
+    user: process.env.DB_USERNAME,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_DATABASE,
     timezone: 'Z',
   });
   const entitledUuid = '00000010-0000-4000-8000-000000000001';

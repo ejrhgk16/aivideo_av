@@ -35,6 +35,8 @@ Set `API_TEST_ENVIRONMENT_FILE` to an existing local Postman environment file to
 
 ## Existing data requirements
 
+The default local runner requires explicit, non-empty `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, and `DB_DATABASE` values in the process environment or the backend's Git-ignored environment files. It has no fallback DB host, port, user, password, or database name. Missing configuration fails before connecting to MySQL.
+
 - `/genres` must return at least one genre.
 - `/dramas` must return at least two public dramas. At least one must have a preview and both free and paid public episodes with FULL videos. The collection obtains their UUIDs from the responses; it does not hard-code seed UUIDs, titles, counts, or image paths.
 - `HOME_FEATURED`, `EDITORIAL_TOP_3`, `RECOMMENDATION_DAILY`, and `HOME_CAMPAIGN` must be active collections. Their drama arrays may be empty.
