@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "plan_id": "plan-38-recommendation-preview-buffer",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "추천 인접 영상 버퍼와 플레이어 재사용",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/features/playback/recommendationPreviewBuffer.ts",
+        "front/src/screens/RecommendationScreen.tsx",
+        "front/tests/unit/recommendationPreviewBuffer.test.ts",
+        "front/scripts/test-front.cjs"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-29T11:55:25.081Z",
+      "summary": "Implemented a three-item recommendation preview buffer with pending-request deduplication, stale-response guards, reusable players and VideoViews, deferred release after view detachment, and page-change reset-to-zero behavior. Added manager and screen VM regression tests; all 109 front tests, typecheck, and Expo export passed. HTTP GET returned 200 from localhost:8081 and :3000. Actual browser/native swipe and buffering behavior could not be verified because no UI-driving tool or device was available.",
+      "completed_at": "2026-10-29T12:09:48.593Z"
+    },
+    {
+      "id": "task-2",
+      "name": "추천 컨트롤의 목록 내부 배치와 스와이프 복구",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/src/screens/RecommendationScreen.tsx",
+        "front/tests/unit/recommendationPreviewBuffer.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-29T12:20:21.735Z",
+      "summary": "Moved recommendation controls inside FlatList cards and kept the buffered VideoViews in a non-interactive layer below them. Added render-tree checks for touch-layer placement, video/card layering, fallback posters, and FlatList updates. Typecheck, all 109 front tests, and Expo export passed; localhost:8081 and :3000 returned HTTP 200. Actual touch swipes remain unverified because no UI-driving tool or device was available.",
+      "completed_at": "2026-10-29T12:27:44.716Z"
+    }
+  ]
+}

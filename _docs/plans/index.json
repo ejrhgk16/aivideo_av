@@ -222,6 +222,12 @@
       "directory": "plan-37-completed-episode-highlight",
       "title": "시청 완료 회차만 배경색 표시",
       "status": "completed"
+    },
+    {
+      "id": "plan-38-recommendation-preview-buffer",
+      "directory": "plan-38-recommendation-preview-buffer",
+      "title": "추천 이전·현재·다음 영상 버퍼 준비와 플레이어 재사용",
+      "status": "completed"
     }
   ]
 }

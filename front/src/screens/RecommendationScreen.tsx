@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { VideoView, useVideoPlayer } from 'expo-video';
+import { createVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import Slider from '@react-native-community/slider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlatList, Modal, Pressable, Share, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
@@ -13,15 +13,12 @@ import { colors } from '@/common/theme/tokens';
 import { getDramaContent, type DramaContent } from '@/features/drama/dramaContent';
 import { getHomeCollection, type HomeCollection, type HomeCollectionDrama } from '@/features/home/homeContent';
 import { getPreviewPlayback } from '@/features/playback/previewPlayback';
+import { createRecommendationPreviewBuffer, recommendationPreviewKey, type RecommendationPreviewEntry } from '@/features/playback/recommendationPreviewBuffer';
 
 type CollectionStatus = 'loading' | 'loaded' | 'error';
-type ActivePreview =
-  | { kind: 'loading'; dramaId: string }
-  | { kind: 'ready'; dramaId: string; url: string }
-  | { kind: 'unavailable'; dramaId: string };
-
 function RecommendationPreviewPlayer({
-  url,
+  player,
+  trackListener,
   drama,
   content,
   saved,
@@ -30,7 +27,8 @@ function RecommendationPreviewPlayer({
   onOpenEpisodes,
   onShare,
 }: {
-  url: string;
+  player: VideoPlayer;
+  trackListener: (subscription: { remove(): void }) => { remove(): void };
   drama: HomeCollectionDrama;
   content: DramaContent | null;
   saved: boolean;
@@ -40,7 +38,6 @@ function RecommendationPreviewPlayer({
   onShare: () => void;
 }) {
   const router = useRouter();
-  const player = useVideoPlayer(url, (videoPlayer) => videoPlayer.play());
   const insets = useSafeAreaInsets();
   const [isPlaying, setIsPlaying] = useState(player.playing);
   const [position, setPosition] = useState(player.currentTime);
@@ -70,19 +67,19 @@ function RecommendationPreviewPlayer({
   }, [clearHideTimer]);
 
   useEffect(() => {
-    const playing = player.addListener('playingChange', ({ isPlaying: next }) => setIsPlaying(next));
-    const status = player.addListener('statusChange', ({ status: next }) => {
+    const playing = trackListener(player.addListener('playingChange', ({ isPlaying: next }) => setIsPlaying(next)));
+    const status = trackListener(player.addListener('statusChange', ({ status: next }) => {
       if (next === 'error') onErrorRef.current();
       if (next === 'readyToPlay' && Number.isFinite(player.duration) && player.duration > 0) setDuration(player.duration);
-    });
-    const time = player.addListener('timeUpdate', ({ currentTime }) => {
+    }));
+    const time = trackListener(player.addListener('timeUpdate', ({ currentTime }) => {
       if (!seeking.current && Number.isFinite(currentTime)) setPosition(currentTime);
       if (Number.isFinite(player.duration) && player.duration > 0) setDuration(player.duration);
-    });
-    const source = player.addListener('sourceLoad', ({ duration: videoDuration }) => {
+    }));
+    const source = trackListener(player.addListener('sourceLoad', ({ duration: videoDuration }) => {
       if (Number.isFinite(videoDuration) && videoDuration > 0) setDuration(videoDuration);
-    });
-    const rate = player.addListener('playbackRateChange', ({ playbackRate: next }) => setPlaybackRate(next));
+    }));
+    const rate = trackListener(player.addListener('playbackRateChange', ({ playbackRate: next }) => setPlaybackRate(next)));
     player.timeUpdateEventInterval = 0.5;
     showControls();
     return () => {
@@ -92,7 +89,6 @@ function RecommendationPreviewPlayer({
       source.remove();
       rate.remove();
       clearHideTimer();
-      player.pause();
     };
   }, [clearHideTimer, player, showControls]);
 
@@ -129,7 +125,6 @@ function RecommendationPreviewPlayer({
   };
 
   return <>
-    <VideoView player={player} nativeControls={false} contentFit="contain" style={[StyleSheet.absoluteFill, styles.playerVideo]} />
     <LinearGradient pointerEvents="none" colors={['#03060BAA', 'transparent', '#070C13A8', '#070C13']} locations={[0, 0.33, 0.65, 1]} style={StyleSheet.absoluteFill} />
     <Pressable style={StyleSheet.absoluteFill} onPress={toggleControls} accessibilityLabel="재생 컨트롤 표시 또는 숨기기" />
     {controlsVisible && <>
@@ -191,16 +186,63 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
   const [cardHeight, setCardHeight] = useState(0);
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [activePreview, setActivePreview] = useState<ActivePreview | null>(null);
   const [activeDrama, setActiveDrama] = useState<DramaContent | null>(null);
   const [screenFocused, setScreenFocused] = useState(false);
+  const [scrolling, setScrolling] = useState(false);
+  const [buffer, setBuffer] = useState<ReturnType<typeof createRecommendationPreviewBuffer<VideoPlayer>> | null>(null);
+  const [bufferEntries, setBufferEntries] = useState<RecommendationPreviewEntry<VideoPlayer>[]>([]);
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastScrollY = useRef(0);
+  const settleGeneration = useRef(0);
+  const activeIdRef = useRef<string | null>(null);
+  const dramasRef = useRef<HomeCollectionDrama[]>([]);
+  const cardHeightRef = useRef(0);
+  const settlePageRef = useRef<(offsetY: number) => void>(() => {});
+  const scrollingRef = useRef(false);
+  const focusedRef = useRef(false);
+  const bufferRef = useRef(buffer);
+  activeIdRef.current = activeId;
+  scrollingRef.current = scrolling;
+  focusedRef.current = screenFocused;
+  bufferRef.current = buffer;
+  cardHeightRef.current = cardHeight;
 
   useFocusEffect(useCallback(() => {
+    const nextBuffer = createRecommendationPreviewBuffer<VideoPlayer>(
+      (dramaId, videoId) => getPreviewPlayback(dramaId, videoId),
+      (url) => createVideoPlayer(url),
+      () => setBufferEntries(nextBuffer.snapshot()),
+    );
+    setBuffer(nextBuffer);
     setScreenFocused(true);
-    return () => setScreenFocused(false);
+    focusedRef.current = true;
+    return () => {
+      focusedRef.current = false;
+      clearSettleTimer();
+      nextBuffer.invalidate();
+      nextBuffer.pauseAll();
+      setScreenFocused(false);
+      setScrolling(false);
+      setBuffer(null);
+    };
   }, []));
+
+  useEffect(() => {
+    if (!buffer) {
+      setBufferEntries([]);
+      return;
+    }
+    const unsubscribe = buffer.subscribe(() => setBufferEntries(buffer.snapshot()));
+    setBufferEntries(buffer.snapshot());
+    return () => {
+      unsubscribe();
+      buffer.dispose();
+    };
+  }, [buffer]);
+
+  useEffect(() => {
+    buffer?.releasePending();
+  }, [buffer, bufferEntries]);
 
   useEffect(() => {
     let active = true;
@@ -222,11 +264,12 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
     return () => { active = false; };
   }, [initialId]);
 
-  const dramas = [...(collection?.dramas ?? [])].sort((first, second) => {
+  const dramas = useMemo(() => [...(collection?.dramas ?? [])].sort((first, second) => {
     if (first.uuid === initialId) return -1;
     if (second.uuid === initialId) return 1;
     return first.displayOrder - second.displayOrder;
-  });
+  }), [collection, initialId]);
+  dramasRef.current = dramas;
   const initialIndex = Math.max(0, dramas.findIndex((drama) => drama.uuid === initialId));
   const openEpisodes = (drama: HomeCollectionDrama) => router.push({
     pathname: '/drama/[id]',
@@ -239,26 +282,18 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
     message: [drama.title, drama.shortDescription].filter(Boolean).join('\n'),
   });
 
-  useEffect(() => {
-    if (!activeId) {
-      setActivePreview(null);
-      return;
-    }
-    const drama = dramas.find((item) => item.uuid === activeId);
-    const videoId = drama?.previewVideos[0]?.uuid;
-    if (!videoId) {
-      setActivePreview({ kind: 'unavailable', dramaId: activeId });
-      return;
-    }
+  const previewTargets = useMemo(() => {
+    const index = dramas.findIndex((drama) => drama.uuid === activeId);
+    if (index < 0) return [];
+    return dramas.slice(Math.max(0, index - 1), index + 2).flatMap((drama) => {
+      const preview = drama.previewVideos[0];
+      return preview ? [{ dramaId: drama.uuid, videoId: preview.uuid }] : [];
+    });
+  }, [activeId, dramas]);
 
-    let current = true;
-    setActivePreview({ kind: 'loading', dramaId: activeId });
-    void getPreviewPlayback(activeId, videoId).then(
-      (playback) => { if (current) setActivePreview({ kind: 'ready', dramaId: activeId, url: playback.url }); },
-      () => { if (current) setActivePreview({ kind: 'unavailable', dramaId: activeId }); },
-    );
-    return () => { current = false; };
-  }, [activeId, collection]);
+  useEffect(() => {
+    if (screenFocused) buffer?.retain(previewTargets);
+  }, [buffer, previewTargets, screenFocused]);
 
   useEffect(() => {
     if (!activeId) {
@@ -274,41 +309,128 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
     return () => { current = false; };
   }, [activeId]);
 
-  const settleOnPage = (offsetY: number) => {
-    if (cardHeight <= 0) return;
-    const index = Math.max(0, Math.min(dramas.length - 1, Math.round(offsetY / cardHeight)));
-    setActiveId(dramas[index]?.uuid ?? null);
-  };
   const clearSettleTimer = () => {
+    settleGeneration.current += 1;
     if (settleTimer.current) clearTimeout(settleTimer.current);
     settleTimer.current = null;
   };
+  const beginScroll = () => {
+    scrollingRef.current = true;
+    setScrolling(true);
+    bufferRef.current?.pauseAll();
+  };
+  const settleOnPage = (offsetY: number) => {
+    const latestDramas = dramasRef.current;
+    const latestCardHeight = cardHeightRef.current;
+    if (latestCardHeight <= 0 || latestDramas.length === 0) return;
+    const index = Math.max(0, Math.min(latestDramas.length - 1, Math.round(offsetY / latestCardHeight)));
+    const nextId = latestDramas[index]?.uuid ?? null;
+    const previousId = activeIdRef.current;
+    if (nextId && nextId !== previousId) {
+      const previousDrama = latestDramas.find((drama) => drama.uuid === previousId);
+      const previousPreview = previousDrama?.previewVideos[0];
+      if (previousPreview) bufferRef.current?.resetToBeginning({ dramaId: previousDrama.uuid, videoId: previousPreview.uuid });
+      activeIdRef.current = nextId;
+      setActiveId(nextId);
+    }
+    scrollingRef.current = false;
+    setScrolling(false);
+  };
+  settlePageRef.current = settleOnPage;
   const scheduleSettle = (offsetY: number) => {
     lastScrollY.current = offsetY;
     clearSettleTimer();
+    const generation = settleGeneration.current;
     settleTimer.current = setTimeout(() => {
+      if (generation !== settleGeneration.current || !focusedRef.current) return;
       settleTimer.current = null;
-      settleOnPage(lastScrollY.current);
+      settlePageRef.current(lastScrollY.current);
     }, 150);
   };
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetY = event.nativeEvent.contentOffset.y;
-    if (offsetY !== lastScrollY.current) setActiveId(null);
+    if (offsetY !== lastScrollY.current && !scrollingRef.current) beginScroll();
     scheduleSettle(offsetY);
   };
   const handleScrollEndDrag = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     scheduleSettle(event.nativeEvent.contentOffset.y);
   };
 
-  useEffect(() => () => {
-    if (settleTimer.current) clearTimeout(settleTimer.current);
-  }, []);
+  useEffect(() => () => clearSettleTimer(), []);
+
+  const activeDramaForPreview = dramas.find((drama) => drama.uuid === activeId);
+  const activePreviewTarget = useMemo(() => activeDramaForPreview?.previewVideos[0]
+    ? { dramaId: activeDramaForPreview.uuid, videoId: activeDramaForPreview.previewVideos[0].uuid }
+    : null, [activeDramaForPreview]);
+  const activeEntry = activePreviewTarget ? buffer?.get(activePreviewTarget) : undefined;
+  const activePlayer = activeEntry?.kind === 'ready' ? activeEntry.player : undefined;
+  const cardState = useMemo(() => ({
+    screenFocused,
+    scrolling,
+    activeId,
+    activeEntry,
+    activePlayer,
+    activeDrama,
+    savedIds,
+    buffer,
+    bufferEntries,
+  }), [screenFocused, scrolling, activeId, activeEntry, activePlayer, activeDrama, savedIds, buffer, bufferEntries]);
+
+  useEffect(() => {
+    if (!buffer || !activePreviewTarget || !activePlayer || !screenFocused || scrolling) return;
+    const manager = buffer;
+    const entry = activeEntry;
+    const player = activePlayer;
+    let live = true;
+    let started = false;
+    const startWhenReady = (status: VideoPlayer['status']) => {
+      if (!live || started || !focusedRef.current || scrollingRef.current) return;
+      if (activeIdRef.current !== activePreviewTarget.dramaId || bufferRef.current !== manager) return;
+      if (manager.get(activePreviewTarget) !== entry || entry?.player !== player || status !== 'readyToPlay') return;
+      started = true;
+      player.play();
+    };
+    const handleError = () => {
+      if (!live || !focusedRef.current || activeIdRef.current !== activePreviewTarget.dramaId || bufferRef.current !== manager) return;
+      if (manager.get(activePreviewTarget) === entry) manager.setUnavailable(activePreviewTarget, player);
+    };
+    if (player.status === 'error') {
+      handleError();
+      return;
+    }
+    const status = manager.trackSubscription(activePreviewTarget, player, player.addListener('statusChange', ({ status: next }) => {
+      if (next === 'error') handleError();
+      else startWhenReady(next);
+    }));
+    startWhenReady(player.status);
+    return () => {
+      live = false;
+      status.remove();
+    };
+  }, [activeEntry, activePlayer, activePreviewTarget, buffer, screenFocused, scrolling]);
 
   return <Page scroll={false} contentStyle={styles.pageContent}>
     {status === 'loading' ? <EmptyState title="추천 작품 불러오는 중" description="잠시만 기다려 주세요." />
       : status === 'error' ? <EmptyState title="추천 작품을 불러오지 못했어요" description="잠시 후 다시 확인해 주세요." />
         : dramas.length === 0 ? <EmptyState title="오늘의 추천 작품이 없어요" description="새로운 작품을 준비하고 있어요." />
           : <View style={styles.feed} onLayout={(event) => setCardHeight(event.nativeEvent.layout.height)}>
+            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+              <View pointerEvents="none" style={styles.bufferVideoFrame}>
+                {screenFocused ? bufferEntries.flatMap((entry) => entry.player ? [
+                  <VideoView
+                    key={recommendationPreviewKey(entry.target)}
+                    player={entry.player}
+                    nativeControls={false}
+                    contentFit="contain"
+                    surfaceType="textureView"
+                    pointerEvents="none"
+                    style={[StyleSheet.absoluteFill, styles.playerVideo, {
+                      opacity: screenFocused && !scrolling && entry.kind === 'ready' && entry.target.dramaId === activeId ? 1 : 0,
+                    }]}
+                  />,
+                ] : []) : null}
+              </View>
+            </View>
             {cardHeight > 0 ? <FlatList
               data={dramas}
               keyExtractor={(drama) => drama.uuid}
@@ -316,36 +438,40 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
               getItemLayout={(_, index) => ({ length: cardHeight, offset: cardHeight * index, index })}
               pagingEnabled
               showsVerticalScrollIndicator={false}
-              extraData={savedIds}
+              extraData={cardState}
               onScroll={handleScroll}
               scrollEventThrottle={16}
-              onScrollBeginDrag={() => { clearSettleTimer(); setActiveId(null); }}
+              onScrollBeginDrag={() => { clearSettleTimer(); beginScroll(); }}
               onScrollEndDrag={handleScrollEndDrag}
-              onMomentumScrollBegin={clearSettleTimer}
+              onMomentumScrollBegin={() => { clearSettleTimer(); beginScroll(); }}
               onMomentumScrollEnd={(event) => {
                 clearSettleTimer();
                 lastScrollY.current = event.nativeEvent.contentOffset.y;
                 settleOnPage(lastScrollY.current);
               }}
               renderItem={({ item: drama }) => {
-                const saved = savedIds.includes(drama.uuid);
-                const preview = activePreview?.dramaId === drama.uuid ? activePreview : null;
                 const posterUrl = resolveApiImageUrl(drama.imageUrls.poster);
-                const playing = screenFocused && activeId === drama.uuid && preview?.kind === 'ready';
-                return <View style={[styles.card, { height: cardHeight }]}>
-                  {playing ? <RecommendationPreviewPlayer
-                    key={drama.uuid}
-                    url={preview.url}
+                const showPreview = screenFocused && !scrolling && activeId === drama.uuid && Boolean(activePlayer);
+                return <View style={[styles.card, { height: cardHeight }, showPreview && styles.cardPreview]}>
+                  {!showPreview && (posterUrl
+                    ? <Image source={{ uri: posterUrl }} accessibilityLabel={`${drama.title} 표지`} contentFit="cover" style={StyleSheet.absoluteFill} />
+                    : <View style={[StyleSheet.absoluteFill, styles.placeholder]} />)}
+                  {showPreview && activeDramaForPreview && activePreviewTarget && <RecommendationPreviewPlayer
+                    key={recommendationPreviewKey(activePreviewTarget)}
+                    player={activePlayer!}
+                    trackListener={(subscription) => buffer!.trackSubscription(activePreviewTarget, activePlayer!, subscription)}
                     drama={drama}
-                    content={activeId === drama.uuid ? activeDrama : null}
-                    saved={saved}
-                    onError={() => setActivePreview((current) => current?.dramaId === drama.uuid ? { kind: 'unavailable', dramaId: drama.uuid } : current)}
+                    content={activeDrama}
+                    saved={savedIds.includes(drama.uuid)}
+                    onError={() => {
+                      if (focusedRef.current && activeIdRef.current === drama.uuid && bufferRef.current === buffer) {
+                        buffer?.setUnavailable(activePreviewTarget, activePlayer!);
+                      }
+                    }}
                     onToggleSave={() => toggleSave(drama.uuid)}
                     onOpenEpisodes={() => openEpisodes(drama)}
                     onShare={() => { void shareDrama(drama); }}
-                  /> : posterUrl
-                    ? <Image source={{ uri: posterUrl }} accessibilityLabel={`${drama.title} 표지`} contentFit="cover" style={StyleSheet.absoluteFill} />
-                    : <View style={[StyleSheet.absoluteFill, styles.placeholder]} />}
+                  />}
                 </View>;
               }}
             /> : <View style={styles.feedPlaceholder} />}
@@ -358,7 +484,9 @@ const styles = StyleSheet.create({
   feed: { flex: 1, overflow: 'hidden', backgroundColor: colors.background },
   feedPlaceholder: { flex: 1, backgroundColor: colors.background },
   card: { width: '100%', maxWidth: 500, alignSelf: 'center', overflow: 'hidden', justifyContent: 'space-between', backgroundColor: colors.surface },
+  cardPreview: { backgroundColor: 'transparent' },
   placeholder: { backgroundColor: '#000' },
+  bufferVideoFrame: { width: '100%', maxWidth: 500, height: '100%', alignSelf: 'center' },
   playerVideo: { width: '100%', height: '100%' },
   playerTopBar: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingBottom: 18, backgroundColor: 'rgba(0,0,0,0.45)' },
   playerIconButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
