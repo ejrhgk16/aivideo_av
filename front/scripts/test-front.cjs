@@ -4,7 +4,7 @@ const { join, resolve, relative, sep } = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const output = mkdtempSync(join(tmpdir(), 'aivideo-tests-'));
-const testFiles = ['tests/unit/media.test.ts', 'tests/unit/homeContent.test.ts', 'tests/unit/dramaContent.test.ts', 'tests/unit/dramaDetailScreen.test.ts', 'tests/unit/login.test.ts', 'tests/unit/session.test.ts', 'tests/unit/api.test.ts', 'tests/unit/errorMessages.test.ts', 'tests/unit/episodePlayback.test.ts', 'tests/unit/previewPlayback.test.ts', 'tests/unit/episodePurchase.test.ts', 'tests/unit/episodeUnlockDialog.test.ts', 'tests/unit/playbackScreenEpisode.test.ts', 'tests/unit/sessionExpiredDialog.test.ts'];
+const testFiles = ['tests/unit/media.test.ts', 'tests/unit/homeContent.test.ts', 'tests/unit/dramaContent.test.ts', 'tests/unit/dramaDetailScreen.test.ts', 'tests/unit/login.test.ts', 'tests/unit/session.test.ts', 'tests/unit/api.test.ts', 'tests/unit/errorMessages.test.ts', 'tests/unit/episodePlayback.test.ts', 'tests/unit/previewPlayback.test.ts', 'tests/unit/episodePurchase.test.ts', 'tests/unit/episodeUnlockDialog.test.ts', 'tests/unit/watchProgress.test.ts', 'tests/unit/playbackScreenEpisode.test.ts', 'tests/unit/sessionExpiredDialog.test.ts'];
 try {
   const build = spawnSync(process.execPath, [
     require.resolve('typescript/bin/tsc'), '--ignoreConfig', '--module', 'commonjs',

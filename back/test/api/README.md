@@ -23,10 +23,13 @@ npm --prefix back run test:api
 The default API address is `http://localhost:3000`. To test another running development instance:
 
 ```powershell
+$env:API_TEST_ENVIRONMENT_FILE = 'C:\path\to\local-postman-environment.json'
 npm --prefix back run test:api -- --env-var baseUrl=http://localhost:3001
 ```
 
-The backend's MySQL connection follows its own environment configuration. No separate test DB connection is needed. The collection does not use a cloud collection ID and disables event reporting.
+`test:api` runs `test/api/run.mjs`, so `npm run test` and Harness `finish` use the same credential forwarding. By default the runner loads the backend's `.env.development` / `.env`, checks the existing local API, and connects to that development MySQL database. It reads credentials for the two documented fixture users, assigns generated temporary credentials only when the unentitled fixture's login and password are both null, and forwards all four values through a temporary Postman environment file. Credentials are not printed or committed. After the run, it restores the temporary login, removes the environment file, and deletes only the two progress pairs proven absent before this run. Existing progress at either write-fixture pair fails setup for inspection rather than being deleted. Other fixture records and entitlements are not reset.
+
+Set `API_TEST_ENVIRONMENT_FILE` to an existing local Postman environment file to use other credentials, fixture UUIDs, or a running API address. This explicit mode forwards the file and CLI arguments unchanged and does not connect to MySQL or prepare/clean fixtures. Prepare those fixtures yourself. The file must supply the four login variables below; keep it outside Git or under a Git-ignored path. The inherited variable also works when running Harness `finish`. Do not put passwords in command-line arguments. The collection does not use a cloud collection ID and disables event reporting.
 
 `npm --prefix back run test` runs `test:unit` followed by `test:api`. Harness backend checks already call `test`, so workers and finish also run the real API checks. Server connection failures, request timeouts, missing required content, HTTP errors, and assertion failures fail the command. Do not report an unavailable API as a passing test.
 
@@ -82,17 +85,46 @@ The current DB was inspected using SELECT statements only. The same drama also c
 
 The playback checks reuse these fixtures: the entitled user can play `entitledEpisodeUuid`, while the unentitled user's JWT receives the custom 403 even when its request spoofs the entitled UUID in a legacy query. Anonymous playback of the public paid episode returns `AUTH_INVALID_TOKEN`(401). Both users and an anonymous request can play the free episode. `lockedEpisodeUuid` verifies that entitlement to one episode does not unlock another episode. Read checks do not mutate entitlements.
 
-Provide the four login credential variables through the Postman environment or CLI. Never put passwords in the collection. The current default fixture UUIDs require logins to return those exact UUIDs. The development setup may temporarily assign a generated test login to the existing unentitled fixture user when its `login_id` is null; the test runner restores the fixture credentials to null afterward. It does not overwrite an existing unrelated login, reset the database, or create entitlements to make read tests pass. The configured purchase episode is separate from the read-only entitlement fixtures and has a price within the existing admin balance. Test sessions are logged out at the end of the collection.
+The default local runner supplies the four login variables automatically from the existing development fixtures. For a custom environment, provide them in `API_TEST_ENVIRONMENT_FILE`. Never put passwords in the collection. The current default fixture UUIDs require logins to return those exact UUIDs. The development setup may temporarily assign a generated test login to the existing unentitled fixture user when both its `login_id` and `password` are null; the test runner restores them to null afterward. It does not overwrite an existing unrelated login, reset the database, or create entitlements to make read tests pass. The configured purchase episode is separate from the read-only entitlement fixtures and has a price within the existing admin balance. Test sessions are logged out at the end of the collection.
 
 To pass credentials and override fixture values, supply Postman environment values. Keep credential values in your local shell or Postman environment and do not commit or print them:
 
 ```powershell
-npm --prefix back run test -- -- --env-var entitledLoginId=admin --env-var entitledPassword=<temporary-test-password> --env-var unentitledLoginId=jwt-plan34-unentitled --env-var unentitledPassword=<temporary-test-password>
+$env:API_TEST_ENVIRONMENT_FILE = 'C:\path\to\local-postman-environment.json'
+npm --prefix back run test
 ```
 
 The detail checks verify the owned paid episode is unlocked only for its owner, another paid episode stays locked, free episodes are unlocked for both users, and anonymous requests expose no stored entitlement. Playback separately requires a matching entitlement for paid episodes; anonymous access remains valid for free episodes and previews.
 
 The drama detail collection requires one watch-progress fixture for the entitled user. It compares the response with `watchProgressEpisodeUuid`, `watchProgressPositionMs`, `watchProgressIsCompleted`, and `watchProgressLastPlayedAt`; the same episode must return `watchProgress: null` for the unentitled user and for anonymous requests. Defaults match the development fixture below. If local UUIDs differ, set these variables to equivalent records in the Postman environment.
+
+The collection also writes progress through `PUT /me/episodes/:episodeUuid/watch-progress`. It uses the unentitled fixture user with the selected free episode and the entitled fixture user with `entitledEpisodeUuid`; these pairs are separate from the read-only progress fixture above. Before each full API test run, inspect and remove only rows owned by those two test pairs so the collection can prove a new row is inserted. The selected free episode comes from the public catalog response. `entitledEpisodeUuid` must remain public, purchased by the entitled fixture user, and have a FULL video. Do not remove the existing admin/locked-episode read fixture or any other user's progress.
+
+Inspect the exact rows before cleanup:
+
+```sql
+SELECT u.uuid AS userUuid, e.uuid AS episodeUuid, p.position_ms, p.is_completed,
+       p.created_at, p.updated_at
+FROM user_watch_progress p
+JOIN users u ON u.id = p.user_id
+JOIN episodes e ON e.id = p.episode_id
+WHERE (u.uuid = '00000012-0000-4000-8000-000000000001' AND e.uuid = '<current-free-episode-uuid>')
+   OR (u.uuid = '00000010-0000-4000-8000-000000000001' AND e.uuid = '00000004-0000-4000-8000-000000000002');
+```
+
+If either row exists from a previous run, delete only these test-owned composite-key rows before rerunning (substitute the free episode UUID printed by the catalog):
+
+```sql
+DELETE p FROM user_watch_progress p
+JOIN users u ON u.id = p.user_id
+JOIN episodes e ON e.id = p.episode_id
+WHERE (u.uuid = '00000012-0000-4000-8000-000000000001' AND e.uuid = '<current-free-episode-uuid>')
+   OR (u.uuid = '00000010-0000-4000-8000-000000000001' AND e.uuid = '00000004-0000-4000-8000-000000000002');
+```
+
+The collection confirms insertion and repeat-start idempotency, completion at the server video's two-thirds threshold, that a later start and concurrent start/completion do not clear completion, malformed/under-threshold inputs, unauthenticated access, paid entitlement, and that detail reads remain null for another user and anonymous requests. These mutation checks run near the end, after the existing read-only content checks.
+
+The watch-progress HTTP scenario records the local time immediately before each `STARTED` and `COMPLETED` PUT, then checks the returned `lastPlayedAt` from the next drama-detail GET falls within that request-to-read interval, allowing five seconds at each edge. Keep the machine running Postman and the MySQL server clock-synchronized. This verifies both the initial insert and a later update through the API. It does not simulate a non-UTC MySQL session; the SQL explicitly uses `UTC_TIMESTAMP(3)` so these checks do not depend on the session time zone.
 
 Inspect candidate records using this query:
 
@@ -135,7 +167,8 @@ WHERE u.uuid = '00000010-0000-4000-8000-000000000001'
 For different IDs, pass the selected fixture values to Postman CLI (the timestamp must be UTC ISO 8601):
 
 ```powershell
-npm --prefix back run test -- -- --env-var watchProgressEpisodeUuid=<episode-uuid> --env-var watchProgressPositionMs=<position-ms> --env-var watchProgressIsCompleted=<true-or-false> --env-var watchProgressLastPlayedAt=<utc-iso-timestamp>
+$env:API_TEST_ENVIRONMENT_FILE = 'C:\path\to\local-postman-environment.json'
+npm --prefix back run test:api -- --env-var watchProgressEpisodeUuid=<episode-uuid> --env-var watchProgressPositionMs=<position-ms> --env-var watchProgressIsCompleted=<true-or-false> --env-var watchProgressLastPlayedAt=<utc-iso-timestamp>
 ```
 
 MySQL `DATETIME(3)` is returned by mysql2 as a JavaScript `Date`; the API serializes it with `toISOString()` as UTC. If the fixture query returns no row, the required non-null case cannot be verified and the API test must fail. The API test also checks that the returned episode list and entitlement state are unchanged by the progress join.

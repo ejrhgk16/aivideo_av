@@ -204,6 +204,12 @@
       "directory": "plan-34-jwt-api-client",
       "title": "JWT 공통 API 요청·오류 처리와 세션 만료 팝업",
       "status": "completed"
+    },
+    {
+      "id": "plan-35-episode-watch-progress",
+      "directory": "plan-35-episode-watch-progress",
+      "title": "본편 재생 시작·2/3 도달 시청기록 저장과 중복 요청 방지",
+      "status": "completed"
     }
   ]
 }

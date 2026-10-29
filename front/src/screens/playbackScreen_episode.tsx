@@ -12,6 +12,7 @@ import { colors } from '@/common/theme/tokens';
 import { getErrorMessage } from '@/common/http/errorMessages';
 import { getDramaContent, type DramaContent } from '@/features/drama/dramaContent';
 import { getEpisodePlayback, type EpisodePlayback } from '@/features/playback/episodePlayback';
+import { createWatchProgressTracker, saveWatchProgress } from '@/features/playback/watchProgress';
 import { useUser } from '@/features/user/UserProvider';
 
 type LoadState = 'loading' | 'loaded' | 'not-found' | 'error';
@@ -92,6 +93,8 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
   const [playbackRate, setPlaybackRate] = useState(player.playbackRate);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seeking = useRef(false);
+  const focused = useRef(true);
+  const previousPlaybackTime = useRef<number | null>(null);
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -137,7 +140,14 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
     }
   }, [clearHideTimer, controlsVisible, showControls]);
 
-  useFocusEffect(useCallback(() => () => player.pause(), [player]));
+  useFocusEffect(useCallback(() => {
+    focused.current = true;
+    return () => {
+      focused.current = false;
+      previousPlaybackTime.current = null;
+      player.pause();
+    };
+  }, [player]));
   useEffect(() => {
     const subscription = player.addListener('statusChange', ({ status }) => {
       if (status === 'error') setVideoFailed(true);
@@ -149,6 +159,7 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
     return () => subscription.remove();
   }, [player]);
   useEffect(() => {
+    previousPlaybackTime.current = null;
     player.timeUpdateEventInterval = 0.5;
     const time = player.addListener('timeUpdate', ({ currentTime }) => {
       const videoDuration = player.duration;
@@ -161,12 +172,44 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
     const playing = player.addListener('playingChange', ({ isPlaying: playingNow }) => setIsPlaying(playingNow));
     const rate = player.addListener('playbackRateChange', ({ playbackRate: rateNow }) => setPlaybackRate(rateNow));
     return () => {
+      previousPlaybackTime.current = null;
       time.remove();
       source.remove();
       playing.remove();
       rate.remove();
     };
   }, [player]);
+  useEffect(() => {
+    if (isRestoring || user === null || playback.durationMs <= 0) return;
+    const version = sessionVersion;
+    const tracker = createWatchProgressTracker(
+      (input) => saveWatchProgress(id, input),
+      () => isCurrentSession(version),
+    );
+    previousPlaybackTime.current = null;
+    const resetSample = () => { previousPlaybackTime.current = null; };
+    const time = player.addListener('timeUpdate', ({ currentTime }) => {
+      if (!focused.current || !player.playing || player.status !== 'readyToPlay' || seeking.current || !Number.isFinite(currentTime)) {
+        resetSample();
+        return;
+      }
+      const lastTime = previousPlaybackTime.current;
+      previousPlaybackTime.current = currentTime;
+      if (lastTime === null || currentTime <= lastTime) return;
+      if (currentTime - lastTime > Math.max(2, player.playbackRate * 2)) return;
+      const positionMs = Math.min(playback.durationMs, Math.max(0, Math.floor(currentTime * 1000)));
+      tracker.onProgress(positionMs, playback.durationMs);
+    });
+    const playing = player.addListener('playingChange', resetSample);
+    const status = player.addListener('statusChange', resetSample);
+    return () => {
+      time.remove();
+      playing.remove();
+      status.remove();
+      previousPlaybackTime.current = null;
+      tracker.dispose();
+    };
+  }, [id, isCurrentSession, isRestoring, playback.durationMs, player, sessionVersion, user?.uuid]);
   useEffect(() => {
     showControls();
     return clearHideTimer;
@@ -287,12 +330,14 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
             thumbTintColor={colors.accent}
             onSlidingStart={() => {
               seeking.current = true;
+              previousPlaybackTime.current = null;
               clearHideTimer();
             }}
             onValueChange={setPosition}
             onSlidingComplete={(value) => {
               player.currentTime = value;
               seeking.current = false;
+              previousPlaybackTime.current = null;
               showControls();
             }}
           />

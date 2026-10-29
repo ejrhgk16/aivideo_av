@@ -8,6 +8,7 @@ import { ContentModule } from './content/content.module.js';
 import { EconomyModule } from './economy/economy.module.js';
 import { ProgrammingModule } from './programming/programming.module.js';
 import { IdentityModule } from './identity/identity.module.js';
+import { PlaybackModule } from './playback/playback.module.js';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { IdentityModule } from './identity/identity.module.js';
     EconomyModule,
     ProgrammingModule,
     IdentityModule,
+    PlaybackModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "plan_id": "plan-35-episode-watch-progress",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "backend-watch-progress-api",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/app.module.ts",
+        "back/src/playback/playback.module.ts",
+        "back/src/playback/watchProgressController.ts",
+        "back/src/playback/watchProgressService.ts",
+        "back/test/api/public.postman_collection.json",
+        "back/test/api/README.md",
+        "_docs/api/04-playback/README.md",
+        "_docs/api/04-playback/watch-progress.md",
+        "_docs/ARCHITECTURE.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-28T18:25:32.051Z",
+      "summary": "Added the JWT-protected watch-progress API, atomic upsert behavior, Postman scenarios, and matching API and architecture documentation. Fixed the collection-wide response check to skip non-JSON responses. `npm --prefix back run lint`, `npm --prefix back run test` (91 unit tests; 116 HTTP requests and 258 assertions), and `npm --prefix back run build` passed. Used the documented temporary login for the existing unentitled fixture, then restored its login fields and removed only the two test-owned progress rows.",
+      "completed_at": "2026-10-28T18:29:19.157Z"
+    },
+    {
+      "id": "task-2",
+      "name": "front-watch-progress-events",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/src/screens/playbackScreen_episode.tsx",
+        "front/src/features/playback/watchProgress.ts",
+        "front/tests/unit/watchProgress.test.ts",
+        "front/tests/unit/playbackScreenEpisode.test.ts",
+        "front/scripts/test-front.cjs"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-28T18:29:34.307Z",
+      "summary": "재생 중 실제 시간 진행에서 시작 기록을 한 번 저장하고, 2/3 이후 진행에서 완료 기록을 한 번 저장하도록 연결했습니다. seek·일시정지·버퍼링·화면 이탈은 샘플을 초기화하며, 세션 변경과 화면 종료는 미전송 작업과 재시도 타이머를 폐기합니다. 네트워크 오류와 5xx만 2초 후 한 번 재시도합니다. 검증 통과: typecheck, test(88/88), export(web/iOS/Android).",
+      "completed_at": "2026-10-28T18:36:54.229Z"
+    },
+    {
+      "id": "task-3",
+      "name": "backend-watch-progress-utc",
+      "status": "completed",
+      "depends_on": [
+        "task-2"
+      ],
+      "files": [
+        "back/src/playback/watchProgressService.ts",
+        "back/test/api/public.postman_collection.json",
+        "back/test/api/README.md",
+        "_docs/api/04-playback/watch-progress.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-29T09:31:11.556Z",
+      "summary": "조회 경로를 TypeORM QueryBuilder로 전환하고, 원자적 upsert는 유지하면서 공개 시점 비교와 기록 시각을 UTC_TIMESTAMP(3)으로 통일했습니다. Postman에서 STARTED 삽입과 COMPLETED 갱신의 lastPlayedAt을 요청 구간과 비교하도록 보강하고 API 문서를 갱신했습니다. lint, build, 전체 test 통과: unit 91개, HTTP 요청 117건, assertion 259개. DB SYSTEM/KST 시간대에서 HTTP 시각 검증도 통과했습니다. 임시 로그인은 null로 복구했고 이번 테스트가 생성한 progress 행 2개를 정리했습니다.",
+      "completed_at": "2026-10-29T09:38:33.844Z"
+    }
+  ]
+}
