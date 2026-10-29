@@ -70,6 +70,29 @@ test('JSON requests set content type, handle 204, and preserve HTTP errors witho
   await assert.rejects(client.request('/fail', { auth: 'public' }), (error) => error instanceof ApiError && error.status === 503 && error.errorCode === null);
 });
 
+test('explicit cookie request options are forwarded without enabling cookies for product requests', async () => {
+  const { session } = fakeSession();
+  const requests: RequestInit[] = [];
+  const client = createApiClient({ baseUrl: 'http://localhost:3000', session, fetcher: (async (_url, init) => {
+    requests.push(init ?? {});
+    return response(200, {});
+  }) as typeof fetch });
+
+  await client.request('/auth/login', {
+    auth: 'public', method: 'POST', json: {}, credentials: 'include',
+    headers: { 'X-Auth-Transport': 'cookie' },
+  });
+  await client.request('/catalog', { auth: 'public' });
+  await client.request('/me', { auth: 'required' });
+
+  assert.equal(requests[0].credentials, 'include');
+  assert.deepEqual(requests[0].headers, { 'Content-Type': 'application/json', 'X-Auth-Transport': 'cookie' });
+  assert.equal(requests[1].credentials, undefined);
+  assert.deepEqual(requests[1].headers, {});
+  assert.equal(requests[2].credentials, undefined);
+  assert.deepEqual(requests[2].headers, { Authorization: 'Bearer access-old' });
+});
+
 test('parallel authenticated 401s share one refresh and retry each original request once', async () => {
   const { session, refreshCount } = fakeSession();
   const counts = new Map<string, number>();

@@ -11,10 +11,16 @@ export type LoginResponse = {
   accountType: 'GUEST' | 'MEMBER' | 'OPERATOR' | 'PARTNER';
   availablePoints: number;
   accessToken: string;
-  refreshToken: string;
+  refreshToken?: string;
   expiresIn: number;
 };
 
-export function login(input: LoginInput, fetcher?: typeof fetch): Promise<LoginResponse> {
-  return publicApiRequest<LoginResponse>('/auth/login', { method: 'POST', json: input }, fetcher);
+export type RefreshTransport = 'body' | 'cookie';
+
+export function login(input: LoginInput, fetcher?: typeof fetch, transport: RefreshTransport = 'body'): Promise<LoginResponse> {
+  return publicApiRequest<LoginResponse>('/auth/login', {
+    method: 'POST',
+    json: input,
+    ...(transport === 'cookie' ? { credentials: 'include', headers: { 'X-Auth-Transport': 'cookie' } } : {}),
+  }, fetcher);
 }

@@ -1,21 +1,38 @@
 import { HTTP_CODE_METADATA, METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it, vi } from 'vitest';
+import { ForbiddenException } from '@nestjs/common';
 import { InvalidLoginInputException, LoginFailedException } from '../../src/common/error/error.customExceptions.js';
 import { AllExceptionFilter } from '../../src/common/error/error.filter.js';
 import { LoginController } from '../../src/identity/loginController.js';
 import { LoginService } from '../../src/identity/loginService.js';
 
 function createController() {
-  const loginService = { login: vi.fn().mockResolvedValue({ uuid: 'user-uuid' }) };
+  const loginService = { login: vi.fn().mockResolvedValue({ uuid: 'user-uuid', refreshToken: 'refresh' }) };
   const tokenService = { refresh: vi.fn(), logout: vi.fn() };
-  return { controller: new LoginController(loginService as never, tokenService as never), loginService };
+  const response = {
+    setHeader: vi.fn(),
+    cookie: vi.fn(),
+    clearCookie: vi.fn(),
+    status: vi.fn(),
+  };
+  const request = (headers: Record<string, string> = {}, cookie?: string) => ({
+    get: (name: string) => headers[name],
+    headers: { cookie },
+  });
+  return {
+    controller: new LoginController(loginService as never, tokenService as never),
+    loginService,
+    tokenService,
+    response,
+    request,
+  };
 }
 
 describe('LoginController', () => {
   it('validates request fields and passes the supplied credentials to the service', async () => {
-    const { controller, loginService } = createController();
+    const { controller, loginService, request, response } = createController();
 
-    await controller.login({ loginId: 'any-user', password: 'provided-password' });
+    await controller.login({ loginId: 'any-user', password: 'provided-password' }, request(), response as never);
     expect(loginService.login).toHaveBeenCalledWith({ loginId: 'any-user', password: 'provided-password' });
   });
 
@@ -30,11 +47,48 @@ describe('LoginController', () => {
     { loginId: 'admin', password: '' },
     { loginId: 'admin', password: '   ' },
     { loginId: 'admin', password: 123 },
-  ])('rejects invalid input %o without calling the service', (body) => {
-    const { controller, loginService } = createController();
+  ])('rejects invalid input %o without calling the service', async (body) => {
+    const { controller, loginService, request, response } = createController();
 
-    expect(() => controller.login(body)).toThrow(InvalidLoginInputException);
+    await expect(controller.login(body, request(), response as never)).rejects.toBeInstanceOf(InvalidLoginInputException);
     expect(loginService.login).not.toHaveBeenCalled();
+  });
+
+  it('sets a web refresh cookie and omits the refresh token from JSON', async () => {
+    const { controller, request, response } = createController();
+    const result = await controller.login(
+      { loginId: 'any-user', password: 'provided-password' },
+      request({ origin: 'http://localhost:8081', 'x-auth-transport': 'cookie' }),
+      response as never,
+    );
+
+    expect(result).toEqual({ uuid: 'user-uuid' });
+    expect(response.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store');
+    expect(response.cookie).toHaveBeenCalledWith('auth.refreshToken', 'refresh', expect.any(Object));
+  });
+
+  it('rejects web mode before calling the login service when the origin is not allowed', async () => {
+    const { controller, loginService, request, response } = createController();
+
+    await expect(controller.login(
+      { loginId: 'any-user', password: 'provided-password' },
+      request({ origin: 'https://other.example', 'x-auth-transport': 'cookie' }),
+      response as never,
+    )).rejects.toBeInstanceOf(ForbiddenException);
+    expect(loginService.login).not.toHaveBeenCalled();
+  });
+
+  it('uses the cookie for web refresh and returns 204 when it is absent', async () => {
+    const { controller, request, response, tokenService } = createController();
+    const result = await controller.refresh(
+      { refreshToken: 'ignored-body-token' },
+      request({ origin: 'http://localhost:8081', 'x-auth-transport': 'cookie' }),
+      response as never,
+    );
+
+    expect(result).toBeUndefined();
+    expect(response.status).toHaveBeenCalledWith(204);
+    expect(tokenService.refresh).not.toHaveBeenCalled();
   });
 
   it('registers POST /auth/login with the custom exception filter and HTTP 200', () => {

@@ -14,6 +14,14 @@ npm start
 
 API 주소는 `front/.env.development`에서 `EXPO_PUBLIC_API_BASE_URL`로 설정합니다. 앱에서 접근 가능한 HTTP(S) URL을 사용하고, 실제 기기에서는 `localhost` 대신 개발 PC의 LAN IP와 API 포트를 지정합니다. 예시는 `.env.example`에 있습니다.
 
+웹은 로그인·세션 복원·로그아웃 요청에 브라우저 쿠키를 포함하고 `X-Auth-Transport: cookie`를 보냅니다. 백엔드는 Refresh를 HttpOnly 쿠키로 저장하고, 새로고침 뒤 `/auth/refresh`로 Access와 사용자 정보를 복원합니다. 쿠키는 프론트 JavaScript 저장소에서 읽거나 수정하지 않습니다. 네이티브 앱은 기존 Expo SecureStore와 JSON Refresh 방식을 사용합니다.
+
+다른 탭에서 계정이 바뀐 경우 다음 Refresh 응답의 사용자 UUID를 현재 계정과 비교합니다. 달라지면 현재 탭의 인증 상태를 비우고 진행 중인 요청을 중단해 이전 계정 요청이 새 계정으로 재전송되지 않도록 합니다. 이 검사는 별도 탭 동기화 없이 Refresh 시점에 동작합니다.
+
+웹 개발은 프론트 `http://localhost:8081`, API `http://localhost:3000` 조합을 사용합니다. API 주소는 `EXPO_PUBLIC_API_BASE_URL`에 설정하고, 백엔드 `WEB_CORS_ORIGINS`에는 브라우저의 정확한 origin을 허용해야 합니다. 배포 시 HTTPS를 사용하고 프론트/API를 `app.example.com` 및 `api.example.com`처럼 같은 사이트에 두거나 동일 origin 프록시를 구성합니다. 별개 사이트의 서드파티 쿠키와 `*.vercel.app` 프로젝트 간 쿠키 공유는 지원하지 않습니다.
+
+웹 세션을 수동으로 확인하려면 브라우저에서 저장된 개발 사이트 쿠키를 지운 뒤 `http://localhost:8081`을 열어 첫 방문이 익명으로 끝나는지 확인합니다. 로그인 후 개발자 도구의 Network에서 `/auth/login` 응답 JSON에 Refresh가 없고, `auth.refreshToken`이 HttpOnly·Path `/auth`·SameSite Lax 쿠키로 설정되는지 확인합니다. 새로고침 뒤 `/auth/refresh`가 세션을 복원하고, 로그아웃 뒤 다시 새로고침하면 익명으로 남아야 합니다. 로컬 HTTP에서는 Secure가 꺼지고 운영 HTTPS에서는 켜집니다. 쿠키 값은 복사하거나 공유하지 않습니다.
+
 홈 컬렉션, 검색, 작품 상세 데이터와 이미지는 `EXPO_PUBLIC_API_BASE_URL`의 NestJS API에서 가져옵니다. API 응답의 상대 이미지 URL은 API 주소에 연결하고, 절대 URL(운영 signed URL 포함)은 그대로 사용합니다. 개발 중 API는 `back/.env.development`의 `MEDIA_STORAGE_ROOT`가 가리키는 `front/media/` 파일을 `/media/images/` 경로로 제공합니다.
 
 Expo Go 또는 개발 빌드에서 QR 코드를 열어 기기로 확인합니다. Expo 57과 호환되는 실행 앱이 필요합니다.

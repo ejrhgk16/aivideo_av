@@ -1,6 +1,6 @@
 # POST /auth/refresh
 
-Refresh JWT를 한 번 사용해 새 Access/Refresh 쌍으로 회전한다.
+Refresh JWT를 한 번 사용해 새 Access/Refresh 쌍으로 회전한다. 네이티브는 JSON body, 웹은 HttpOnly 쿠키에서 Refresh를 읽는다.
 
 ## 요청
 
@@ -11,6 +11,10 @@ Refresh JWT를 한 번 사용해 새 Access/Refresh 쌍으로 회전한다.
 ```
 
 비어 있지 않은 문자열이어야 한다. Refresh 키의 HS256 서명, 용도, 클레임을 검증하며, 토큰 만료와 DB 만료를 모두 확인한다. 성공 시 login 응답과 같은 사용자·포인트·토큰 필드를 HTTP 200으로 반환한다.
+
+웹 요청은 login 문서의 `Origin`과 `X-Auth-Transport: cookie` 헤더를 보내고 body는 `{}`로 둔다. body의 `refreshToken`은 웹 모드에서 무시한다. 쿠키가 있으면 회전된 Refresh를 같은 쿠키 옵션으로 설정하며 JSON에서는 `refreshToken`을 제외한다. 모든 응답은 `Cache-Control: no-store`다.
+
+웹 쿠키가 없으면 최초 방문·로그아웃 후의 익명 상태를 뜻하는 본문 없는 204를 반환한다. 쿠키 값이 비어 있거나 잘못 인코딩됐거나 JWT 검증에 실패하면 401 `AUTH_INVALID_TOKEN`과 쿠키 삭제를 반환한다. DB/네트워크 오류는 쿠키를 삭제하지 않고 서버 오류로 전파한다. 네이티브 body 누락은 기존 400 계약을 유지한다.
 
 ## 회전 및 재사용
 
@@ -26,3 +30,5 @@ Refresh JWT를 한 번 사용해 새 Access/Refresh 쌍으로 회전한다.
 | 401 | `AUTH_INVALID_TOKEN` | `InvalidToken` | 서명·용도·만료·사용자·이력 검증 실패 또는 재사용 탐지 |
 
 DB 장애는 인증 실패로 바꾸지 않고 서버 오류로 처리한다.
+
+요청에 Origin 또는 `X-Auth-Transport`가 있으면 두 값 모두 웹 쿠키 모드 계약에 맞아야 한다. 헤더 또는 Origin 누락·불일치는 서비스 호출 전 403이다. 둘 다 없는 요청은 네이티브 JSON 모드다.

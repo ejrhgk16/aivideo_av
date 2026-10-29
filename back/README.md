@@ -47,6 +47,14 @@ Use `DB_SYNCHRONIZE=true` only for local development. Development defaults to `t
 
 Never commit database passwords, credentials, or the actual `.env.development` and `.env.production` files.
 
+## Web authentication cookies
+
+Configure `WEB_CORS_ORIGINS` as a comma-separated list of exact frontend origins, for example `https://app.example.com`. Development defaults to `http://localhost:8081` when unset; production defaults to an empty allowlist, so configure the production web origin explicitly. Whitespace and empty entries are ignored. Wildcards and partial-origin matching are not supported. Allowed origins receive credentialed CORS responses for `content-type`, `authorization`, and `x-auth-transport`.
+
+Web auth requests use `X-Auth-Transport: cookie` and the browser `Origin`. The backend sets the `auth.refreshToken` cookie as HttpOnly, SameSite=Lax, host-only, Path `/auth`, with a 14 day lifetime. `Secure` is enabled when `NODE_ENV=production`; production must use HTTPS. Keep the frontend and API on the same site, such as `app.example.com` and `api.example.com`, or use a same-origin proxy. Separate `*.vercel.app` projects have unrelated host-only cookies; do not set `Domain=vercel.app`.
+
+Vercel/serverless instances do not need in-memory auth state. All instances must use the same `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, and shared MySQL database so existing Refresh rotation and revocation records remain authoritative. Refresh-cookie responses are not cacheable. Web Refresh is omitted from JSON; native requests continue to use the JSON token contract.
+
 ## Video playback
 
 In development, FULL episode videos and DRAMA PREVIEW videos are returned as S3 presigned GET URLs. Configure `AWS_REGION`, `S3_BUCKET`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` in the Git-ignored `.env.development` file. The AWS SDK uses its default credential provider chain, which reads the configured access key from environment variables. Keep the actual key values only in `.env.development`; never commit them. URLs expire after one hour. This playback API does not check purchase entitlement and is unavailable outside development.

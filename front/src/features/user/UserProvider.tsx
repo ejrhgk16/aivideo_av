@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Platform } from 'react-native';
 import { readRefreshToken, removeRefreshToken, writeRefreshToken } from '@/common/storage/refreshTokenStorage';
 import type { LoginInput, LoginResponse } from './login';
 import { configureSessionClient, type User, type UserSessionState } from './sessionClient';
@@ -8,6 +9,7 @@ export type { User } from './sessionClient';
 const sessionClient = configureSessionClient({
   baseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? '',
   storage: { read: readRefreshToken, write: writeRefreshToken, remove: removeRefreshToken },
+  refreshTransport: Platform.OS === 'web' ? 'cookie' : 'body',
 });
 
 type UserContextValue = Omit<UserSessionState, 'version'> & {

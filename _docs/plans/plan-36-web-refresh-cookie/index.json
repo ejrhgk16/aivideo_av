@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "plan_id": "plan-36-web-refresh-cookie",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "backend-refresh-cookie",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/identity/loginController.ts",
+        "back/src/identity/refreshCookie.ts",
+        "back/src/common/http/webCors.ts",
+        "back/test/unit/loginController.spec.ts",
+        "back/test/unit/refreshCookie.spec.ts",
+        "back/test/api/public.postman_collection.json",
+        "back/test/api/README.md",
+        "back/README.md",
+        "_docs/api/01-identity/login.md",
+        "_docs/api/01-identity/refresh.md",
+        "_docs/api/01-identity/logout.md",
+        "_docs/api/00-overview/authentication.md",
+        "_docs/api/00-overview/conventions.md",
+        "_docs/ARCHITECTURE.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-10-29T10:38:21.782Z",
+      "summary": "Updated the stale authentication sentence to document HttpOnly-cookie session restoration after a web page reload and checked the related API and architecture docs for similar contradictions. `npm --prefix back run lint`, `npm --prefix back run test` (98 unit tests, 274 API assertions), and `npm --prefix back run build` passed.",
+      "completed_at": "2026-10-29T10:39:28.509Z"
+    },
+    {
+      "id": "task-2",
+      "name": "front-cookie-session",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/src/common/http/api.ts",
+        "front/src/common/storage/refreshTokenStorage.web.ts",
+        "front/src/features/user/login.ts",
+        "front/src/features/user/session.ts",
+        "front/src/features/user/sessionClient.ts",
+        "front/src/features/user/UserProvider.tsx",
+        "front/tests/unit/api.test.ts",
+        "front/tests/unit/login.test.ts",
+        "front/tests/unit/session.test.ts",
+        "front/README.md"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-29T10:39:34.191Z",
+      "summary": "Revalidated after the backend documentation correction; no code changes were needed. `npm --prefix front run typecheck`, `npm --prefix front run test` (98 passed), and `npm --prefix front run export` all passed. Browser automation was unavailable, so the real-browser flow remains unverified; manual verification steps are documented in front/README.md.",
+      "completed_at": "2026-10-29T10:40:18.405Z"
+    },
+    {
+      "id": "task-3",
+      "name": "reject-refresh-account-switch",
+      "status": "completed",
+      "depends_on": [
+        "task-2"
+      ],
+      "files": [
+        "front/src/features/user/sessionClient.ts",
+        "front/tests/unit/session.test.ts",
+        "front/README.md"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-29T10:53:13.231Z",
+      "summary": "Added a cookie-mode UUID guard for refresh and explicit session restore. When an existing account differs from the response account, the local session generation is invalidated and pending requests stop; the shared cookie is preserved. Added regression tests for mutation retry prevention, concurrent requests, explicit restore, anonymous initialization, and same-account refresh. `npm --prefix front run typecheck`, `npm --prefix front run test` (102 passed), and `npm --prefix front run export` passed. Browser verification remains unavailable.",
+      "completed_at": "2026-10-29T10:58:53.338Z"
+    }
+  ]
+}

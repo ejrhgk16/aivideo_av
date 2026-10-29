@@ -4,6 +4,8 @@ export type ApiRequestOptions = {
   auth: AuthMode;
   method?: string;
   json?: unknown;
+  credentials?: RequestCredentials;
+  headers?: Record<string, string>;
 };
 
 export type SessionState = { version: number; accessToken: string | null };
@@ -43,11 +45,13 @@ export function createApiClient({ baseUrl, fetcher = fetch, session }: ApiClient
     if (!path.startsWith('/') || path.startsWith('//')) throw new Error('API paths must be relative to the configured API origin.');
     const headers: Record<string, string> = {};
     if (options.json !== undefined) headers['Content-Type'] = 'application/json';
+    Object.assign(headers, options.headers);
     if (accessToken !== null) headers.Authorization = `Bearer ${accessToken}`;
     const response = await fetcher(`${root}${path}`, {
       method: options.method ?? 'GET',
       headers,
       ...(options.json === undefined ? {} : { body: JSON.stringify(options.json) }),
+      ...(options.credentials === undefined ? {} : { credentials: options.credentials }),
     });
 
     if (!response.ok) {

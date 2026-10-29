@@ -210,6 +210,12 @@
       "directory": "plan-35-episode-watch-progress",
       "title": "본편 재생 시작·2/3 도달 시청기록 저장과 중복 요청 방지",
       "status": "completed"
+    },
+    {
+      "id": "plan-36-web-refresh-cookie",
+      "directory": "plan-36-web-refresh-cookie",
+      "title": "웹 Refresh HttpOnly 쿠키 저장과 새로고침 세션 복원",
+      "status": "completed"
     }
   ]
 }

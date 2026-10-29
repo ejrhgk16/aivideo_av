@@ -41,6 +41,33 @@ test('login sends the supplied credentials to the configured endpoint and return
   }
 });
 
+test('cookie login includes credentials and transport mode without requiring a Refresh field', async () => {
+  const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+  const originalFetch = globalThis.fetch;
+  const requested: Array<{ input: RequestInfo | URL; init?: RequestInit }> = [];
+  const cookieResponse = { ...responseBody } as Partial<typeof responseBody>;
+  delete cookieResponse.refreshToken;
+  process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
+  globalThis.fetch = (async (input, init) => {
+    requested.push({ input, init });
+    return { ok: true, status: 200, json: async () => cookieResponse } as Response;
+  }) as typeof fetch;
+
+  try {
+    const result = await login({ loginId: 'admin', password: 'admin' }, undefined, 'cookie');
+    assert.equal(String(requested[0].input), 'http://localhost:3000/auth/login');
+    assert.equal(requested[0].init?.method, 'POST');
+    assert.equal(requested[0].init?.credentials, 'include');
+    assert.deepEqual(requested[0].init?.headers, { 'Content-Type': 'application/json', 'X-Auth-Transport': 'cookie' });
+    assert.equal(requested[0].init?.body, JSON.stringify({ loginId: 'admin', password: 'admin' }));
+    assert.equal(result.refreshToken, undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    else process.env.EXPO_PUBLIC_API_BASE_URL = originalBaseUrl;
+  }
+});
+
 test('login rejects a missing API base URL without making a request', async () => {
   const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   const originalFetch = globalThis.fetch;

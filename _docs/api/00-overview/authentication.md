@@ -25,7 +25,7 @@
 | 서명 | HS256, `JWT_ACCESS_SECRET` | HS256, 별도 `JWT_REFRESH_SECRET` |
 | payload | `sub`, `tokenType: "access"`, `iat`, `exp` | `sub`, `tokenType: "refresh"`, `jti`, `iat`, `exp` |
 | 네이티브 저장 | 메모리 | Expo SecureStore, 키 `auth.refreshToken` |
-| 웹 저장 | 메모리 | 메모리. 새로고침 후 로그인 유지 안 됨 |
+| 웹 저장 | 메모리 | 서버가 설정하는 HttpOnly, SameSite=Lax, Path=/auth host-only 쿠키 |
 
 `sub`는 사용자 UUID, `iat`는 발급 시각, `exp`는 만료 시각이다. Refresh의 `jti`는 발급마다 새로 생성하는 UUID로, 같은 초에 발급해도 토큰이 달라지게 한다. 별도 `sessionUuid`/`sid`, DB 내부 숫자 ID, 비밀번호·이름·포인트는 payload에 넣지 않는다. JWT payload는 암호화된 개인정보 저장소가 아니다.
 
@@ -33,10 +33,10 @@
 
 ## 로그인
 
-1. 프론트가 `POST /auth/login`으로 `loginId`, `password`를 보낸다.
+1. 네이티브 프론트는 `POST /auth/login`으로 `loginId`, `password`를 보낸다. 웹은 같은 body와 함께 `Origin` 및 `X-Auth-Transport: cookie`를 보낸다.
 2. 서버가 DB의 활성 사용자와 자격 증명을 확인하고 `generateTokens(userUuid)`로 두 토큰을 생성한다.
 3. `saveRefreshToken(userId, refreshToken, expiresAt)`이 로그인 기록과 첫 Refresh 해시를 트랜잭션으로 저장한다. 저장 실패 시 로그인 성공을 반환하지 않는다.
-4. 서버는 사용자 UUID·표시 이름·계정 종류·현재 포인트와 두 토큰, `expiresIn: 900`을 반환한다. 내부 숫자 ID는 응답하지 않는다.
+4. 서버는 사용자 UUID·표시 이름·계정 종류·현재 포인트와 Access, `expiresIn: 900`을 반환한다. 네이티브 JSON 응답에는 Refresh도 포함하고, 웹 응답은 Refresh를 제외해 HttpOnly 쿠키로 설정한다. 내부 숫자 ID는 응답하지 않는다.
 5. 프론트는 Refresh 저장이 끝난 뒤 사용자·포인트·Access를 메모리에 반영한다. Refresh는 Context에 공개하지 않는다. 일반 API 함수는 공통 요청 client를 거치며 공개·선택·필수 인증 모드를 명시한다.
 
 현재 프론트에는 입력 폼 대신 개발용 `/login` 경로가 있다. 해당 경로를 방문하면 복원을 기다리고, 이미 로그인돼 있으면 홈으로 이동한다. 미로그인일 때는 URL의 계정을 사용하며 생략 시 `admin/admin`으로 로그인한다. 앱 전체에서 실패를 숨기기 위해 이 계정으로 자동 재로그인하지 않는다.
@@ -44,14 +44,14 @@
 ## 앱 종료와 복원
 
 - 앱 프로세스가 종료되면 Access·사용자·포인트 메모리는 사라진다. 네이티브 Refresh는 SecureStore에 남는다.
-- 앱 시작 시 `UserProvider`가 저장된 Refresh를 읽어 `POST /auth/refresh`로 복원한다. 저장된 토큰이 없으면 미로그인으로 끝낸다.
+- 앱 시작 시 네이티브는 SecureStore에서 읽은 Refresh를 `POST /auth/refresh` body로 보낸다. 웹은 빈 JSON body와 함께 `Origin`, `X-Auth-Transport: cookie`를 보내고 브라우저가 쿠키를 자동 전송한다. 웹 첫 방문처럼 쿠키가 없으면 204로 미로그인 상태가 된다.
 - 성공하면 새 Refresh를 저장한 뒤 Access·사용자·최신 포인트를 메모리에 반영한다. 복원 중에는 `/login`의 로그인 요청이나 redirect를 보류한다.
 - 갱신 401이면 Refresh와 메모리 인증 상태를 정리한다. 통신 오류·5xx는 Refresh를 유지하되 미로그인 상태와 복원 오류를 표시한다. 저장 실패도 복원 성공으로 처리하지 않는다.
 - 복원 Promise는 중복 effect 실행에서도 공유한다. 복원·로그인·갱신·로그아웃은 저장과 상태 반영까지 직렬화한다. 사용자별 화면 요청은 복원이 끝날 때까지 기다리고, 계정 세대가 바뀐 뒤 도착한 응답을 무시한다.
 
 ## 갱신과 재사용 탐지
 
-`POST /auth/refresh`는 body의 Refresh Token을 받는다. Refresh 전용 키의 서명·알고리즘·용도·클레임, 사용자와 DB 이력을 검증하며 Access Token은 갱신에 사용할 수 없다.
+`POST /auth/refresh`는 네이티브 JSON body 또는 웹 HttpOnly 쿠키에서 Refresh Token을 받는다. 웹 모드는 `WEB_CORS_ORIGINS`에 정확히 포함된 Origin과 `X-Auth-Transport: cookie`를 요구한다. 웹 요청의 body Refresh는 무시한다. 쿠키가 없는 웹 refresh는 204이며, 쿠키가 유효하지 않으면 401과 삭제 헤더다. 성공 응답의 Refresh는 웹에서는 쿠키로만 전달된다. Refresh 전용 키의 서명·알고리즘·용도·클레임, 사용자와 DB 이력을 검증하며 Access Token은 갱신에 사용할 수 없다.
 
 DB의 `auth_sessions`는 로그인별 사용자와 폐기 시각을 관리한다. `refresh_tokens`는 해당 로그인 내부 ID에 연결된 SHA-256 해시·만료·사용 시각을 저장한다. 원문 토큰은 DB나 로그에 남기지 않는다. 이 내부 연결 ID는 JWT에 포함하지 않는다.
 
@@ -70,6 +70,7 @@ DB의 `auth_sessions`는 로그인별 사용자와 폐기 시각을 관리한다
 - 프론트가 저장된 Refresh로 `POST /auth/logout`을 호출한다. 서버는 그 토큰에 연결된 로그인만 폐기하며 해시 이력은 보존한다.
 - 만료되지 않은 사용 전·사용 후 Refresh 모두 해당 로그인 폐기에 사용할 수 있다. 이미 폐기됐거나 유효하게 서명된 토큰의 이력이 없으면 204, 잘못된/만료된 토큰은 401이다.
 - 프론트는 서버 호출 성공 여부와 관계없이 로컬 Refresh 삭제를 시도하고 사용자·포인트·Access를 정리한다. 서버 호출이나 저장소 삭제 실패는 호출자에게 알린다.
+- 웹 로그아웃은 쿠키 모드로 서버 요청을 보내고 응답에서 쿠키를 만료한다. 쿠키가 없으면 204로 처리한다. 네트워크 실패 시 브라우저 쿠키 삭제를 보장하지 않는다.
 - 서버에서 폐기하는 것은 Refresh다. 이미 발급된 Access는 별도 폐기 목록을 조회하지 않으므로 최대 15분 더 유효할 수 있다. 서버 통신 실패 시 서버 로그인까지 폐기됐다고 보장하지 않는다.
 
 ## 인증 오류
@@ -97,4 +98,6 @@ DB의 `auth_sessions`는 로그인별 사용자와 폐기 시각을 관리한다
 
 프론트의 공통 요청 함수는 endpoint가 공개·선택·필수 인증 중 하나를 지정한다. 실행 중 Refresh는 동시 401 요청 사이에서 한 번만 수행하고 각 원 요청은 새 Access로 최대 한 차례 재시도한다. 최종 Refresh 401은 사용자·포인트·Access를 정리하고 루트의 세션 만료 모달을 표시한다. 모달을 닫으면 같은 종료 세션의 늦은 오류로 다시 열리지 않으며 로그인 화면은 사용자가 모달의 로그인 버튼을 누른 경우에만 열린다. 미로그인 유료 재생은 화면에서 로그인 안내를, 구매 권한 거부는 회차/구매 안내를 표시한다.
 
-네이티브 실기기에서는 SecureStore와 시스템 Modal을 아직 검증하지 않았다. 웹 Refresh 저장은 메모리 전용이므로 페이지 새로고침 뒤 자동 복원이 되지 않는다. Refresh 통신 오류·5xx 또는 저장 실패는 기존 Refresh를 자동 재사용하지 않도록 막으며 새 로그인이나 명시적 복원이 필요하다.
+네이티브 실기기에서는 SecureStore와 시스템 Modal을 아직 검증하지 않았다. 웹은 HttpOnly Refresh 쿠키로 페이지 새로고침 뒤 세션을 복원한다. Refresh 통신 오류·5xx 또는 저장 실패는 기존 Refresh를 자동 재사용하지 않도록 막으며 새 로그인이나 명시적 복원이 필요하다.
+
+인증 API의 웹 응답은 `Cache-Control: no-store`다. 운영 쿠키는 HTTPS의 Secure 속성을 사용한다. 프론트와 API가 `app.example.com` 및 `api.example.com`처럼 같은 사이트에 있거나 동일 origin 프록시를 사용해야 한다. 각 서버리스 인스턴스는 같은 JWT 시크릿과 기존 공유 MySQL을 사용하며 인스턴스 메모리에 Refresh 상태를 보관하지 않는다. `*.vercel.app` 프로젝트 간 도메인 쿠키 공유나 별도 사이트의 third-party cookie는 지원하지 않는다.

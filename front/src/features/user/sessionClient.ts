@@ -1,5 +1,5 @@
 import { ApiError, createApiClient, SessionChangedError, type ApiSession } from '../../common/http/api';
-import type { LoginInput, LoginResponse } from './login';
+import type { LoginInput, LoginResponse, RefreshTransport } from './login';
 import { login as requestLogin } from './login';
 import { createSessionQueue, logoutSession, restoreSession, storeLoginResponse, type RefreshTokenStorage } from './session';
 
@@ -23,7 +23,8 @@ type SessionClientOptions = {
   baseUrl: string;
   storage: RefreshTokenStorage;
   fetcher?: typeof fetch;
-  loginRequest?: (input: LoginInput, fetcher?: typeof fetch) => Promise<LoginResponse>;
+  refreshTransport?: RefreshTransport;
+  loginRequest?: (input: LoginInput, fetcher?: typeof fetch, transport?: RefreshTransport) => Promise<LoginResponse>;
 };
 
 function userSession(response: LoginResponse): Pick<UserSessionState, 'user' | 'points' | 'accessToken'> {
@@ -31,7 +32,7 @@ function userSession(response: LoginResponse): Pick<UserSessionState, 'user' | '
   return { user: { uuid, displayName, accountType }, points: availablePoints, accessToken };
 }
 
-export function createSessionClient({ baseUrl, storage, fetcher = fetch, loginRequest = requestLogin }: SessionClientOptions) {
+export function createSessionClient({ baseUrl, storage, fetcher = fetch, refreshTransport = 'body', loginRequest = requestLogin }: SessionClientOptions) {
   const queue = createSessionQueue();
   const listeners = new Set<() => void>();
   const state: UserSessionState = {
@@ -60,6 +61,14 @@ export function createSessionClient({ baseUrl, storage, fetcher = fetch, loginRe
   function currentUserSession(response: LoginResponse) {
     patch({ ...userSession(response), restoreError: null });
   }
+  function applyRefreshedSession(response: LoginResponse, version: number) {
+    if (state.version !== version) throw new SessionChangedError();
+    if (refreshTransport === 'cookie' && state.user !== null && response.uuid !== state.user.uuid) {
+      clearSession(true);
+      throw new SessionChangedError();
+    }
+    currentUserSession(response);
+  }
   function getSessionState() {
     return { version: state.version, accessToken: state.accessToken };
   }
@@ -71,10 +80,10 @@ export function createSessionClient({ baseUrl, storage, fetcher = fetch, loginRe
     restoration = queue.enqueue(async () => {
       const version = state.version;
       try {
-        const response = await restoreSession(storage, fetcher, baseUrl);
+        const response = await restoreSession(storage, fetcher, baseUrl, refreshTransport);
         if (version === state.version) {
           if (response === null) patch({ user: null, points: null, accessToken: null });
-          else currentUserSession(response);
+          else applyRefreshedSession(response, version);
         }
       } catch (error) {
         if (version === state.version) {
@@ -94,7 +103,11 @@ export function createSessionClient({ baseUrl, storage, fetcher = fetch, loginRe
   async function expire(version: number, cause?: unknown): Promise<void> {
     if (state.version !== version) return;
     clearSession(true);
-    try { await queue.enqueue(() => storage.remove()); } catch (error) {
+    try {
+      await queue.enqueue(() => refreshTransport === 'cookie'
+        ? logoutSession(storage, fetcher, baseUrl, refreshTransport)
+        : storage.remove());
+    } catch (error) {
       if (cause !== null && (typeof cause === 'object' || typeof cause === 'function')) {
         Object.defineProperty(cause, 'storageError', { value: error, enumerable: false, configurable: true });
       } else {
@@ -117,13 +130,12 @@ export function createSessionClient({ baseUrl, storage, fetcher = fetch, loginRe
         if (state.accessToken !== failedAccess) return;
         if (automaticRefreshBlocked) throw new Error('Session refresh is unavailable until a new login or explicit restore.');
         try {
-          const response = await restoreSession(storage, fetcher, baseUrl);
+          const response = await restoreSession(storage, fetcher, baseUrl, refreshTransport);
           if (response === null) {
             clearSession(true);
             throw new ApiError(401, 'AUTH_INVALID_TOKEN');
           }
-          if (state.version !== version) throw new SessionChangedError();
-          currentUserSession(response);
+          applyRefreshedSession(response, version);
         } catch (error) {
           if (error instanceof ApiError && error.status === 401 && error.errorCode === 'AUTH_INVALID_TOKEN') {
             if (state.version === version) clearSession(true);
@@ -149,8 +161,8 @@ export function createSessionClient({ baseUrl, storage, fetcher = fetch, loginRe
     const version = state.version;
     automaticRefreshBlocked = false;
     return queue.enqueue(async () => {
-      const response = await loginRequest(input, fetcher);
-      await storeLoginResponse(response, storage);
+      const response = await loginRequest(input, fetcher, refreshTransport);
+      await storeLoginResponse(response, storage, refreshTransport);
       if (state.version === version) {
         currentUserSession(response);
         patch({ sessionExpired: false, restoreError: null, isRestoring: false });
@@ -164,7 +176,7 @@ export function createSessionClient({ baseUrl, storage, fetcher = fetch, loginRe
     const version = state.version;
     return queue.enqueue(async () => {
       try {
-        await logoutSession(storage, fetcher, baseUrl);
+        await logoutSession(storage, fetcher, baseUrl, refreshTransport);
       } finally {
         if (state.version === version) patch({ user: null, points: null, accessToken: null });
       }

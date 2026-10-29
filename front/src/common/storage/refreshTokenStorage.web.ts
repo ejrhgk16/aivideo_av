@@ -1,5 +1,3 @@
-let refreshToken: string | null = null;
-
-export const readRefreshToken = async () => refreshToken;
-export const writeRefreshToken = async (token: string) => { refreshToken = token; };
-export const removeRefreshToken = async () => { refreshToken = null; };
+export const readRefreshToken = async () => null;
+export const writeRefreshToken = async (_token: string) => {};
+export const removeRefreshToken = async () => {};
