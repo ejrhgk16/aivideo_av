@@ -234,6 +234,12 @@
       "directory": "plan-39-recommendation-sequential-video",
       "title": "추천 한 작품씩 순차 이동과 준비된 영상 표지 생략",
       "status": "completed"
+    },
+    {
+      "id": "plan-40-recommendation-swipe-input",
+      "directory": "plan-40-recommendation-swipe-input",
+      "title": "추천 웹·네이티브 단일 이동 처리와 드래그·휠 입력 분리",
+      "status": "completed"
     }
   ]
 }

@@ -5,7 +5,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { createVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import Slider from '@react-native-community/slider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FlatList, Modal, Pressable, Share, StyleSheet, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { FlatList, Modal, PanResponder, Platform, Pressable, Share, StyleSheet, View, type GestureResponderEvent, type NativeScrollEvent, type NativeSyntheticEvent, type PanResponderGestureState } from 'react-native';
 import { AppText, Button, EmptyState, Icon, Page } from '@/components/ui';
 import { EpisodeUnlockDialog } from '@/components/EpisodeUnlockDialog';
 import { resolveApiImageUrl } from '@/common/media';
@@ -16,8 +16,21 @@ import { getPreviewPlayback } from '@/features/playback/previewPlayback';
 import { createRecommendationPreviewBuffer, recommendationPreviewKey, type RecommendationPreviewEntry } from '@/features/playback/recommendationPreviewBuffer';
 
 type CollectionStatus = 'loading' | 'loaded' | 'error';
+const PAGE_SETTLE_TOLERANCE = 4;
+const PAGE_TRANSITION_MS = 220;
+const WHEEL_QUIET_MS = 150;
+const DRAG_ACTIVATION_PX = 10;
+const FAST_SWIPE_MIN_DISTANCE = 50;
+const FAST_SWIPE_MIN_VELOCITY = 0.5;
+const FAST_SWIPE_FRESH_MS = 100;
+const WHEEL_THRESHOLD_PX = 100;
+type FeedEventTarget = {
+  addEventListener(name: 'wheel', listener: (event: WheelEvent) => void, options: AddEventListenerOptions): void;
+  removeEventListener(name: 'wheel', listener: (event: WheelEvent) => void): void;
+};
 function RecommendationPreviewPlayer({
   player,
+  moving,
   trackListener,
   drama,
   content,
@@ -26,8 +39,10 @@ function RecommendationPreviewPlayer({
   onToggleSave,
   onOpenEpisodes,
   onShare,
+  onSeekTouch,
 }: {
   player: VideoPlayer;
+  moving: boolean;
   trackListener: (subscription: { remove(): void }) => { remove(): void };
   drama: HomeCollectionDrama;
   content: DramaContent | null;
@@ -36,6 +51,7 @@ function RecommendationPreviewPlayer({
   onToggleSave: () => void;
   onOpenEpisodes: () => void;
   onShare: () => void;
+  onSeekTouch: (active: boolean) => void;
 }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -44,21 +60,55 @@ function RecommendationPreviewPlayer({
   const [duration, setDuration] = useState(player.duration);
   const [playbackRate, setPlaybackRate] = useState(player.playbackRate);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [touchActive, setTouchActive] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
   const [lockedEpisode, setLockedEpisode] = useState<DramaContent['episodes'][number] | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retainTouchControls = useRef(false);
   const onErrorRef = useRef(onError);
   const seeking = useRef(false);
+  const seekTouchActive = useRef(false);
   onErrorRef.current = onError;
   const episodes = [...(content?.episodes ?? [])].sort((first, second) => first.episodeNumber - second.episodeNumber);
   const firstEpisode = episodes[0] ?? null;
   const genres = drama.genres.map((genre) => genre.name).join(' · ') || '장르 정보 없음';
   const productionCompany = content?.productionCompany ?? null;
+  const updateSeekTouch = (active: boolean) => {
+    seekTouchActive.current = active;
+    onSeekTouch(active || seeking.current);
+  };
+  const seekTouchHandlers = {
+    onTouchStart: () => updateSeekTouch(true),
+    onTouchEnd: () => updateSeekTouch(false),
+    onTouchCancel: () => {
+      seeking.current = false;
+      updateSeekTouch(false);
+    },
+  };
+  useEffect(() => () => onSeekTouch(false), []);
 
   const clearHideTimer = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
     hideTimer.current = null;
+  }, []);
+  const beginTouch = () => {
+    if (touchTimer.current) clearTimeout(touchTimer.current);
+    touchTimer.current = null;
+    retainTouchControls.current = controlsVisible;
+    setTouchActive(true);
+  };
+  const finishTouch = () => {
+    if (touchTimer.current) clearTimeout(touchTimer.current);
+    touchTimer.current = setTimeout(() => {
+      touchTimer.current = null;
+      retainTouchControls.current = false;
+      setTouchActive(false);
+    }, 0);
+  };
+  useEffect(() => () => {
+    if (touchTimer.current) clearTimeout(touchTimer.current);
   }, []);
   const showControls = useCallback(() => {
     clearHideTimer();
@@ -124,10 +174,11 @@ function RecommendationPreviewPlayer({
     else router.replace('/');
   };
 
-  return <>
+  return <View style={[StyleSheet.absoluteFill, { opacity: controlsVisible && !moving ? 1 : 0 }]}
+    pointerEvents={moving && !touchActive ? 'none' : 'box-none'} onTouchStart={beginTouch} onTouchEnd={finishTouch} onTouchCancel={finishTouch}>
     <LinearGradient pointerEvents="none" colors={['#03060BAA', 'transparent', '#070C13A8', '#070C13']} locations={[0, 0.33, 0.65, 1]} style={StyleSheet.absoluteFill} />
     <Pressable style={StyleSheet.absoluteFill} onPress={toggleControls} accessibilityLabel="재생 컨트롤 표시 또는 숨기기" />
-    {controlsVisible && <>
+    {(controlsVisible || (touchActive && retainTouchControls.current)) && <>
       <View style={[styles.playerTopBar, { paddingTop: insets.top + 6 }]}>
         <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="닫기" style={styles.playerIconButton}><Icon name="x" color="#fff" /></Pressable>
         <View style={styles.playerHeading}><AppText style={styles.playerSubheading}>미리보기</AppText><AppText weight="semibold" numberOfLines={1} style={styles.playerHeadingTitle}>{drama.title}</AppText></View>
@@ -150,8 +201,8 @@ function RecommendationPreviewPlayer({
         <Pressable onPress={() => { player.pause(); router.push({ pathname: '/drama/[id]', params: { id: drama.uuid } }); }} accessibilityRole="button" accessibilityLabel={`${drama.title} 작품 상세 보기`} style={styles.playerTitleButton}><AppText weight="bold" numberOfLines={1} style={styles.playerTitle}>{drama.title}</AppText><Icon name="chevron-right" color="#fff" size={21} /></Pressable>
         <View style={styles.playerEpisodeInfo}><AppText style={styles.playerEpisodeText}>{`${genres} · 미리보기`}</AppText><AppText style={styles.playerTime}>{formatTime(position)} / {formatTime(duration)}</AppText></View>
         <Pressable onPress={watchFirstEpisode} accessibilityRole="button" accessibilityLabel="1화부터 본편 보기" style={styles.playerWatchButton}><Icon name="play" size={16} color={colors.background} /><AppText weight="semibold" style={styles.playerWatchLabel}>1화부터 본편 보기</AppText><AppText style={styles.playerWatchMeta}>{firstEpisode ? `${firstEpisode.episodeNumber}화` : '회차 목록'}</AppText></Pressable>
-        <Slider style={styles.playerSlider} minimumValue={0} maximumValue={Math.max(duration, 1)} value={position} disabled={duration <= 0} minimumTrackTintColor={colors.accent} maximumTrackTintColor="rgba(255,255,255,0.45)" thumbTintColor={colors.accent}
-          onSlidingStart={() => { seeking.current = true; clearHideTimer(); }} onValueChange={setPosition} onSlidingComplete={(value) => { player.currentTime = value; seeking.current = false; showControls(); }} />
+        <Slider {...seekTouchHandlers} style={styles.playerSlider} minimumValue={0} maximumValue={Math.max(duration, 1)} value={position} disabled={duration <= 0} minimumTrackTintColor={colors.accent} maximumTrackTintColor="rgba(255,255,255,0.45)" thumbTintColor={colors.accent}
+          onSlidingStart={() => { seeking.current = true; onSeekTouch(true); clearHideTimer(); }} onValueChange={setPosition} onSlidingComplete={(value) => { player.currentTime = value; seeking.current = false; updateSeekTouch(false); showControls(); }} />
       </View>
     </>}
     <Modal visible={settingsOpen} transparent animationType="fade" onRequestClose={() => setSettingsOpen(false)} statusBarTranslucent>
@@ -176,7 +227,7 @@ function RecommendationPreviewPlayer({
         params: { id: episode.uuid, dramaId: drama.uuid },
       })}
     />
-  </>;
+  </View>;
 }
 
 export function RecommendationScreen({ initialId }: { initialId?: string }) {
@@ -192,32 +243,215 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
   const [buffer, setBuffer] = useState<ReturnType<typeof createRecommendationPreviewBuffer<VideoPlayer>> | null>(null);
   const [bufferEntries, setBufferEntries] = useState<RecommendationPreviewEntry<VideoPlayer>[]>([]);
   const [preparedPlayers, setPreparedPlayers] = useState<Map<string, VideoPlayer>>(() => new Map());
-  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastScrollY = useRef(0);
-  const settleGeneration = useRef(0);
   const activeIdRef = useRef<string | null>(null);
   const dramasRef = useRef<HomeCollectionDrama[]>([]);
   const cardHeightRef = useRef(0);
   const listRef = useRef<FlatList<HomeCollectionDrama>>(null);
-  const pageInput = useRef<{
-    startIndex: number;
-    dragging: boolean;
-    momentum: boolean;
-    correcting: boolean;
-    committed: boolean;
-    targetIndex: number | null;
-  } | null>(null);
-  const settlePageRef = useRef<(offsetY: number) => void>(() => {});
-  const scrollingRef = useRef(false);
+  const feedRef = useRef<View | null>(null);
+  const actualOffsetRef = useRef(0);
+  const requestedOffsetRef = useRef(0);
+  const committedIndexRef = useRef(0);
+  const contentHeightRef = useRef(0);
+  const pendingAlignmentRef = useRef<{ height: number; generation: number; requested: boolean } | null>(null);
+  const generationRef = useRef(0);
+  const frameRef = useRef<number | null>(null);
+  const motionRef = useRef<{ from: number; targetIndex: number; generation: number; framesDone: boolean } | null>(null);
+  const gestureRef = useRef<{ startIndex: number; startOffset: number; active: boolean; handled: boolean; lastMoveAt: number | null; lastVelocityY: number } | null>(null);
+  const gestureBlockedRef = useRef(false);
+  const suppressClickRef = useRef(false);
+  const wheelRef = useRef({ accumulated: 0, consumed: false, quiet: true });
+  const wheelTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wheelGenerationRef = useRef(0);
+  const panCallbacksRef = useRef<{ shouldStart: (event: GestureResponderEvent, gesture: PanResponderGestureState) => boolean; grant: (event: GestureResponderEvent, gesture: PanResponderGestureState) => void; move: (event: GestureResponderEvent, gesture: PanResponderGestureState) => void; release: (event: GestureResponderEvent, gesture: PanResponderGestureState) => void; terminate: (event: GestureResponderEvent, gesture: PanResponderGestureState) => void }>({ shouldStart: () => false, grant: () => {}, move: () => {}, release: () => {}, terminate: () => {} });
+  const wheelCallbackRef = useRef<(event: WheelEvent) => void>(() => {});
   const focusedRef = useRef(false);
   const bufferRef = useRef(buffer);
   activeIdRef.current = activeId;
-  scrollingRef.current = scrolling;
   focusedRef.current = screenFocused;
   bufferRef.current = buffer;
   cardHeightRef.current = cardHeight;
 
+  const clearWheelTimer = () => {
+    wheelGenerationRef.current += 1;
+    if (wheelTimerRef.current) clearTimeout(wheelTimerRef.current);
+    wheelTimerRef.current = null;
+  };
+  const stopMotion = () => {
+    generationRef.current += 1;
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+    frameRef.current = null;
+    motionRef.current = null;
+    gestureRef.current = null;
+    pendingAlignmentRef.current = null;
+    gestureBlockedRef.current = false;
+    suppressClickRef.current = false;
+    clearWheelTimer();
+    wheelRef.current = { accumulated: 0, consumed: false, quiet: true };
+    setScrolling(false);
+  };
+  const commitPage = (index: number) => {
+    const latestDramas = dramasRef.current;
+    const nextIndex = Math.max(0, Math.min(latestDramas.length - 1, index));
+    const nextId = latestDramas[nextIndex]?.uuid ?? null;
+    const previousId = activeIdRef.current;
+    if (nextId && nextId !== previousId) {
+      const previousDrama = latestDramas.find((drama) => drama.uuid === previousId);
+      const previousPreview = previousDrama?.previewVideos[0];
+      if (previousPreview) bufferRef.current?.resetToBeginning({ dramaId: previousDrama.uuid, videoId: previousPreview.uuid });
+      activeIdRef.current = nextId;
+      committedIndexRef.current = nextIndex;
+      setActiveId(nextId);
+    }
+    requestedOffsetRef.current = nextIndex * cardHeightRef.current;
+    if (wheelRef.current.quiet) wheelRef.current = { accumulated: 0, consumed: false, quiet: true };
+    motionRef.current = null;
+    frameRef.current = null;
+    setScrolling(false);
+  };
+  const finishIfArrived = () => {
+    const motion = motionRef.current;
+    const targetOffset = motion ? motion.targetIndex * cardHeightRef.current : 0;
+    if (!motion || !motion.framesDone || Math.abs(actualOffsetRef.current - targetOffset) > PAGE_SETTLE_TOLERANCE) return;
+    commitPage(motion.targetIndex);
+  };
+  const setRequestedOffset = (offset: number) => {
+    const nextOffset = Math.max(0, offset);
+    requestedOffsetRef.current = nextOffset;
+    listRef.current?.scrollToOffset({ offset: nextOffset, animated: false });
+  };
+  const animateToPage = (target: number) => {
+    if (motionRef.current || pendingAlignmentRef.current || cardHeightRef.current <= 0 || dramasRef.current.length === 0) return;
+    const targetIndex = Math.max(0, Math.min(dramasRef.current.length - 1, target));
+    const targetOffset = targetIndex * cardHeightRef.current;
+    if (Math.abs(actualOffsetRef.current - targetOffset) <= PAGE_SETTLE_TOLERANCE
+      && Math.abs(requestedOffsetRef.current - targetOffset) <= PAGE_SETTLE_TOLERANCE) {
+      commitPage(targetIndex);
+      return;
+    }
+    const motion = { from: requestedOffsetRef.current, targetIndex, generation: ++generationRef.current, framesDone: false };
+    motionRef.current = motion;
+    setScrolling(true);
+    const startedAt = performance.now();
+    const frame = (now: number) => {
+      if (!focusedRef.current || motionRef.current !== motion || generationRef.current !== motion.generation) return;
+      const progress = Math.min(1, Math.max(0, (now - startedAt) / PAGE_TRANSITION_MS));
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setRequestedOffset(motion.from + (targetOffset - motion.from) * eased);
+      motion.framesDone = progress === 1;
+      if (motion.framesDone) {
+        frameRef.current = null;
+        finishIfArrived();
+      } else frameRef.current = requestAnimationFrame(frame);
+    };
+    frameRef.current = requestAnimationFrame(frame);
+  };
+  const isWebInteractiveTarget = (target: EventTarget | null) => {
+    if (Platform.OS !== 'web' || typeof Element === 'undefined' || !(target instanceof Element)) return false;
+    return Boolean(target.closest('button, a, input, textarea, select, [role="button"], [role="slider"], [role="alert"], [data-feed-interactive]'));
+  };
+  const handleWheel = (event: WheelEvent) => {
+    if (!focusedRef.current || Platform.OS !== 'web' || isWebInteractiveTarget(event.target)
+      || Math.abs(event.deltaX) > Math.abs(event.deltaY) || event.deltaY === 0) return;
+    event.preventDefault();
+    if (pendingAlignmentRef.current) return;
+    if (gestureRef.current?.active) return;
+    const scale = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? cardHeightRef.current : 1;
+    const wheel = wheelRef.current;
+    wheel.quiet = false;
+    clearWheelTimer();
+    const wheelGeneration = wheelGenerationRef.current;
+    wheelTimerRef.current = setTimeout(() => {
+      if (wheelGeneration !== wheelGenerationRef.current || !focusedRef.current) return;
+      wheelTimerRef.current = null;
+      wheel.quiet = true;
+      if (!motionRef.current) wheelRef.current = { accumulated: 0, consumed: false, quiet: true };
+    }, WHEEL_QUIET_MS);
+    if (motionRef.current) {
+      wheel.consumed = true;
+      return;
+    }
+    if (wheel.consumed) return;
+    const delta = event.deltaY * scale;
+    wheel.accumulated = Math.sign(wheel.accumulated) === Math.sign(delta) ? wheel.accumulated + delta : delta;
+    if (Math.abs(wheel.accumulated) < WHEEL_THRESHOLD_PX) return;
+    wheel.consumed = true;
+    animateToPage(committedIndexRef.current + Math.sign(wheel.accumulated));
+  };
+  wheelCallbackRef.current = handleWheel;
+  panCallbacksRef.current = {
+    shouldStart: (_event, gesture) => !motionRef.current && !pendingAlignmentRef.current && focusedRef.current
+      && !gestureBlockedRef.current
+      && !(wheelRef.current.consumed && !wheelRef.current.quiet)
+      && Math.abs(gesture.dy) >= DRAG_ACTIVATION_PX && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+    grant: () => {
+      if (motionRef.current || pendingAlignmentRef.current) return;
+      clearWheelTimer();
+      wheelRef.current = { accumulated: 0, consumed: false, quiet: true };
+      gestureRef.current = { startIndex: committedIndexRef.current, startOffset: requestedOffsetRef.current, active: true, handled: false, lastMoveAt: null, lastVelocityY: 0 };
+      if (Platform.OS === 'web') suppressClickRef.current = true;
+      setScrolling(true);
+    },
+    move: (_event, gesture) => {
+      const current = gestureRef.current;
+      if (!current?.active || motionRef.current || cardHeightRef.current <= 0) return;
+      current.lastMoveAt = performance.now();
+      current.lastVelocityY = Number.isFinite(gesture.vy) ? gesture.vy : 0;
+      const minIndex = Math.max(0, current.startIndex - 1);
+      const maxIndex = Math.min(dramasRef.current.length - 1, current.startIndex + 1);
+      const minOffset = minIndex * cardHeightRef.current;
+      const maxOffset = maxIndex * cardHeightRef.current;
+      const offset = Math.max(minOffset, Math.min(maxOffset, current.startOffset - gesture.dy));
+      setRequestedOffset(offset);
+    },
+    release: (_event, gesture) => {
+      const current = gestureRef.current;
+      if (!current?.active || current.handled) return;
+      current.handled = true;
+      current.active = false;
+      const distance = Math.abs(gesture.dy);
+      const moveAge = current.lastMoveAt === null ? Infinity : performance.now() - current.lastMoveAt;
+      const quickSwipe = distance >= FAST_SWIPE_MIN_DISTANCE
+        && moveAge >= 0 && moveAge <= FAST_SWIPE_FRESH_MS
+        && Math.abs(current.lastVelocityY) >= FAST_SWIPE_MIN_VELOCITY
+        && Math.sign(current.lastVelocityY) === Math.sign(gesture.dy);
+      const destination = distance >= cardHeightRef.current / 2 || quickSwipe
+        ? current.startIndex + (gesture.dy < 0 ? 1 : -1)
+        : current.startIndex;
+      animateToPage(destination);
+    },
+    terminate: () => {
+      const current = gestureRef.current;
+      if (!current?.active || current.handled) return;
+      current.handled = true;
+      current.active = false;
+      animateToPage(current.startIndex);
+    },
+  };
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponderCapture: (event: GestureResponderEvent, gesture: PanResponderGestureState) => panCallbacksRef.current.shouldStart(event, gesture),
+    onMoveShouldSetPanResponder: (event: GestureResponderEvent, gesture: PanResponderGestureState) => panCallbacksRef.current.shouldStart(event, gesture),
+    onPanResponderGrant: (event: GestureResponderEvent, gesture: PanResponderGestureState) => panCallbacksRef.current.grant(event, gesture),
+    onPanResponderMove: (event: GestureResponderEvent, gesture: PanResponderGestureState) => panCallbacksRef.current.move(event, gesture),
+    onPanResponderRelease: (event: GestureResponderEvent, gesture: PanResponderGestureState) => panCallbacksRef.current.release(event, gesture),
+    onPanResponderTerminate: (event: GestureResponderEvent, gesture: PanResponderGestureState) => panCallbacksRef.current.terminate(event, gesture),
+    onPanResponderTerminationRequest: () => false,
+    onShouldBlockNativeResponder: () => false,
+  }), []);
+
   useFocusEffect(useCallback(() => {
+    if (cardHeightRef.current > 0) {
+      const expectedContentHeight = dramasRef.current.length * cardHeightRef.current;
+      if (Math.abs(contentHeightRef.current - expectedContentHeight) <= PAGE_SETTLE_TOLERANCE) {
+        setRequestedOffset(committedIndexRef.current * cardHeightRef.current);
+      } else {
+        pendingAlignmentRef.current = {
+          height: cardHeightRef.current,
+          generation: generationRef.current,
+          requested: false,
+        };
+      }
+    }
     const nextBuffer = createRecommendationPreviewBuffer<VideoPlayer>(
       (dramaId, videoId) => getPreviewPlayback(dramaId, videoId),
       (url) => createVideoPlayer(url),
@@ -228,16 +462,39 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
     focusedRef.current = true;
     return () => {
       focusedRef.current = false;
-      clearSettleTimer();
+      stopMotion();
       nextBuffer.invalidate();
       nextBuffer.pauseAll();
       setScreenFocused(false);
-      pageInput.current = null;
-      scrollingRef.current = false;
-      setScrolling(false);
       setBuffer(null);
     };
   }, []));
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !screenFocused) return;
+    const feedElement = feedRef.current as unknown as HTMLElement | null;
+    if (!feedElement) return;
+    const clearSuppression = () => {
+      if (!gestureRef.current?.active) suppressClickRef.current = false;
+    };
+    const suppressDraggedClick = (event: MouseEvent) => {
+      if (!suppressClickRef.current) return;
+      suppressClickRef.current = false;
+      if (event.detail === 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    feedElement.addEventListener('click', suppressDraggedClick, true);
+    feedElement.addEventListener('pointerdown', clearSuppression, true);
+    feedElement.addEventListener('touchstart', clearSuppression, true);
+    feedElement.addEventListener('keydown', clearSuppression, true);
+    return () => {
+      feedElement.removeEventListener('click', suppressDraggedClick, true);
+      feedElement.removeEventListener('pointerdown', clearSuppression, true);
+      feedElement.removeEventListener('touchstart', clearSuppression, true);
+      feedElement.removeEventListener('keydown', clearSuppression, true);
+    };
+  }, [screenFocused, status]);
 
   useEffect(() => {
     if (!buffer) {
@@ -282,6 +539,7 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
     return first.displayOrder - second.displayOrder;
   }), [collection, initialId]);
   dramasRef.current = dramas;
+  committedIndexRef.current = Math.max(0, dramas.findIndex((drama) => drama.uuid === activeId));
   const initialIndex = Math.max(0, dramas.findIndex((drama) => drama.uuid === initialId));
   const openEpisodes = (drama: HomeCollectionDrama) => router.push({
     pathname: '/drama/[id]',
@@ -352,119 +610,41 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
     return () => { current = false; };
   }, [activeId]);
 
-  const clearSettleTimer = () => {
-    settleGeneration.current += 1;
-    if (settleTimer.current) clearTimeout(settleTimer.current);
-    settleTimer.current = null;
-  };
-  const beginPageInput = (dragging = false) => {
-    if (pageInput.current?.committed && dragging) {
-      clearSettleTimer();
-      pageInput.current = null;
-    }
-    if (pageInput.current) {
-      if (dragging) pageInput.current.dragging = true;
-      return;
-    }
-    const startIndex = dramasRef.current.findIndex((drama) => drama.uuid === activeIdRef.current);
-    if (startIndex < 0) return;
-    pageInput.current = { startIndex, dragging, momentum: false, correcting: false, committed: false, targetIndex: null };
-    scrollingRef.current = true;
-    setScrolling(true);
-  };
-  const settleOnPage = (offsetY: number) => {
-    const input = pageInput.current;
-    const latestDramas = dramasRef.current;
-    const latestCardHeight = cardHeightRef.current;
-    if (!input || input.committed || input.dragging || input.momentum || latestCardHeight <= 0 || latestDramas.length === 0) return;
-    const proposedIndex = Math.round(offsetY / latestCardHeight);
-    const index = input.correcting && input.targetIndex !== null ? input.targetIndex
-      : Math.max(0, Math.min(latestDramas.length - 1,
-        Math.max(input.startIndex - 1, Math.min(input.startIndex + 1, proposedIndex))));
-    const targetOffset = index * latestCardHeight;
-    if (Math.abs(offsetY - targetOffset) > 1 && listRef.current) {
-      input.correcting = true;
-      input.targetIndex = index;
-      listRef.current.scrollToOffset({ offset: targetOffset, animated: true });
-      return;
-    }
-    const nextId = latestDramas[index]?.uuid ?? null;
-    const previousId = activeIdRef.current;
-    if (nextId && nextId !== previousId) {
-      const previousDrama = latestDramas.find((drama) => drama.uuid === previousId);
-      const previousPreview = previousDrama?.previewVideos[0];
-      if (previousPreview) bufferRef.current?.resetToBeginning({ dramaId: previousDrama.uuid, videoId: previousPreview.uuid });
-      activeIdRef.current = nextId;
-      setActiveId(nextId);
-    }
-    lastScrollY.current = targetOffset;
-    input.committed = true;
-    input.targetIndex = index;
-    scrollingRef.current = false;
-    setScrolling(false);
-    scheduleSettle(targetOffset);
-  };
-  settlePageRef.current = settleOnPage;
-  const scheduleSettle = (offsetY: number) => {
-    lastScrollY.current = offsetY;
-    clearSettleTimer();
-    const generation = settleGeneration.current;
-    settleTimer.current = setTimeout(() => {
-      if (generation !== settleGeneration.current || !focusedRef.current) return;
-      settleTimer.current = null;
-      if (pageInput.current?.committed) {
-        pageInput.current = null;
-        return;
-      }
-      if (pageInput.current?.dragging || pageInput.current?.momentum) return;
-      settlePageRef.current(lastScrollY.current);
-    }, 150);
-  };
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    let offsetY = event.nativeEvent.contentOffset.y;
-    if (!pageInput.current && offsetY !== lastScrollY.current) beginPageInput();
-    const input = pageInput.current;
-    if (input?.committed) {
-      const committedOffset = (input.targetIndex ?? input.startIndex) * cardHeightRef.current;
-      if (Math.abs(offsetY - committedOffset) > 1) listRef.current?.scrollToOffset({ offset: committedOffset, animated: false });
-      offsetY = committedOffset;
-      scheduleSettle(offsetY);
+    actualOffsetRef.current = event.nativeEvent.contentOffset.y;
+    const pending = pendingAlignmentRef.current;
+    if (pending) {
+      const targetOffset = committedIndexRef.current * pending.height;
+      if (pending.requested && pending.generation === generationRef.current
+        && Math.abs(actualOffsetRef.current - targetOffset) <= PAGE_SETTLE_TOLERANCE) {
+        pendingAlignmentRef.current = null;
+      }
       return;
     }
-    if (input && !input.correcting && cardHeightRef.current > 0) {
-      const minOffset = Math.max(0, input.startIndex - 1) * cardHeightRef.current;
-      const maxOffset = Math.min(dramasRef.current.length - 1, input.startIndex + 1) * cardHeightRef.current;
-      const boundedOffset = Math.max(minOffset, Math.min(maxOffset, offsetY));
-      if (Math.abs(offsetY - boundedOffset) > 1) {
-        listRef.current?.scrollToOffset({ offset: boundedOffset, animated: false });
-        offsetY = boundedOffset;
-      }
-    }
-    lastScrollY.current = offsetY;
-    if (!pageInput.current?.dragging && !pageInput.current?.momentum) scheduleSettle(offsetY);
+    finishIfArrived();
   };
-  const handleScrollEndDrag = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    if (pageInput.current?.committed) return;
-    if (pageInput.current) pageInput.current.dragging = false;
-    scheduleSettle(event.nativeEvent.contentOffset.y);
-  };
-  const handleMomentumScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    clearSettleTimer();
-    const input = pageInput.current;
-    if (input?.committed) {
-      const targetOffset = (input.targetIndex ?? input.startIndex) * cardHeightRef.current;
-      if (Math.abs(event.nativeEvent.contentOffset.y - targetOffset) > 1) {
-        listRef.current?.scrollToOffset({ offset: targetOffset, animated: false });
-      }
-      lastScrollY.current = targetOffset;
-      scheduleSettle(targetOffset);
+  const handleContentSizeChange = (_width: number, contentHeight: number) => {
+    contentHeightRef.current = contentHeight;
+    const pending = pendingAlignmentRef.current;
+    if (!pending || !focusedRef.current || pending.generation !== generationRef.current || pending.requested) return;
+    const expectedContentHeight = dramasRef.current.length * pending.height;
+    if (Math.abs(contentHeight - expectedContentHeight) > PAGE_SETTLE_TOLERANCE) return;
+    const targetOffset = committedIndexRef.current * pending.height;
+    if (Math.abs(actualOffsetRef.current - targetOffset) <= PAGE_SETTLE_TOLERANCE) {
+      requestedOffsetRef.current = targetOffset;
+      pendingAlignmentRef.current = null;
       return;
     }
-    if (input) input.momentum = false;
-    settleOnPage(event.nativeEvent.contentOffset.y);
+    pending.requested = true;
+    setRequestedOffset(targetOffset);
   };
-
-  useEffect(() => () => clearSettleTimer(), []);
+  useEffect(() => {
+    if (!screenFocused || Platform.OS !== 'web' || !feedRef.current) return;
+    const node = feedRef.current as unknown as FeedEventTarget;
+    const listener = (event: WheelEvent) => wheelCallbackRef.current(event);
+    node.addEventListener?.('wheel', listener, { passive: false });
+    return () => node.removeEventListener?.('wheel', listener);
+  }, [screenFocused, status, dramas.length, cardHeight]);
 
   const activeDramaForPreview = dramas.find((drama) => drama.uuid === activeId);
   const activePreviewTarget = useMemo(() => activeDramaForPreview?.previewVideos[0]
@@ -522,32 +702,41 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
     {status === 'loading' ? <EmptyState title="추천 작품 불러오는 중" description="잠시만 기다려 주세요." />
       : status === 'error' ? <EmptyState title="추천 작품을 불러오지 못했어요" description="잠시 후 다시 확인해 주세요." />
         : dramas.length === 0 ? <EmptyState title="오늘의 추천 작품이 없어요" description="새로운 작품을 준비하고 있어요." />
-          : <View style={styles.feed} onLayout={(event) => setCardHeight(event.nativeEvent.layout.height)}>
+          : <View
+            ref={feedRef}
+            style={styles.feed}
+            {...panResponder.panHandlers}
+            onLayout={(event) => {
+              const nextHeight = event.nativeEvent.layout.height;
+              const previousHeight = cardHeightRef.current;
+              if (nextHeight <= 0 || nextHeight === previousHeight) return;
+              if (previousHeight > 0) {
+                stopMotion();
+                pendingAlignmentRef.current = {
+                  height: nextHeight,
+                  generation: generationRef.current,
+                  requested: false,
+                };
+              } else {
+                actualOffsetRef.current = committedIndexRef.current * nextHeight;
+                requestedOffsetRef.current = actualOffsetRef.current;
+              }
+              cardHeightRef.current = nextHeight;
+              setCardHeight(nextHeight);
+            }}
+          >
             {cardHeight > 0 ? <FlatList
               ref={listRef}
               data={dramas}
               keyExtractor={(drama) => drama.uuid}
               initialScrollIndex={initialIndex}
               getItemLayout={(_, index) => ({ length: cardHeight, offset: cardHeight * index, index })}
-              snapToInterval={cardHeight}
-              disableIntervalMomentum
-              decelerationRate="fast"
+              scrollEnabled={false}
               showsVerticalScrollIndicator={false}
               extraData={cardState}
+              onContentSizeChange={handleContentSizeChange}
               onScroll={handleScroll}
               scrollEventThrottle={16}
-              onScrollBeginDrag={() => { clearSettleTimer(); beginPageInput(true); }}
-              onScrollEndDrag={handleScrollEndDrag}
-              onMomentumScrollBegin={() => {
-                clearSettleTimer();
-                if (pageInput.current?.committed) {
-                  scheduleSettle(lastScrollY.current);
-                  return;
-                }
-                beginPageInput();
-                if (pageInput.current) pageInput.current.momentum = true;
-              }}
-              onMomentumScrollEnd={handleMomentumScrollEnd}
               renderItem={({ item: drama }) => {
                 const posterUrl = resolveApiImageUrl(drama.imageUrls.poster);
                 const preview = drama.previewVideos[0];
@@ -557,7 +746,7 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
                 const player = entry?.kind === 'ready' ? entry.player : undefined;
                 const mountVideo = screenFocused && Boolean(player);
                 const showVideo = mountVideo && preparedPlayers.get(key) === player;
-                const showControls = showVideo && !scrolling && activeId === drama.uuid && activePlayer === player;
+                const mountControls = showVideo && activeId === drama.uuid && activePlayer === player;
                 const showPoster = !screenFocused || !preview || entry?.kind === 'unavailable';
                 return <View style={[styles.card, { height: cardHeight }, showVideo && styles.cardPreview]}>
                   {mountVideo && player ? <VideoView
@@ -572,9 +761,10 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
                   {showPoster && (posterUrl
                     ? <Image source={{ uri: posterUrl }} accessibilityLabel={`${drama.title} 표지`} contentFit="cover" style={StyleSheet.absoluteFill} />
                     : <View style={[StyleSheet.absoluteFill, styles.placeholder]} />)}
-                  {showControls && activeDramaForPreview && activePreviewTarget && <RecommendationPreviewPlayer
-                    key={recommendationPreviewKey(activePreviewTarget)}
+                  {mountControls && activeDramaForPreview && activePreviewTarget && <RecommendationPreviewPlayer
+                    key={`controls:${recommendationPreviewKey(activePreviewTarget)}`}
                     player={activePlayer!}
+                    moving={scrolling}
                     trackListener={(subscription) => buffer!.trackSubscription(activePreviewTarget, activePlayer!, subscription)}
                     drama={drama}
                     content={activeDrama}
@@ -587,6 +777,7 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
                     onToggleSave={() => toggleSave(drama.uuid)}
                     onOpenEpisodes={() => openEpisodes(drama)}
                     onShare={() => { void shareDrama(drama); }}
+                    onSeekTouch={(active) => { gestureBlockedRef.current = active; }}
                   />}
                 </View>;
               }}

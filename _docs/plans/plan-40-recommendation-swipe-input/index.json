@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "plan_id": "plan-40-recommendation-swipe-input",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "추천 웹·네이티브 Swipefeed 방식 입력 처리",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/screens/RecommendationScreen.tsx",
+        "front/tests/unit/recommendationPreviewBuffer.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-29T15:57:37.603Z",
+      "summary": "Replaced recommendation paging with shared RAF movement, native drag and web wheel handling; preserved playback, control interaction, player keys and loading behavior. typecheck passed; 116/116 tests passed; Expo export passed for web, iOS and Android. localhost:8081 returned HTTP 200, but browser interactions and native device gestures were not visually verified.",
+      "completed_at": "2026-10-29T16:17:07.902Z"
+    },
+    {
+      "id": "task-2",
+      "name": "재생바만 제외한 추천 피드 전체 세로 드래그",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/src/screens/RecommendationScreen.tsx",
+        "front/tests/unit/recommendationPreviewBuffer.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-29T18:11:39.068Z",
+      "summary": "추천 피드에서 재생바 제스처만 제외하고 수직 드래그가 버튼과 텍스트 영역에서도 동작하도록 수정했습니다. 드래그가 버튼 동작을 취소하며, 다음 독립 탭은 유지됩니다. typecheck, 전체 117개 테스트, 웹/iOS/Android export 통과. localhost:8081은 HTTP 200이지만 브라우저 및 네이티브 기기의 실제 터치 조작은 검증하지 못했습니다.",
+      "completed_at": "2026-10-29T18:24:30.512Z"
+    },
+    {
+      "id": "task-3",
+      "name": "드래그 중 컨트롤 요소 유지로 터치 이벤트 단절 방지",
+      "status": "completed",
+      "depends_on": [
+        "task-2"
+      ],
+      "files": [
+        "front/src/screens/RecommendationScreen.tsx",
+        "front/tests/unit/recommendationPreviewBuffer.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-29T18:42:37.472Z",
+      "summary": "Kept the keyed preview and its controls mounted through active touches, including the 4-second hide timeout; hidden controls do not appear under touches that start on the background. Typecheck passed, all 119 tests passed, and Expo export passed for web/iOS/Android. Chrome CDP touch drags from the background and a control, including after a 4.2-second hold, kept the original target connected through release and moved to the next drama. Native device interaction was not verified.",
+      "completed_at": "2026-10-29T18:52:40.179Z"
+    },
+    {
+      "id": "task-4",
+      "name": "짧고 빠른 스와이프의 한 작품 이동 판정",
+      "status": "completed",
+      "depends_on": [
+        "task-3"
+      ],
+      "files": [
+        "front/src/screens/RecommendationScreen.tsx",
+        "front/tests/unit/recommendationPreviewBuffer.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-29T19:17:21.059Z",
+      "summary": "Added the shared fast-swipe release rule and regression coverage. Typecheck passed, all 120 tests passed, and Expo export passed for web/iOS/Android. Chrome CDP touch on localhost:8081 confirmed a slow 80px swipe returned to offset 0 while a fast 80px swipe advanced one card to offset 830. Native device gestures were not verified.",
+      "completed_at": "2026-10-29T19:23:25.660Z"
+    },
+    {
+      "id": "task-5",
+      "name": "카드 크기 반영 후 현재 작품 위치 정렬",
+      "status": "completed",
+      "depends_on": [
+        "task-4"
+      ],
+      "files": [
+        "front/src/screens/RecommendationScreen.tsx",
+        "front/tests/unit/recommendationPreviewBuffer.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-29T20:42:44.503Z",
+      "summary": "Resize alignment now waits for the latest content-size event, aligns once, and clears the input lock after the actual offset arrives. Regression tests cover last-card growth, stale/consecutive size events, first-card unlock, input blocking, drag-origin sync, and playback preservation. Typecheck passed, all 123 frontend tests passed, and Expo export succeeded for web/iOS/Android. Chrome on localhost:8081 confirmed last-card alignment from 830px cards at scrollTop 3320 to 1030px cards at scrollTop 4120 (scrollHeight 5150, viewport 1030, last card top 0). Native device interaction was not verified.",
+      "completed_at": "2026-10-29T20:50:20.186Z"
+    }
+  ]
+}
