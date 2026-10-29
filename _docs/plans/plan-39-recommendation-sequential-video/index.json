@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "plan_id": "plan-39-recommendation-sequential-video",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "추천 순차 이동과 준비된 영상 표시 개선",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/screens/RecommendationScreen.tsx",
+        "front/tests/unit/recommendationPreviewBuffer.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-29T13:11:51.670Z",
+      "summary": "Updated RecommendationScreen and its tests. Each input is limited to one adjacent page, the current video keeps playing until the target page settles, prepared videos show without posters, and loading or failed videos do not block later navigation. Added coverage for half-page movement, partial return and pause preservation, dragless wheel input and inertia tail, duplicate momentum events, direction and edge limits, and readiness. Checks passed: front test (112/112), typecheck, and web/iOS/Android export. localhost:8081 returned HTTP 200; interactive UI behavior could not be verified because browser automation was unavailable.",
+      "completed_at": "2026-10-29T13:22:53.404Z"
+    },
+    {
+      "id": "task-2",
+      "name": "웹 추천 영상 준비 전 VideoView 마운트",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/src/screens/RecommendationScreen.tsx",
+        "front/tests/unit/recommendationPreviewBuffer.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-10-29T13:32:24.535Z",
+      "summary": "Mounted buffered VideoViews before readiness and used opacity to keep them hidden until readyToPlay. Added an idle-player regression test that verifies the view is mounted before readiness, keeps the same player key afterward, reveals the current and adjacent videos, and only starts the current video. Confirmed installed Expo web code loads through the mounted view's canplay event. Checks passed: front tests (112/112), typecheck, and web/iOS/Android export. localhost:8081 returned HTTP 200; interactive browser playback could not be verified because browser automation was unavailable. Left scroll and correction behavior unchanged.",
+      "completed_at": "2026-10-29T13:35:36.563Z"
+    }
+  ]
+}

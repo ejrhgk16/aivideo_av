@@ -208,6 +208,7 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay') 
   const pending: Array<{ task: Deferred<any>; target: Target }> = [];
   const players: FakePlayer[] = [];
   const timers: Array<{ callback: () => void; cleared: boolean }> = [];
+  const scrollOffsets: number[] = [];
   const modules: Record<string, any> = {};
   let hook = 0;
   let dirty = false;
@@ -215,7 +216,10 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay') 
   let focusCleanup: (() => void) | undefined;
   let blurred = false;
   let screen!: (props: { initialId?: string }) => ScreenNode;
-  const jsx = (type: unknown, props: Record<string, any>) => ({ type, props: props ?? {} });
+  const jsx = (type: unknown, props: Record<string, any>, key?: string) => ({
+    type,
+    props: { ...(props ?? {}), ...(key === undefined ? {} : { key }) },
+  });
   const react = {
     useState(initial: any) {
       const index = hook++;
@@ -328,14 +332,14 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay') 
     return found;
   };
   return {
-    commit, find, nodes, pending, players, timers,
+    commit, find, nodes, pending, players, timers, scrollOffsets,
     home,
     blur() { focusCleanup?.(); focusCleanup = undefined; focusCallback = undefined; blurred = true; },
   };
 }
 
-test('recommendation screen starts from emitted readiness before the player status property updates', async () => {
-  const screen = createRecommendationScreenHarness('loading');
+test('recommendation mounts idle web players so canplay can make current and neighbor videos visible', async () => {
+  const screen = createRecommendationScreenHarness('idle');
   screen.commit();
   screen.home.resolve({ dramas: [1, 2].map((index) => ({
     uuid: `drama-${index}`, displayOrder: index, title: `Drama ${index}`, shortDescription: '',
@@ -344,6 +348,9 @@ test('recommendation screen starts from emitted readiness before the player stat
   })) });
   await flush();
   screen.commit();
+  const feed = screen.nodes(screen.find('Page')).find((node) => node.type === 'View' && node.props.onLayout)!;
+  (feed.props.onLayout as (event: any) => void)({ nativeEvent: { layout: { height: 500 } } });
+  screen.commit();
   await flush();
   screen.pending[0].task.resolve({ url: 'url-1' });
   screen.pending[1].task.resolve({ url: 'url-2' });
@@ -351,11 +358,30 @@ test('recommendation screen starts from emitted readiness before the player stat
   screen.commit();
 
   const [current, neighbor] = screen.players;
+  const list = screen.find('FlatList');
+  const loadingCard = list.props.renderItem({ item: list.props.data[0] });
+  assert.equal(screen.nodes(loadingCard).some((node) => node.type === 'Image'), false, 'a loading player shows a black frame instead of the poster');
+  const videoView = (player: FakePlayer) => screen.nodes(screen.find('FlatList').props.renderItem({
+    item: screen.find('FlatList').props.data.find((drama: any) => drama.uuid === `drama-${current === player ? 1 : 2}`),
+  })).find((node) => node.type === 'VideoView' && node.props.player === player);
+  const currentView = videoView(current);
+  const neighborView = videoView(neighbor);
+  assert.ok(currentView, 'the idle web player is mounted so its HTML video can start loading');
+  assert.ok(neighborView, 'the idle neighbor player is mounted so its HTML video can start loading');
+  assert.equal((currentView.props.style as any[]).at(-1).opacity, 0, 'an unprepared player stays hidden behind the black card');
   assert.equal(current.playing, false);
-  neighbor.emitStatus('readyToPlay');
-  assert.equal(neighbor.playing, false, 'neighbor readiness must not start playback');
+  const currentKey = currentView.props.key;
+  assert.equal(currentKey, JSON.stringify(['drama-1', 'preview-1']), 'the mounted view has a stable player key');
   current.emitStatus('readyToPlay');
-  assert.equal(current.playing, true, 'emitted readiness starts the current video even while status still reads loading');
+  screen.commit();
+  const preparedCurrentView = videoView(current);
+  assert.equal(preparedCurrentView?.props.key, currentKey, 'readiness preserves the mounted VideoView identity');
+  assert.equal((preparedCurrentView?.props.style as any[]).at(-1).opacity, 1, 'canplay reveals the mounted video');
+  assert.equal(current.playing, true, 'readiness starts the active player');
+  neighbor.emitStatus('readyToPlay');
+  screen.commit();
+  assert.equal((videoView(neighbor)?.props.style as any[]).at(-1).opacity, 1, 'canplay reveals the prepared neighbor');
+  assert.equal(neighbor.playing, false, 'neighbor readiness must not start playback');
   current.pause();
   current.emitStatus('loading');
   current.emitStatus('readyToPlay');
@@ -367,7 +393,7 @@ test('recommendation screen starts from emitted readiness before the player stat
   screen.commit();
 });
 
-test('recommendation screen keeps settled page during drag, reuses mounted players, and rejects obsolete settle timers', async () => {
+test('recommendation screen keeps playback during drag, settles one page at a time, and reuses mounted players', async () => {
   const screen = createRecommendationScreenHarness();
   screen.commit();
   screen.home.resolve({ dramas: [1, 2, 3, 4].map((index) => ({
@@ -385,32 +411,26 @@ test('recommendation screen keeps settled page during drag, reuses mounted playe
   (feed.props.onLayout as (event: any) => void)({ nativeEvent: { layout: { height: 500 } } });
   screen.commit();
   let list = screen.find('FlatList');
+  list.props.ref.current = { scrollToOffset: ({ offset }: { offset: number }) => screen.scrollOffsets.push(offset) };
   const loadingExtraData = list.props.extraData;
   const loadingCard = list.props.renderItem({ item: list.props.data[0] });
   assert.equal(screen.nodes(loadingCard).some((node) => (node.type as any)?.name === 'RecommendationPreviewPlayer'), false,
     'poster/loading card has no active controls before preview is ready');
-  const feedChildren = Array.isArray(feed.props.children) ? feed.props.children : [feed.props.children];
-  assert.equal(feedChildren[0].props.pointerEvents, 'none', 'buffer video layer never receives touches');
-  assert.equal(screen.nodes(feedChildren[0]).some((node) => node.type === 'Pressable'), false,
-    'video layer contains no interactive overlay');
-  assert.equal(screen.nodes(feedChildren[0]).some((node) => (node.type as any)?.name === 'RecommendationPreviewPlayer'), false,
-    'video layer has no controls component');
-  assert.equal(feedChildren[0].props.children.props.style.maxWidth, 500, 'video layer matches the card width');
+  assert.equal(screen.find('FlatList').props.snapToInterval, 500);
+  assert.equal(screen.find('FlatList').props.disableIntervalMomentum, true, 'fast momentum stops at one interval');
   screen.pending[0].task.resolve({ url: 'url-1' });
   screen.pending[1].task.resolve({ url: 'url-2' });
   await flush();
   screen.commit();
-  const renderedFeed = screen.nodes(screen.find('Page')).find((node) => node.type === 'View' && node.props.onLayout)!;
-  const initialFeedNodes = screen.nodes(renderedFeed);
-  assert.ok(initialFeedNodes.findIndex((node) => node.type === 'VideoView') < initialFeedNodes.findIndex((node) => node.type === 'FlatList'),
-    'FlatList is rendered above the video buffer layer');
-
-  const initialViews = screen.nodes(screen.find('View')).filter((node) => node.type === 'VideoView');
+  list = screen.find('FlatList');
+  const initialViews = list.props.data.flatMap((item: any) => screen.nodes(list.props.renderItem({ item })))
+    .filter((node: ScreenNode) => node.type === 'VideoView') as ScreenNode[];
   assert.equal(initialViews.length, 2);
   assert.ok(initialViews.every((node) => node.props.surfaceType === 'textureView'));
   assert.ok(initialViews.every((node) => node.props.pointerEvents === 'none'));
   const player1 = initialViews.find((node) => node.props.player === screen.players[0])?.props.player as FakePlayer;
   const player2 = initialViews.find((node) => node.props.player === screen.players[1])?.props.player as FakePlayer;
+  const player2ViewKey = initialViews.find((node) => node.props.player === player2)?.props.key;
   assert.ok(player1);
   assert.ok(player2);
   assert.equal(player1.playing, true);
@@ -425,7 +445,8 @@ test('recommendation screen keeps settled page during drag, reuses mounted playe
     'active card background must show the video layer below it');
   assert.equal(screen.nodes(activeCard).some((node) => node.type === 'Image'), false, 'active video card hides its poster');
   const inactiveCard = list.props.renderItem({ item: list.props.data[1] });
-  assert.ok(screen.nodes(inactiveCard).some((node) => node.type === 'Image'), 'inactive card retains its poster');
+  assert.equal(screen.nodes(inactiveCard).some((node) => node.type === 'Image'), false, 'prepared adjacent video hides its poster');
+  assert.ok(screen.nodes(inactiveCard).some((node) => node.type === 'VideoView'), 'prepared adjacent video is mounted in its card');
   const pageOneControls = screen.nodes(activeCard).find((node) => (node.type as any)?.name === 'RecommendationPreviewPlayer')!;
   const beforeSaveExtraData = list.props.extraData;
   pageOneControls.props.onToggleSave();
@@ -436,17 +457,43 @@ test('recommendation screen keeps settled page during drag, reuses mounted playe
   assert.equal(list.props.extraData.screenFocused, true);
   assert.equal(list.props.extraData.activeId, 'drama-1');
   assert.equal(list.props.extraData.scrolling, false);
+  player1.currentTime = 17;
   (list.props.onScrollBeginDrag as () => void)();
-  (list.props.onScroll as (event: any) => void)({ nativeEvent: { contentOffset: { y: 500 } } });
+  (list.props.onScroll as (event: any) => void)({ nativeEvent: { contentOffset: { y: 200 } } });
+  (list.props.onScrollEndDrag as (event: any) => void)({ nativeEvent: { contentOffset: { y: 200 } } });
   assert.equal(screen.find('FlatList').props.data[0].uuid, 'drama-1', 'dragging does not clear or change the settled list');
   screen.commit();
   const scrollingCard = screen.find('FlatList').props.renderItem({ item: screen.find('FlatList').props.data[0] });
   assert.equal(screen.nodes(scrollingCard).some((node) => (node.type as any)?.name === 'RecommendationPreviewPlayer'), false,
     'controls detach while scrolling');
-  assert.ok(screen.nodes(scrollingCard).some((node) => node.type === 'Image'), 'poster stays visible while scrolling');
+  assert.equal(screen.nodes(scrollingCard).some((node) => node.type === 'Image'), false, 'prepared current video stays visible while scrolling');
+  assert.ok(screen.nodes(scrollingCard).some((node) => node.type === 'VideoView'));
+  assert.equal(player1.playing, true, 'scrolling does not pause the current video');
   assert.notEqual(screen.find('FlatList').props.extraData, list.props.extraData, 'FlatList refreshes cards when scrolling starts');
   list = screen.find('FlatList');
   const staleSettle = screen.timers.filter((timer) => !timer.cleared).at(-1)!;
+  staleSettle.callback();
+  screen.commit();
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-1', 'less than half a page does not commit before the snap completes');
+  assert.equal(player1.playing, true, 'the current video keeps playing during the return snap');
+  (screen.find('FlatList').props.onScroll as (event: any) => void)({ nativeEvent: { contentOffset: { y: 0 } } });
+  const returnSettle = screen.timers.filter((timer) => !timer.cleared).at(-1)!;
+  returnSettle.callback();
+  screen.commit();
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-1', 'less than half a page returns to the current work');
+  assert.equal(player1.currentTime, 17, 'returning to the current page preserves playback position');
+  assert.equal(player1.playing, true, 'returning to the current page preserves playback state');
+
+  list = screen.find('FlatList');
+  (list.props.onScrollBeginDrag as () => void)();
+  (list.props.onScroll as (event: any) => void)({ nativeEvent: { contentOffset: { y: 250 } } });
+  (list.props.onScrollEndDrag as (event: any) => void)({ nativeEvent: { contentOffset: { y: 250 } } });
+  screen.timers.filter((timer) => !timer.cleared).at(-1)!.callback();
+  assert.equal(screen.scrollOffsets.at(-1), 500, 'a drag past half a page snaps to the next page');
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-1', 'playback stays on the current work during the correction');
+  assert.equal(player1.playing, true, 'the current video keeps playing until the correction settles');
+  assert.equal(player2.playing, false, 'the next video does not start before the correction settles');
+  (screen.find('FlatList').props.onScroll as (event: any) => void)({ nativeEvent: { contentOffset: { y: 500 } } });
   (list.props.onMomentumScrollEnd as (event: any) => void)({ nativeEvent: { contentOffset: { y: 500 } } });
   screen.commit();
   assert.equal(player1.currentTime, 0);
@@ -464,17 +511,48 @@ test('recommendation screen keeps settled page during drag, reuses mounted playe
   screen.pending[2].task.resolve({ url: 'url-3' });
   await flush();
   screen.commit();
-  const nextViews = screen.nodes(screen.find('View')).filter((node) => node.type === 'VideoView');
-  assert.ok(nextViews.some((node) => node.props.player === player2), 'player 2 keeps its VideoView when it becomes active');
+  const nextViews = screen.find('FlatList').props.data.flatMap((item: any) => screen.nodes(screen.find('FlatList').props.renderItem({ item })))
+    .filter((node: ScreenNode) => node.type === 'VideoView') as ScreenNode[];
+  assert.equal(nextViews.find((node) => node.props.player === player2)?.props.key, player2ViewKey,
+    'player 2 keeps its stable VideoView key when it becomes active');
   assert.equal(player1.released, 0, 'the outgoing adjacent player remains buffered');
+
+  pageTwoList = screen.find('FlatList');
+  (pageTwoList.props.onMomentumScrollEnd as (event: any) => void)({ nativeEvent: { contentOffset: { y: 1500 } } });
+  screen.commit();
+  assert.equal(screen.scrollOffsets.at(-1), 500, 'a duplicate momentum end cannot move beyond its committed page');
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-2');
+  (screen.find('FlatList').props.onScroll as (event: any) => void)({ nativeEvent: { contentOffset: { y: 1500 } } });
+  assert.equal(screen.scrollOffsets.at(-1), 500, 'the wheel inertia tail stays clamped to the page committed for its input');
+  screen.timers.filter((timer) => !timer.cleared).at(-1)!.callback();
+  screen.commit();
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-2', 'wheel inertia does not become a second page input');
+
+  player2.currentTime = 12;
+  player2.pause();
+  pageTwoList = screen.find('FlatList');
+  (pageTwoList.props.onScrollBeginDrag as () => void)();
+  (pageTwoList.props.onScroll as (event: any) => void)({ nativeEvent: { contentOffset: { y: 700 } } });
+  (pageTwoList.props.onScrollEndDrag as (event: any) => void)({ nativeEvent: { contentOffset: { y: 700 } } });
+  screen.timers.filter((timer) => !timer.cleared).at(-1)!.callback();
+  (screen.find('FlatList').props.onScroll as (event: any) => void)({ nativeEvent: { contentOffset: { y: 500 } } });
+  screen.timers.filter((timer) => !timer.cleared).at(-1)!.callback();
+  screen.commit();
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-2', 'a partial drag from page two returns to page two');
+  assert.equal(player2.currentTime, 12, 'a partial drag preserves the paused player position');
+  assert.equal(player2.playing, false, 'a partial drag does not resume a user-paused player');
 
   staleSettle.callback();
   screen.commit();
-  assert.equal(player2.playing, true, 'an obsolete settle callback cannot rewind the active page');
+  assert.equal(player2.playing, false, 'an obsolete settle callback cannot resume the active page');
 
   pageTwoList = screen.find('FlatList');
+  assert.equal(pageTwoList.props.snapToInterval, 500);
   (pageTwoList.props.onScrollBeginDrag as () => void)();
-  (pageTwoList.props.onScroll as (event: any) => void)({ nativeEvent: { contentOffset: { y: 1000 } } });
+  (pageTwoList.props.onScroll as (event: any) => void)({ nativeEvent: { contentOffset: { y: 2600 } } });
+  assert.equal(screen.scrollOffsets.at(-1), 1000, 'a long input from page two is clamped to page three while dragging');
+  (pageTwoList.props.onScrollEndDrag as (event: any) => void)({ nativeEvent: { contentOffset: { y: 1000 } } });
+  (pageTwoList.props.onMomentumScrollBegin as () => void)();
   (pageTwoList.props.onMomentumScrollEnd as (event: any) => void)({ nativeEvent: { contentOffset: { y: 1000 } } });
   screen.commit();
   await flush();
@@ -515,4 +593,120 @@ test('recommendation screen keeps settled page during drag, reuses mounted playe
   screen.commit();
   assert.equal(player2.released, 1);
   assert.equal(player3.released, 1);
+});
+
+test('recommendation can skip an unready or failed preview on a later input', async () => {
+  const screen = createRecommendationScreenHarness();
+  screen.commit();
+  screen.home.resolve({ dramas: [1, 2, 3].map((index) => ({
+    uuid: `drama-${index}`, displayOrder: index, title: `Drama ${index}`, shortDescription: '',
+    genres: [], imageUrls: { poster: `poster-${index}` },
+    previewVideos: [{ uuid: `preview-${index}`, storageKey: '', durationMs: 1000 }],
+  })) });
+  await flush();
+  screen.commit();
+  const feed = screen.nodes(screen.find('Page')).find((node) => node.type === 'View' && node.props.onLayout)!;
+  (feed.props.onLayout as (event: any) => void)({ nativeEvent: { layout: { height: 500 } } });
+  screen.commit();
+  await flush();
+
+  let list = screen.find('FlatList');
+  list.props.ref.current = { scrollToOffset: ({ offset }: { offset: number }) => screen.scrollOffsets.push(offset) };
+  (list.props.onScrollBeginDrag as () => void)();
+  (list.props.onScroll as (event: any) => void)({ nativeEvent: { contentOffset: { y: 500 } } });
+  (list.props.onScrollEndDrag as (event: any) => void)({ nativeEvent: { contentOffset: { y: 500 } } });
+  (list.props.onMomentumScrollBegin as () => void)();
+  (list.props.onMomentumScrollEnd as (event: any) => void)({ nativeEvent: { contentOffset: { y: 500 } } });
+  screen.commit();
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-2', 'the page changes before its video has loaded');
+  await flush();
+  assert.deepEqual(screen.pending.map(({ target: item }) => item.videoId), ['preview-1', 'preview-2', 'preview-3']);
+  screen.pending[1].task.reject(new Error('preview unavailable'));
+  await flush();
+  screen.commit();
+  assert.equal(screen.find('FlatList').props.extraData.activeEntry.kind, 'unavailable');
+
+  list = screen.find('FlatList');
+  (list.props.onScrollBeginDrag as () => void)();
+  (list.props.onScroll as (event: any) => void)({ nativeEvent: { contentOffset: { y: 1000 } } });
+  (list.props.onScrollEndDrag as (event: any) => void)({ nativeEvent: { contentOffset: { y: 1000 } } });
+  (list.props.onMomentumScrollBegin as () => void)();
+  (list.props.onMomentumScrollEnd as (event: any) => void)({ nativeEvent: { contentOffset: { y: 1000 } } });
+  screen.commit();
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-3', 'a later input advances past a failed preview');
+  screen.blur();
+  screen.commit();
+});
+
+test('recommendation groups dragless wheel input and preserves direction and edge limits', async () => {
+  const screen = createRecommendationScreenHarness();
+  screen.commit();
+  screen.home.resolve({ dramas: [1, 2, 3, 4].map((index) => ({
+    uuid: `drama-${index}`, displayOrder: index, title: `Drama ${index}`, shortDescription: '',
+    genres: [], imageUrls: { poster: `poster-${index}` },
+    previewVideos: [{ uuid: `preview-${index}`, storageKey: '', durationMs: 1000 }],
+  })) });
+  await flush();
+  screen.commit();
+  const feed = screen.nodes(screen.find('Page')).find((node) => node.type === 'View' && node.props.onLayout)!;
+  (feed.props.onLayout as (event: any) => void)({ nativeEvent: { layout: { height: 500 } } });
+  screen.commit();
+  await flush();
+  let list = screen.find('FlatList');
+  list.props.ref.current = { scrollToOffset: ({ offset }: { offset: number }) => screen.scrollOffsets.push(offset) };
+
+  (list.props.onScroll as (event: any) => void)({ nativeEvent: { contentOffset: { y: 100 } } });
+  const interruptedDragTimer = screen.timers.filter((timer) => !timer.cleared).at(-1)!;
+  (list.props.onScrollBeginDrag as () => void)();
+  interruptedDragTimer.callback();
+  screen.commit();
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-1', 'a quiet timer cannot settle while a finger is down');
+  list = screen.find('FlatList');
+  (list.props.onScroll as (event: any) => void)({ nativeEvent: { contentOffset: { y: 250 } } });
+  (list.props.onScrollEndDrag as (event: any) => void)({ nativeEvent: { contentOffset: { y: 250 } } });
+  (list.props.onMomentumScrollBegin as () => void)();
+  (list.props.onMomentumScrollEnd as (event: any) => void)({ nativeEvent: { contentOffset: { y: 250 } } });
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-1', 'half-page input waits for its page snap');
+  (screen.find('FlatList').props.onScroll as (event: any) => void)({ nativeEvent: { contentOffset: { y: 500 } } });
+  (screen.find('FlatList').props.onMomentumScrollEnd as (event: any) => void)({ nativeEvent: { contentOffset: { y: 500 } } });
+  screen.commit();
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-2');
+
+  list = screen.find('FlatList');
+  (list.props.onScroll as (event: any) => void)({ nativeEvent: { contentOffset: { y: 1800 } } });
+  assert.equal(screen.scrollOffsets.at(-1), 500, 'wheel inertia after commit remains on that page');
+  screen.timers.filter((timer) => !timer.cleared).at(-1)!.callback();
+  list = screen.find('FlatList');
+  (list.props.onScroll as (event: any) => void)({ nativeEvent: { contentOffset: { y: 1000 } } });
+  screen.timers.filter((timer) => !timer.cleared).at(-1)!.callback();
+  screen.commit();
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-3', 'a separate wheel input advances one page');
+
+  const dragTo = (offsetY: number) => {
+    const currentList = screen.find('FlatList');
+    const beforeCorrection = screen.scrollOffsets.length;
+    (currentList.props.onScrollBeginDrag as () => void)();
+    (currentList.props.onScroll as (event: any) => void)({ nativeEvent: { contentOffset: { y: offsetY } } });
+    (currentList.props.onScrollEndDrag as (event: any) => void)({ nativeEvent: { contentOffset: { y: offsetY } } });
+    (currentList.props.onMomentumScrollBegin as () => void)();
+    const actualOffset = screen.scrollOffsets.length > beforeCorrection ? screen.scrollOffsets.at(-1)! : offsetY;
+    (currentList.props.onMomentumScrollEnd as (event: any) => void)({ nativeEvent: { contentOffset: { y: actualOffset } } });
+    screen.commit();
+  };
+  dragTo(500);
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-2', 'reverse movement returns to the previous work');
+  dragTo(0);
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-1');
+  dragTo(-1500);
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-1', 'the first page does not wrap backward');
+  dragTo(5000);
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-2', 'a long forward drag still advances only one page');
+  dragTo(5000);
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-3');
+  dragTo(5000);
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-4');
+  dragTo(5000);
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-4', 'the last page does not wrap forward');
+  screen.blur();
+  screen.commit();
 });

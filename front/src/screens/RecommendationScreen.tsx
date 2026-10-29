@@ -191,12 +191,22 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
   const [scrolling, setScrolling] = useState(false);
   const [buffer, setBuffer] = useState<ReturnType<typeof createRecommendationPreviewBuffer<VideoPlayer>> | null>(null);
   const [bufferEntries, setBufferEntries] = useState<RecommendationPreviewEntry<VideoPlayer>[]>([]);
+  const [preparedPlayers, setPreparedPlayers] = useState<Map<string, VideoPlayer>>(() => new Map());
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastScrollY = useRef(0);
   const settleGeneration = useRef(0);
   const activeIdRef = useRef<string | null>(null);
   const dramasRef = useRef<HomeCollectionDrama[]>([]);
   const cardHeightRef = useRef(0);
+  const listRef = useRef<FlatList<HomeCollectionDrama>>(null);
+  const pageInput = useRef<{
+    startIndex: number;
+    dragging: boolean;
+    momentum: boolean;
+    correcting: boolean;
+    committed: boolean;
+    targetIndex: number | null;
+  } | null>(null);
   const settlePageRef = useRef<(offsetY: number) => void>(() => {});
   const scrollingRef = useRef(false);
   const focusedRef = useRef(false);
@@ -222,6 +232,8 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
       nextBuffer.invalidate();
       nextBuffer.pauseAll();
       setScreenFocused(false);
+      pageInput.current = null;
+      scrollingRef.current = false;
       setScrolling(false);
       setBuffer(null);
     };
@@ -296,6 +308,37 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
   }, [buffer, previewTargets, screenFocused]);
 
   useEffect(() => {
+    const retainedPlayers = new Map(bufferEntries.flatMap((entry) => entry.player
+      ? [[recommendationPreviewKey(entry.target), entry.player] as const]
+      : []));
+    setPreparedPlayers((previous) => {
+      const next = new Map([...previous].filter(([key, player]) => retainedPlayers.get(key) === player));
+      let changed = next.size !== previous.size;
+      for (const entry of bufferEntries) {
+        if (entry.player?.status === 'readyToPlay') {
+          const key = recommendationPreviewKey(entry.target);
+          if (next.get(key) !== entry.player) {
+            next.set(key, entry.player);
+            changed = true;
+          }
+        }
+      }
+      return changed ? next : previous;
+    });
+    const subscriptions = bufferEntries.flatMap((entry) => entry.player ? [
+      buffer?.trackSubscription(entry.target, entry.player, entry.player.addListener('statusChange', ({ status }) => {
+        const key = recommendationPreviewKey(entry.target);
+        if (status === 'readyToPlay') {
+          setPreparedPlayers((players) => players.get(key) === entry.player ? players : new Map(players).set(key, entry.player!));
+        } else if (status === 'error') {
+          buffer?.setUnavailable(entry.target, entry.player!);
+        }
+      })),
+    ] : []);
+    return () => { for (const subscription of subscriptions) subscription?.remove(); };
+  }, [buffer, bufferEntries]);
+
+  useEffect(() => {
     if (!activeId) {
       setActiveDrama(null);
       return;
@@ -314,16 +357,37 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
     if (settleTimer.current) clearTimeout(settleTimer.current);
     settleTimer.current = null;
   };
-  const beginScroll = () => {
+  const beginPageInput = (dragging = false) => {
+    if (pageInput.current?.committed && dragging) {
+      clearSettleTimer();
+      pageInput.current = null;
+    }
+    if (pageInput.current) {
+      if (dragging) pageInput.current.dragging = true;
+      return;
+    }
+    const startIndex = dramasRef.current.findIndex((drama) => drama.uuid === activeIdRef.current);
+    if (startIndex < 0) return;
+    pageInput.current = { startIndex, dragging, momentum: false, correcting: false, committed: false, targetIndex: null };
     scrollingRef.current = true;
     setScrolling(true);
-    bufferRef.current?.pauseAll();
   };
   const settleOnPage = (offsetY: number) => {
+    const input = pageInput.current;
     const latestDramas = dramasRef.current;
     const latestCardHeight = cardHeightRef.current;
-    if (latestCardHeight <= 0 || latestDramas.length === 0) return;
-    const index = Math.max(0, Math.min(latestDramas.length - 1, Math.round(offsetY / latestCardHeight)));
+    if (!input || input.committed || input.dragging || input.momentum || latestCardHeight <= 0 || latestDramas.length === 0) return;
+    const proposedIndex = Math.round(offsetY / latestCardHeight);
+    const index = input.correcting && input.targetIndex !== null ? input.targetIndex
+      : Math.max(0, Math.min(latestDramas.length - 1,
+        Math.max(input.startIndex - 1, Math.min(input.startIndex + 1, proposedIndex))));
+    const targetOffset = index * latestCardHeight;
+    if (Math.abs(offsetY - targetOffset) > 1 && listRef.current) {
+      input.correcting = true;
+      input.targetIndex = index;
+      listRef.current.scrollToOffset({ offset: targetOffset, animated: true });
+      return;
+    }
     const nextId = latestDramas[index]?.uuid ?? null;
     const previousId = activeIdRef.current;
     if (nextId && nextId !== previousId) {
@@ -333,8 +397,12 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
       activeIdRef.current = nextId;
       setActiveId(nextId);
     }
+    lastScrollY.current = targetOffset;
+    input.committed = true;
+    input.targetIndex = index;
     scrollingRef.current = false;
     setScrolling(false);
+    scheduleSettle(targetOffset);
   };
   settlePageRef.current = settleOnPage;
   const scheduleSettle = (offsetY: number) => {
@@ -344,16 +412,56 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
     settleTimer.current = setTimeout(() => {
       if (generation !== settleGeneration.current || !focusedRef.current) return;
       settleTimer.current = null;
+      if (pageInput.current?.committed) {
+        pageInput.current = null;
+        return;
+      }
+      if (pageInput.current?.dragging || pageInput.current?.momentum) return;
       settlePageRef.current(lastScrollY.current);
     }, 150);
   };
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offsetY = event.nativeEvent.contentOffset.y;
-    if (offsetY !== lastScrollY.current && !scrollingRef.current) beginScroll();
-    scheduleSettle(offsetY);
+    let offsetY = event.nativeEvent.contentOffset.y;
+    if (!pageInput.current && offsetY !== lastScrollY.current) beginPageInput();
+    const input = pageInput.current;
+    if (input?.committed) {
+      const committedOffset = (input.targetIndex ?? input.startIndex) * cardHeightRef.current;
+      if (Math.abs(offsetY - committedOffset) > 1) listRef.current?.scrollToOffset({ offset: committedOffset, animated: false });
+      offsetY = committedOffset;
+      scheduleSettle(offsetY);
+      return;
+    }
+    if (input && !input.correcting && cardHeightRef.current > 0) {
+      const minOffset = Math.max(0, input.startIndex - 1) * cardHeightRef.current;
+      const maxOffset = Math.min(dramasRef.current.length - 1, input.startIndex + 1) * cardHeightRef.current;
+      const boundedOffset = Math.max(minOffset, Math.min(maxOffset, offsetY));
+      if (Math.abs(offsetY - boundedOffset) > 1) {
+        listRef.current?.scrollToOffset({ offset: boundedOffset, animated: false });
+        offsetY = boundedOffset;
+      }
+    }
+    lastScrollY.current = offsetY;
+    if (!pageInput.current?.dragging && !pageInput.current?.momentum) scheduleSettle(offsetY);
   };
   const handleScrollEndDrag = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (pageInput.current?.committed) return;
+    if (pageInput.current) pageInput.current.dragging = false;
     scheduleSettle(event.nativeEvent.contentOffset.y);
+  };
+  const handleMomentumScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    clearSettleTimer();
+    const input = pageInput.current;
+    if (input?.committed) {
+      const targetOffset = (input.targetIndex ?? input.startIndex) * cardHeightRef.current;
+      if (Math.abs(event.nativeEvent.contentOffset.y - targetOffset) > 1) {
+        listRef.current?.scrollToOffset({ offset: targetOffset, animated: false });
+      }
+      lastScrollY.current = targetOffset;
+      scheduleSettle(targetOffset);
+      return;
+    }
+    if (input) input.momentum = false;
+    settleOnPage(event.nativeEvent.contentOffset.y);
   };
 
   useEffect(() => () => clearSettleTimer(), []);
@@ -374,17 +482,18 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
     savedIds,
     buffer,
     bufferEntries,
-  }), [screenFocused, scrolling, activeId, activeEntry, activePlayer, activeDrama, savedIds, buffer, bufferEntries]);
+    preparedPlayers,
+  }), [screenFocused, scrolling, activeId, activeEntry, activePlayer, activeDrama, savedIds, buffer, bufferEntries, preparedPlayers]);
 
   useEffect(() => {
-    if (!buffer || !activePreviewTarget || !activePlayer || !screenFocused || scrolling) return;
+    if (!buffer || !activePreviewTarget || !activePlayer || !screenFocused) return;
     const manager = buffer;
     const entry = activeEntry;
     const player = activePlayer;
     let live = true;
     let started = false;
     const startWhenReady = (status: VideoPlayer['status']) => {
-      if (!live || started || !focusedRef.current || scrollingRef.current) return;
+      if (!live || started || !focusedRef.current) return;
       if (activeIdRef.current !== activePreviewTarget.dramaId || bufferRef.current !== manager) return;
       if (manager.get(activePreviewTarget) !== entry || entry?.player !== player || status !== 'readyToPlay') return;
       started = true;
@@ -407,56 +516,63 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
       live = false;
       status.remove();
     };
-  }, [activeEntry, activePlayer, activePreviewTarget, buffer, screenFocused, scrolling]);
+  }, [activeEntry, activePlayer, activePreviewTarget, buffer, screenFocused]);
 
   return <Page scroll={false} contentStyle={styles.pageContent}>
     {status === 'loading' ? <EmptyState title="추천 작품 불러오는 중" description="잠시만 기다려 주세요." />
       : status === 'error' ? <EmptyState title="추천 작품을 불러오지 못했어요" description="잠시 후 다시 확인해 주세요." />
         : dramas.length === 0 ? <EmptyState title="오늘의 추천 작품이 없어요" description="새로운 작품을 준비하고 있어요." />
           : <View style={styles.feed} onLayout={(event) => setCardHeight(event.nativeEvent.layout.height)}>
-            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-              <View pointerEvents="none" style={styles.bufferVideoFrame}>
-                {screenFocused ? bufferEntries.flatMap((entry) => entry.player ? [
-                  <VideoView
-                    key={recommendationPreviewKey(entry.target)}
-                    player={entry.player}
-                    nativeControls={false}
-                    contentFit="contain"
-                    surfaceType="textureView"
-                    pointerEvents="none"
-                    style={[StyleSheet.absoluteFill, styles.playerVideo, {
-                      opacity: screenFocused && !scrolling && entry.kind === 'ready' && entry.target.dramaId === activeId ? 1 : 0,
-                    }]}
-                  />,
-                ] : []) : null}
-              </View>
-            </View>
             {cardHeight > 0 ? <FlatList
+              ref={listRef}
               data={dramas}
               keyExtractor={(drama) => drama.uuid}
               initialScrollIndex={initialIndex}
               getItemLayout={(_, index) => ({ length: cardHeight, offset: cardHeight * index, index })}
-              pagingEnabled
+              snapToInterval={cardHeight}
+              disableIntervalMomentum
+              decelerationRate="fast"
               showsVerticalScrollIndicator={false}
               extraData={cardState}
               onScroll={handleScroll}
               scrollEventThrottle={16}
-              onScrollBeginDrag={() => { clearSettleTimer(); beginScroll(); }}
+              onScrollBeginDrag={() => { clearSettleTimer(); beginPageInput(true); }}
               onScrollEndDrag={handleScrollEndDrag}
-              onMomentumScrollBegin={() => { clearSettleTimer(); beginScroll(); }}
-              onMomentumScrollEnd={(event) => {
+              onMomentumScrollBegin={() => {
                 clearSettleTimer();
-                lastScrollY.current = event.nativeEvent.contentOffset.y;
-                settleOnPage(lastScrollY.current);
+                if (pageInput.current?.committed) {
+                  scheduleSettle(lastScrollY.current);
+                  return;
+                }
+                beginPageInput();
+                if (pageInput.current) pageInput.current.momentum = true;
               }}
+              onMomentumScrollEnd={handleMomentumScrollEnd}
               renderItem={({ item: drama }) => {
                 const posterUrl = resolveApiImageUrl(drama.imageUrls.poster);
-                const showPreview = screenFocused && !scrolling && activeId === drama.uuid && Boolean(activePlayer);
-                return <View style={[styles.card, { height: cardHeight }, showPreview && styles.cardPreview]}>
-                  {!showPreview && (posterUrl
+                const preview = drama.previewVideos[0];
+                const previewTarget = preview ? { dramaId: drama.uuid, videoId: preview.uuid } : null;
+                const entry = previewTarget ? buffer?.get(previewTarget) : undefined;
+                const key = previewTarget ? recommendationPreviewKey(previewTarget) : '';
+                const player = entry?.kind === 'ready' ? entry.player : undefined;
+                const mountVideo = screenFocused && Boolean(player);
+                const showVideo = mountVideo && preparedPlayers.get(key) === player;
+                const showControls = showVideo && !scrolling && activeId === drama.uuid && activePlayer === player;
+                const showPoster = !screenFocused || !preview || entry?.kind === 'unavailable';
+                return <View style={[styles.card, { height: cardHeight }, showVideo && styles.cardPreview]}>
+                  {mountVideo && player ? <VideoView
+                    key={key}
+                    player={player}
+                    nativeControls={false}
+                    contentFit="contain"
+                    surfaceType="textureView"
+                    pointerEvents="none"
+                    style={[StyleSheet.absoluteFill, styles.playerVideo, { opacity: showVideo ? 1 : 0 }]}
+                  /> : null}
+                  {showPoster && (posterUrl
                     ? <Image source={{ uri: posterUrl }} accessibilityLabel={`${drama.title} 표지`} contentFit="cover" style={StyleSheet.absoluteFill} />
                     : <View style={[StyleSheet.absoluteFill, styles.placeholder]} />)}
-                  {showPreview && activeDramaForPreview && activePreviewTarget && <RecommendationPreviewPlayer
+                  {showControls && activeDramaForPreview && activePreviewTarget && <RecommendationPreviewPlayer
                     key={recommendationPreviewKey(activePreviewTarget)}
                     player={activePlayer!}
                     trackListener={(subscription) => buffer!.trackSubscription(activePreviewTarget, activePlayer!, subscription)}
@@ -483,10 +599,9 @@ const styles = StyleSheet.create({
   pageContent: { flex: 1, maxWidth: '100%', alignSelf: 'stretch', padding: 0, paddingBottom: 0, gap: 0 },
   feed: { flex: 1, overflow: 'hidden', backgroundColor: colors.background },
   feedPlaceholder: { flex: 1, backgroundColor: colors.background },
-  card: { width: '100%', maxWidth: 500, alignSelf: 'center', overflow: 'hidden', justifyContent: 'space-between', backgroundColor: colors.surface },
+  card: { width: '100%', maxWidth: 500, alignSelf: 'center', overflow: 'hidden', justifyContent: 'space-between', backgroundColor: '#000' },
   cardPreview: { backgroundColor: 'transparent' },
   placeholder: { backgroundColor: '#000' },
-  bufferVideoFrame: { width: '100%', maxWidth: 500, height: '100%', alignSelf: 'center' },
   playerVideo: { width: '100%', height: '100%' },
   playerTopBar: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingBottom: 18, backgroundColor: 'rgba(0,0,0,0.45)' },
   playerIconButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
