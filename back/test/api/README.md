@@ -37,6 +37,8 @@ Every allocated fixture UUID is recorded before insertion. Cleanup removes only 
 
 `API_TEST_ENVIRONMENT_FILE` selects an externally prepared Postman environment. This mode does not connect to MySQL or create, alter, or clean fixtures. It forwards Postman options and credentials as supplied, and takes an exclusive content lock for the environment's effective `baseUrl`, including a `--env-var baseUrl=...` override. Keep that environment outside Git. Never pass passwords as command-line arguments.
 
+The `saved-videos` collection requires `savedLookupEpisodeUuid`, `savedLookupEpisodeVideoUuid`, and `savedPaidEpisodeUuid` alongside the existing `savedPaidVideoUuid`. The lookup video must be the FREE FULL for its lookup episode; `savedPaidVideoUuid` must be the PAID FULL for `savedPaidEpisodeUuid`, and both episodes must belong to the drama identified by `savedOtherUserVideoUuid`. The collection checks these UUID and price relationships against the drama detail before saving. External environments own fixture preparation and cleanup, including removing any save left behind by a failed collection run.
+
 ## Existing development data
 
 For content and playback checks, `/genres` needs at least one row and `/dramas` at least two public dramas. One drama must have a preview, a free episode, and at least two paid episodes with FULL media; a third distinct public paid episode is needed for the purchase check. All four collection types (`HOME_FEATURED`, `EDITORIAL_TOP_3`, `RECOMMENDATION_DAILY`, and `HOME_CAMPAIGN`) must be active; their drama arrays may be empty. Playback checks require development S3 signing configuration; tests inspect signed URL metadata without fetching the media object.

@@ -1,32 +1,54 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import { Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { AppText, EmptyState, Icon, Page, SectionTitle } from '@/components/ui';
 import { AppTopBar } from '@/components/AppTopBar';
 import { getDramaList, type DramaSummary } from '@/features/drama/dramaContent';
+import { SessionChangedError } from '@/common/http/api';
+import { getErrorMessage } from '@/common/http/errorMessages';
 import { resolveApiImageUrl } from '@/common/media';
 import { colors, typography } from '@/common/theme/tokens';
+import { useUser } from '@/features/user/UserProvider';
 
-type SearchStatus = 'loading' | 'loaded' | 'error';
+type SearchState =
+  | { kind: 'loading'; accountKey: string }
+  | { kind: 'loaded'; accountKey: string; dramas: DramaSummary[] }
+  | { kind: 'error'; accountKey: string; error: unknown };
 
 export function SearchScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ genre?: string }>();
   const { width } = useWindowDimensions();
+  const { user, isRestoring, sessionVersion, isCurrentSession } = useUser();
   const [query, setQuery] = useState('');
   const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
-  const [dramas, setDramas] = useState<DramaSummary[]>([]);
-  const [status, setStatus] = useState<SearchStatus>('loading');
-  useEffect(() => {
-    let active = true;
+  const [retryCount, setRetryCount] = useState(0);
+  const [searchState, setSearchState] = useState<SearchState>({ kind: 'loading', accountKey: '' });
+  const generation = useRef(0);
+  const accountKey = `${sessionVersion}:${user?.uuid ?? 'anonymous'}`;
+  useFocusEffect(useCallback(() => {
+    const request = ++generation.current;
+    if (isRestoring) {
+      setSearchState({ kind: 'loading', accountKey });
+      return () => { generation.current += 1; };
+    }
+    const version = sessionVersion;
+    const current = () => generation.current === request && isCurrentSession(version);
+    setSearchState({ kind: 'loading', accountKey });
     void getDramaList().then(
-      (items) => { if (active) { setDramas(items); setStatus('loaded'); } },
-      () => { if (active) setStatus('error'); },
+      (items) => { if (current()) setSearchState({ kind: 'loaded', accountKey, dramas: items }); },
+      (error) => {
+        if (!current() || error instanceof SessionChangedError) return;
+        setSearchState({ kind: 'error', accountKey, error });
+      },
     );
-    return () => { active = false; };
-  }, []);
+    return () => { generation.current += 1; };
+  }, [accountKey, isCurrentSession, isRestoring, retryCount, sessionVersion, user?.uuid]));
   useEffect(() => setSelectedGenre(null), [params.genre]);
+  const ownsSearchState = searchState.accountKey === accountKey;
+  const status = ownsSearchState ? searchState.kind : 'loading';
+  const dramas = ownsSearchState && searchState.kind === 'loaded' ? searchState.dramas : [];
   const genres = useMemo(() => Array.from(new Map(dramas.flatMap((drama) => drama.genres.map((genre) => [genre.code, genre] as const))).values()), [dramas]);
   const selectedGenreValue = selectedGenre ?? genres.find((item) => item.code === params.genre || item.name === params.genre)?.code ?? 'all';
   const term = query.trim().toLocaleLowerCase();
@@ -45,7 +67,7 @@ export function SearchScreen() {
         {[{ code: 'all', name: '전체' }, ...genres].map((item) => <Pressable key={item.code} accessibilityRole="button" accessibilityState={{ selected: selectedGenreValue === item.code }} style={[styles.filter, selectedGenreValue === item.code && styles.activeFilter]} onPress={() => setSelectedGenre(item.code)}><AppText weight={selectedGenreValue === item.code ? 'semibold' : 'regular'} style={[styles.filterLabel, selectedGenreValue === item.code && styles.activeFilterLabel]}>{item.name}</AppText></Pressable>)}
       </ScrollView>
       <View style={styles.resultHeading}><AppText weight="semibold" style={styles.resultTitle}>{term ? `'${query.trim()}' 검색 결과` : selectedGenreValue === 'all' ? '모든 이야기' : `${genres.find((item) => item.code === selectedGenreValue)?.name ?? ''} 이야기`}</AppText><AppText style={styles.count}>{status === 'loaded' ? `${results.length}개 작품` : ''}</AppText></View>
-      {status === 'loading' ? <EmptyState title="작품을 불러오는 중" description="잠시만 기다려 주세요." /> : status === 'error' ? <EmptyState title="작품을 불러오지 못했어요" description="잠시 후 다시 확인해 주세요." /> : results.length > 0 ? <View style={styles.grid}>{results.map((drama) => <Pressable key={drama.uuid} accessibilityRole="button" accessibilityLabel={drama.title + ' 작품 소개'} style={{ width: posterWidth, gap: 10 }} onPress={() => router.push({ pathname: '/drama/[id]', params: { id: drama.uuid } })}><View style={[styles.poster, { height: posterWidth * 1.48 }]}>{drama.imageUrls.poster ? <Image source={{ uri: resolveApiImageUrl(drama.imageUrls.poster) ?? undefined }} accessibilityLabel={drama.title + ' 표지'} contentFit="cover" style={StyleSheet.absoluteFill} /> : <View accessibilityLabel={drama.title + ' 표지 없음'} style={[StyleSheet.absoluteFill, styles.placeholder]} />}</View><AppText weight="semibold" numberOfLines={1}>{drama.title}</AppText><AppText style={styles.genreText}>{drama.genres.map((item) => item.name).join(' · ') || '장르 정보 없음'}</AppText></Pressable>)}</View> : <EmptyState title="아직 찾는 이야기가 없어요" description="다른 제목을 검색하거나 장르를 바꿔보세요." action="모든 작품 보기" onAction={() => { setQuery(''); setSelectedGenre('all'); }} />}
+      {status === 'loading' ? <EmptyState title="작품을 불러오는 중" description="잠시만 기다려 주세요." /> : status === 'error' ? <EmptyState title="작품을 불러오지 못했어요" description={getErrorMessage(searchState.kind === 'error' ? searchState.error : null)} action="다시 시도" onAction={() => setRetryCount((count) => count + 1)} /> : results.length > 0 ? <View style={styles.grid}>{results.map((drama) => <Pressable key={drama.uuid} accessibilityRole="button" accessibilityLabel={drama.title + ' 작품 소개'} style={{ width: posterWidth, gap: 10 }} onPress={() => router.push({ pathname: '/drama/[id]', params: { id: drama.uuid } })}><View style={[styles.poster, { height: posterWidth * 1.48 }]}>{drama.imageUrls.poster ? <Image source={{ uri: resolveApiImageUrl(drama.imageUrls.poster) ?? undefined }} accessibilityLabel={drama.title + ' 표지'} contentFit="cover" style={StyleSheet.absoluteFill} /> : <View accessibilityLabel={drama.title + ' 표지 없음'} style={[StyleSheet.absoluteFill, styles.placeholder]} />}</View><AppText weight="semibold" numberOfLines={1}>{drama.title}</AppText><AppText style={styles.genreText}>{drama.genres.map((item) => item.name).join(' · ') || '장르 정보 없음'}</AppText></Pressable>)}</View> : <EmptyState title="아직 찾는 이야기가 없어요" description="다른 제목을 검색하거나 장르를 바꿔보세요." action="모든 작품 보기" onAction={() => { setQuery(''); setSelectedGenre('all'); }} />}
     </Page>
   );
 }

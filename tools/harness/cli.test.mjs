@@ -141,3 +141,75 @@ test('CLI executable validates an index from the working directory', () => {
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(JSON.parse(result.stdout), { valid: true, plans: ['plan-1-test'] });
 });
+
+test('finish excludes draft folders and repeated CLI paths while keeping the local catalog intact', () => {
+  const repo = temporaryDirectory();
+  const remote = temporaryDirectory();
+  git(repo, 'init', '--initial-branch=dev');
+  git(repo, 'config', 'user.email', 'test@example.com');
+  git(repo, 'config', 'user.name', 'Harness Test');
+  git(remote, 'init', '--bare');
+  writePlan(repo, [task('complete', { status: 'completed' })], 'completed');
+  const catalogPath = join(repo, '_docs', 'plans', 'index.json');
+  const catalog = JSON.parse(readFileSync(catalogPath, 'utf8'));
+  function addDraft(id) {
+    const directory = join(repo, '_docs', 'plans', id);
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(join(directory, 'index.json'), JSON.stringify({ version: 1, plan_id: id, tasks: [task('draft')] }));
+    writeFileSync(join(directory, 'plan.md'), '# Draft\n');
+    const entry = { id, directory: id, title: id, status: 'draft' };
+    catalog.plans.push(entry);
+    writeFileSync(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
+    return entry;
+  }
+  const previousDraft = { ...addDraft('plan-2-existing') };
+  git(repo, 'add', '.');
+  git(repo, 'commit', '-m', 'initial');
+  git(repo, 'remote', 'add', 'origin', remote);
+  git(repo, 'push', '-u', 'origin', 'dev');
+
+  catalog.plans[0].title = 'Finished plan';
+  catalog.plans[1].title = 'Local draft changes';
+  addDraft('plan-3-local');
+  const localCatalog = readFileSync(catalogPath, 'utf8');
+  const existingDraftFile = '_docs/plans/plan-2-existing/plan.md';
+  writeFileSync(join(repo, existingDraftFile), '# Local draft changes\n');
+  writeFileSync(join(repo, 'local notes.txt'), 'keep local\n');
+  writeFileSync(join(repo, 'included [draft].md'), 'publish this file\n');
+  const excluded = ['_docs/plans/plan-2-existing', '_docs/plans/plan-3-local/', 'local notes.txt'];
+  const before = git(repo, 'rev-parse', 'HEAD');
+  for (const invalid of ['..', 'folder/..', '/outside', 'C:/outside']) {
+    assert.throws(() => finishPlan(repo, 'plan-1-test', undefined, { exclude: [invalid] }), /Path must be repository-relative/);
+  }
+  assert.throws(() => finishPlan(repo, 'plan-1-test', undefined, { exclude: ['_docs/plans/plan-1-test'] }), /Cannot exclude the selected plan index/);
+  git(repo, 'add', '--', existingDraftFile);
+  assert.throws(() => finishPlan(repo, 'plan-1-test', undefined, { exclude: excluded }), /Excluded file is already staged/);
+  assert.equal(git(repo, 'rev-parse', 'HEAD'), before);
+  assert.equal(git(repo, 'diff', '--cached', '--name-only'), existingDraftFile);
+  git(repo, 'reset', '--', existingDraftFile);
+
+  const result = spawnSync(process.execPath, [
+    join(process.cwd(), 'tools', 'harness', 'cli.mjs'), 'finish', '--plan', 'plan-1-test',
+    ...excluded.flatMap((file) => ['--exclude', file]),
+  ], { cwd: repo, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout.trim().split(/\r?\n/).at(-1)), { plan: 'plan-1-test', committed: true, pushed: true });
+  const publishedCatalog = JSON.parse(git(remote, 'show', 'dev:_docs/plans/index.json'));
+  assert.deepEqual(publishedCatalog.plans, [catalog.plans[0], previousDraft]);
+  for (const entry of publishedCatalog.plans) {
+    assert.doesNotThrow(() => git(remote, 'show', `dev:_docs/plans/${entry.directory}/index.json`));
+  }
+  const committedFiles = git(repo, 'show', '--format=', '--name-only', 'HEAD');
+  assert.match(committedFiles, /_docs\/plans\/index\.json/);
+  assert.match(committedFiles, /included \[draft\]\.md/);
+  assert.doesNotMatch(committedFiles, /plan-2-existing|plan-3-local|local notes/);
+  assert.equal(readFileSync(catalogPath, 'utf8'), localCatalog);
+  assert.equal(readFileSync(join(repo, existingDraftFile), 'utf8'), '# Local draft changes\n');
+  assert.equal(readIndex(repo).plans.length, 3);
+  assert.match(git(repo, 'status', '--short', '--untracked-files=all'), /plan-3-local\/index\.json/);
+  assert.match(git(repo, 'status', '--short', '--untracked-files=all'), /local notes\.txt/);
+  const publishedHead = git(repo, 'rev-parse', 'HEAD');
+  assert.deepEqual(finishPlan(repo, 'plan-1-test', undefined, { exclude: excluded }), { plan: 'plan-1-test', committed: false, pushed: true });
+  assert.equal(git(repo, 'rev-parse', 'HEAD'), publishedHead);
+  assert.equal(readFileSync(catalogPath, 'utf8'), localCatalog);
+});

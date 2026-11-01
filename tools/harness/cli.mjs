@@ -382,13 +382,25 @@ function runCheck(repoRoot, command) {
   if (result.status !== 0) error(`Check failed: ${command}`);
 }
 
-export function finishPlan(repoRoot = process.cwd(), planId, message) {
+export function finishPlan(repoRoot = process.cwd(), planId, message, { exclude = [] } = {}) {
   if (!isCurrentDev(repoRoot)) error('finish must run on the dev branch');
   const index = readIndex(repoRoot);
   const plan = selectPlan(index, planId);
   if (!plan.tasks.every((task) => task.status === 'completed')) error(`Plan ${plan.id} is not complete`);
 
-  const dirty = dirtyPaths(repoRoot);
+  const exclusions = exclude.map((file) => {
+    const path = normalizePath(file).replace(/\/+$/, '');
+    if (/^[a-z]:/i.test(path) || path.split('/').some((part) => part === '.' || part === '..')) {
+      error(`Path must be repository-relative: ${file}`);
+    }
+    return path;
+  });
+  const isExcluded = (file) => exclusions.some((entry) => file === entry || file.startsWith(`${entry}/`));
+  if (isExcluded(`_docs/plans/${plan.directory}/index.json`)) error('Cannot exclude the selected plan index');
+  const staged = git(repoRoot, ['diff', '--cached', '--name-only', '-z']).split('\0').filter(Boolean);
+  const stagedExcluded = staged.find(isExcluded);
+  if (stagedExcluded) error(`Excluded file is already staged; unstage it before finish: ${stagedExcluded}`);
+  const dirty = dirtyPaths(repoRoot).filter((file) => !isExcluded(file));
 
   const changedFront = dirty.some((file) => file.startsWith('front/'));
   const changedBack = dirty.some((file) => file.startsWith('back/'));
@@ -400,11 +412,26 @@ export function finishPlan(repoRoot = process.cwd(), planId, message) {
   for (const check of checks) runCheck(repoRoot, check);
 
   if (dirty.length > 0) {
-    git(repoRoot, ['add', '--all']);
+    git(repoRoot, ['--literal-pathspecs', 'add', '--all', '--', ...dirty]);
+    if (dirty.includes(PLANS_INDEX) && exclusions.length > 0) {
+      const catalog = readJson(resolve(repoRoot, PLANS_INDEX), PLANS_INDEX);
+      const previous = JSON.parse(git(repoRoot, ['show', `HEAD:${PLANS_INDEX}`]));
+      const previousPlans = new Map(previous.plans.map((entry) => [entry.id, entry]));
+      catalog.plans = catalog.plans.flatMap((entry) => {
+        if (!isExcluded(`_docs/plans/${entry.directory}/index.json`)) return [entry];
+        const prior = previousPlans.get(entry.id);
+        return prior ? [prior] : [];
+      });
+      const hash = git(repoRoot, ['hash-object', '-w', '--stdin'], { input: `${JSON.stringify(catalog, null, 2)}\n` }).trim();
+      git(repoRoot, ['update-index', '--cacheinfo', '100644', hash, PLANS_INDEX]);
+    }
+  }
+  const committed = git(repoRoot, ['diff', '--cached', '--name-only', '-z']).length > 0;
+  if (committed) {
     git(repoRoot, ['commit', '-m', message || `finish ${plan.id}`], { stdio: 'inherit' });
   }
   git(repoRoot, ['push', 'origin', 'dev'], { stdio: 'inherit' });
-  return { plan: plan.id, committed: dirty.length > 0, pushed: true };
+  return { plan: plan.id, committed, pushed: true };
 }
 
 function parseArguments(argv) {
@@ -416,7 +443,8 @@ function parseArguments(argv) {
     const key = argument.slice(2);
     const value = rest[++index];
     if (!value || value.startsWith('--')) error(`Missing value for --${key}`);
-    options[key] = value;
+    if (key === 'exclude') (options.exclude ??= []).push(value);
+    else options[key] = value;
   }
   return { command, options };
 }
@@ -433,8 +461,8 @@ export function main(argv = process.argv.slice(2), repoRoot = process.cwd()) {
     case 'fail': result = failTask(repoRoot, options.plan, options.task, options.error); break;
     case 'retry': result = retryTask(repoRoot, options.plan, options.task); break;
     case 'reset': result = resetTask(repoRoot, options.plan, options.task); break;
-    case 'finish': result = finishPlan(repoRoot, options.plan, options.message); break;
-    default: error('Usage: cli.mjs <validate|status|next|start|complete|fail|retry|reset|finish> [--plan ID] [--task ID]');
+    case 'finish': result = finishPlan(repoRoot, options.plan, options.message, { exclude: options.exclude }); break;
+    default: error('Usage: cli.mjs <validate|status|next|start|complete|fail|retry|reset|finish> [--plan ID] [--task ID] [--exclude PATH ...]');
   }
   process.stdout.write(`${JSON.stringify(result)}\n`);
   return result;

@@ -206,6 +206,7 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay', 
     .transpileModule(source, { compilerOptions: { module: 1, target: 9, jsx: 4 } }).outputText as string;
   const hooks: any[] = [];
   const pending: Array<{ task: Deferred<any>; target: Target }> = [];
+  const homeRequests: Array<Deferred<any>> = [];
   const savedHookCalls: unknown[][] = [];
   const savedToggleCalls: unknown[][] = [];
   const savedObservations: unknown[][] = [];
@@ -317,7 +318,11 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay', 
   modules['@/common/media'] = { resolveApiImageUrl: (value: string | null) => value };
   modules['@/common/theme/tokens'] = { colors: { accent: '#0f0', background: '#000', border: '#333', muted: '#aaa', surface: '#111' } };
   modules['@/features/drama/dramaContent'] = { getDramaContent: async () => null };
-  modules['@/features/home/homeContent'] = { getHomeCollection: () => home.promise };
+  modules['@/features/home/homeContent'] = { getHomeCollection: () => {
+    const request = deferred<any>();
+    homeRequests.push(request);
+    return request.promise;
+  } };
   modules['@/features/playback/previewPlayback'] = {
     getPreviewPlayback: (dramaId: string, videoId: string) => {
       const task = deferred<{ url: string }>();
@@ -336,7 +341,6 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay', 
   modules['@/features/user/UserProvider'] = { useUser: () => ({ isRestoring: false, sessionVersion: 1, isCurrentSession, sessionExpired: false, user: { uuid: 'user-1' } }) };
   modules['@/common/http/api'] = { ApiError: class ApiError extends Error { status = 401; }, SessionChangedError: class SessionChangedError extends Error {} };
   modules['@/common/http/errorMessages'] = { getErrorMessage: () => 'save failed' };
-  const home = deferred<any>();
   const module = { exports: {} as Record<string, any> };
   vm.runInNewContext(compiled, { exports: module.exports, Element: FakeElement, performance: { now: () => frameTime },
     requestAnimationFrame: (callback: (time: number) => void) => { const id = ++frameId; frames.set(id, callback); return id; },
@@ -431,7 +435,7 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay', 
       }
     },
     element(interactive: boolean) { return new FakeElement(interactive); },
-    home,
+    homeRequests,
     blur() { for (const cleanup of focusCleanups.values()) cleanup(); focusCleanups.clear(); blurred = true; },
     focus() { blurred = false; for (const [index, callback] of focusCallbacks) { const cleanup = callback(); if (cleanup) focusCleanups.set(index, cleanup); } commit(); },
   };
@@ -440,7 +444,7 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay', 
 test('recommendation mounts idle web players so canplay can make current and neighbor videos visible', async () => {
   const screen = createRecommendationScreenHarness('idle');
   screen.commit();
-  screen.home.resolve({ dramas: [1, 2].map((index) => ({
+  screen.homeRequests[0].resolve({ dramas: [1, 2].map((index) => ({
     uuid: `drama-${index}`, displayOrder: index, title: `Drama ${index}`, shortDescription: '',
     genres: [], imageUrls: { poster: `poster-${index}` },
     previewVideos: [{ uuid: `preview-${index}`, storageKey: '', durationMs: 1000 }],
@@ -495,7 +499,7 @@ test('recommendation mounts idle web players so canplay can make current and nei
 
 async function loadScreen(screen: ReturnType<typeof createRecommendationScreenHarness>, count = 4, resolvePlayers = true, isSaved = false) {
   screen.commit();
-  screen.home.resolve({ dramas: Array.from({ length: count }, (_, i) => ({
+  screen.homeRequests[0].resolve({ dramas: Array.from({ length: count }, (_, i) => ({
     uuid: `drama-${i + 1}`, displayOrder: i + 1, title: `Drama ${i + 1}`, shortDescription: '',
     genres: [], imageUrls: { poster: `poster-${i + 1}` },
     previewVideos: [{ uuid: `preview-${i + 1}`, storageKey: '', durationMs: 1000, isSaved }],
@@ -504,11 +508,20 @@ async function loadScreen(screen: ReturnType<typeof createRecommendationScreenHa
   let feed = screen.nodes(screen.find('Page')).find((node) => node.type === 'View' && node.props.onLayout)!;
   feed.props.onLayout({ nativeEvent: { layout: { height: 500 } } });
   screen.commit(); await flush(); screen.commit();
+  screen.find('FlatList').props.onContentSizeChange(1100, count * 500);
+  screen.commit();
   if (resolvePlayers) {
     for (const item of screen.pending) item.task.resolve({ url: `url-${item.target.videoId}` });
     await flush(); screen.commit();
   }
   return screen.nodes(screen.find('Page')).find((node) => node.type === 'View' && node.props.onLayout)!;
+}
+function homeDrama(uuid: string, displayOrder: number) {
+  return {
+    uuid, displayOrder, title: uuid, shortDescription: '', genres: [],
+    imageUrls: { poster: `poster-${uuid}` },
+    previewVideos: [{ uuid: `preview-${uuid}`, storageKey: '', durationMs: 1000 }],
+  };
 }
 function offset(screen: ReturnType<typeof createRecommendationScreenHarness>, y: number) {
   screen.find('FlatList').props.onScroll({ nativeEvent: { contentOffset: { y } } }); screen.commit();
@@ -528,6 +541,121 @@ function drag(screen: ReturnType<typeof createRecommendationScreenHarness>) {
     release(dy: number) { p.onPanResponderRelease({}, { dx: 0, dy }); },
     cancel() { p.onPanResponderTerminate({}, { dx: 0, dy: 0 }); } };
 }
+
+test('a refreshed collection reorders the visible card to the committed drama without a content-size event', async () => {
+  const screen = createRecommendationScreenHarness('readyToPlay', 'ios');
+  await loadScreen(screen, 3);
+  const gesture = drag(screen);
+  gesture.move(-300); gesture.release(-300); frames(screen, true);
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-2');
+  assert.equal(screen.boundedOffset(), 500);
+
+  screen.blur(); screen.commit(); screen.focus();
+  assert.equal(screen.homeRequests.length, 2, 'focus starts a fresh collection request');
+  screen.homeRequests[1].resolve({ dramas: [homeDrama('drama-2', 1), homeDrama('drama-1', 2), homeDrama('drama-3', 3)] });
+  await flush(); screen.commit();
+
+  assert.equal(screen.find('FlatList').props.data[0].uuid, 'drama-2');
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-2');
+  assert.equal(screen.boundedOffset(), 0, 'the visible offset follows the active drama after same-length reorder');
+  assert.equal(screen.scrollOffsets.at(-1), 0, 'reordering aligns immediately without relying on content-size change');
+  screen.blur(); screen.commit();
+});
+
+test('a removed active drama aligns its selected fallback and an empty refresh sends no card scroll', async () => {
+  const screen = createRecommendationScreenHarness('readyToPlay', 'ios');
+  await loadScreen(screen, 3);
+  for (let index = 0; index < 2; index += 1) {
+    const gesture = drag(screen);
+    gesture.move(-300); gesture.release(-300); frames(screen, true);
+  }
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-3');
+  assert.equal(screen.boundedOffset(), 1000);
+
+  screen.blur(); screen.commit(); screen.focus();
+  screen.homeRequests[1].resolve({ dramas: [homeDrama('drama-2', 1), homeDrama('drama-1', 2)] });
+  await flush(); screen.commit();
+  screen.setScrollBounds(1000, 500);
+  offset(screen, screen.boundedOffset());
+  screen.find('FlatList').props.onContentSizeChange(1100, 1000);
+  screen.commit();
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-2');
+  assert.equal(screen.boundedOffset(), 0, 'the fallback drama is aligned at its new first-card index');
+
+  screen.blur(); screen.commit(); screen.focus();
+  const beforeEmptyResponse = screen.scrollOffsets.length;
+  screen.homeRequests[2].resolve({ dramas: [] });
+  await flush(); screen.commit();
+  assert.equal(screen.find('EmptyState').props.title, '오늘의 추천 작품이 없어요');
+  assert.equal(screen.nodes(screen.find('Page')).some((node) => node.type === 'FlatList'), false);
+  assert.equal(screen.scrollOffsets.length, beforeEmptyResponse, 'an empty collection sends no invalid index scroll');
+  screen.blur(); screen.commit();
+});
+
+test('a same-order metadata refresh does not request an unnecessary scroll', async () => {
+  const screen = createRecommendationScreenHarness('readyToPlay', 'ios');
+  await loadScreen(screen, 3);
+  const gesture = drag(screen);
+  gesture.move(-300); gesture.release(-300); frames(screen, true);
+  screen.blur(); screen.commit(); screen.focus();
+  const beforeResponse = screen.scrollOffsets.length;
+  const current = screen.find('FlatList').props.data as any[];
+  screen.homeRequests[1].resolve({ dramas: current.map((drama) => ({
+    ...drama,
+    title: `${drama.title} updated`,
+    previewVideos: drama.previewVideos.map((preview: any) => ({ ...preview, isSaved: true })),
+  })) });
+  await flush(); screen.commit();
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-2');
+  assert.equal(screen.boundedOffset(), 500);
+  assert.equal(screen.scrollOffsets.length, beforeResponse, 'metadata and saved-state changes do not align again');
+  screen.blur(); screen.commit();
+});
+
+test('a reordered collection cancels an in-flight motion and ignores a stale scroll until it reaches alignment', async () => {
+  const screen = createRecommendationScreenHarness('readyToPlay', 'ios');
+  await loadScreen(screen, 4);
+  for (let index = 0; index < 2; index += 1) {
+    const gesture = drag(screen);
+    gesture.move(-300); gesture.release(-300); frames(screen, true);
+  }
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-3');
+  screen.blur(); screen.commit(); screen.focus();
+
+  const moving = drag(screen);
+  moving.move(-300); moving.release(-300);
+  assert.ok(screen.frames.size, 'the next-page motion is pending');
+  screen.homeRequests[1].resolve({ dramas: [
+    homeDrama('drama-1', 1), homeDrama('drama-3', 2), homeDrama('drama-2', 3), homeDrama('drama-4', 4),
+  ] });
+  await flush(); screen.commit();
+  assert.equal(screen.frames.size, 0, 'collection acceptance cancels the stale animation frame');
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-3');
+  assert.equal(screen.scrollOffsets.at(-1), 500, 'the current drama receives its new index offset');
+
+  offset(screen, 1000);
+  const feed = screen.nodes(screen.find('Page')).find((node) => node.type === 'View' && node.props.onLayout)!.props;
+  assert.equal(feed.onMoveShouldSetPanResponder({}, { dx: 0, dy: -40 }), false, 'a stale old-page event cannot unlock alignment');
+  offset(screen, 500);
+  assert.equal(feed.onMoveShouldSetPanResponder({}, { dx: 0, dy: -40 }), true, 'actual arrival releases the alignment lock');
+  screen.blur(); screen.commit();
+});
+
+test('a collection response arriving after blur is ignored and a later focus uses the latest response', async () => {
+  const screen = createRecommendationScreenHarness('readyToPlay', 'ios');
+  await loadScreen(screen, 3);
+  screen.blur(); screen.commit(); screen.focus();
+  screen.blur(); screen.commit();
+  screen.homeRequests[1].resolve({ dramas: [homeDrama('drama-3', 1), homeDrama('drama-1', 2)] });
+  await flush(); screen.commit();
+  assert.deepEqual(Array.from(screen.find('FlatList').props.data, (drama: any) => drama.uuid), ['drama-1', 'drama-2', 'drama-3']);
+
+  screen.focus();
+  screen.homeRequests[2].resolve({ dramas: [homeDrama('drama-3', 1), homeDrama('drama-1', 2)] });
+  await flush(); screen.commit();
+  assert.equal(screen.find('FlatList').props.data[0].uuid, 'drama-3');
+  screen.blur(); screen.commit();
+});
 function quiet(screen: ReturnType<typeof createRecommendationScreenHarness>) {
   const timer = screen.timers.filter((item) => !item.cleared).at(-1)!; assert.ok(timer); timer.callback();
 }

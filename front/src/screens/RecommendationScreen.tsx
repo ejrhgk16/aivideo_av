@@ -254,6 +254,8 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
   const [collectionOwnerUuid, setCollectionOwnerUuid] = useState<string | null>(null);
   const collectionSessionRef = useRef<number | null>(null);
   const collectionOwnerRef = useRef<string | null>(null);
+  const collectionOrderRef = useRef<string[]>([]);
+  const collectionActiveIdRef = useRef<string | null>(null);
   const [cardHeight, setCardHeight] = useState(0);
   const { isRestoring, sessionVersion, isCurrentSession, user } = useUser();
   const savedVideos = useSavedVideos();
@@ -322,6 +324,7 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
       const previousPreview = previousDrama?.previewVideos[0];
       if (previousPreview) bufferRef.current?.resetToBeginning({ dramaId: previousDrama.uuid, videoId: previousPreview.uuid });
       activeIdRef.current = nextId;
+      collectionActiveIdRef.current = nextId;
       committedIndexRef.current = nextIndex;
       setActiveId(nextId);
     }
@@ -577,6 +580,42 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
   }), [collection, initialId]);
   dramasRef.current = dramas;
   committedIndexRef.current = Math.max(0, dramas.findIndex((drama) => drama.uuid === activeId));
+  useEffect(() => {
+    if (!screenFocused || !collection) return;
+    const nextOrder = dramas.map((drama) => drama.uuid);
+    const activeChanged = activeId !== collectionActiveIdRef.current;
+    const orderChanged = nextOrder.length !== collectionOrderRef.current.length
+      || nextOrder.some((uuid, index) => uuid !== collectionOrderRef.current[index]);
+    collectionOrderRef.current = nextOrder;
+    collectionActiveIdRef.current = activeId;
+    if (!orderChanged && !activeChanged) return;
+
+    stopMotion();
+    const nextIndex = dramas.findIndex((drama) => drama.uuid === activeIdRef.current);
+    if (nextIndex < 0) {
+      activeIdRef.current = null;
+      committedIndexRef.current = 0;
+      setActiveId(null);
+      return;
+    }
+    committedIndexRef.current = nextIndex;
+    const height = cardHeightRef.current;
+    if (height <= 0) return;
+
+    const pending = { height, generation: generationRef.current, requested: false };
+    pendingAlignmentRef.current = pending;
+    const expectedHeight = dramas.length * height;
+    if (Math.abs(contentHeightRef.current - expectedHeight) > PAGE_SETTLE_TOLERANCE) return;
+
+    const target = nextIndex * height;
+    if (Math.abs(actualOffsetRef.current - target) <= PAGE_SETTLE_TOLERANCE) {
+      requestedOffsetRef.current = target;
+      pendingAlignmentRef.current = null;
+      return;
+    }
+    pending.requested = true;
+    setRequestedOffset(target);
+  }, [collection, dramas, screenFocused]);
   const initialIndex = Math.max(0, dramas.findIndex((drama) => drama.uuid === initialId));
   const openEpisodes = (drama: HomeCollectionDrama) => router.push({
     pathname: '/drama/[id]',

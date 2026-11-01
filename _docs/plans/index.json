@@ -264,6 +264,12 @@
       "directory": "plan-44-scoped-parallel-tests",
       "title": "기능별 테스트 선택·실행별 fixture 격리와 Harness 병렬 검증",
       "status": "completed"
+    },
+    {
+      "id": "plan-45-saved-video-review-fixes",
+      "directory": "plan-45-saved-video-review-fixes",
+      "title": "저장 기능 리뷰 수정: 검색 복구·추천 정렬·fixture 정리",
+      "status": "completed"
     }
   ]
 }

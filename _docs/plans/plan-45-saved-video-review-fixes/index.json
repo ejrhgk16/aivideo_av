@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "plan_id": "plan-45-saved-video-review-fixes",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "검색 화면의 세션 만료 후 조회 복구",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/screens/SearchScreen.tsx",
+        "front/tests/unit/searchScreen.test.ts",
+        "front/scripts/test-front.cjs"
+      ],
+      "checks": [
+        "npm --prefix front run test -- tests/unit/searchScreen.test.ts tests/unit/sessionExpiredDialog.test.ts tests/unit/testFrontRunner.test.ts",
+        "npm --prefix front run test"
+      ],
+      "started_at": "2026-11-01T21:26:19.380Z",
+      "summary": "Kept the search session recovery implementation and regression tests. Removed the obsolete manual test registration; test-front.cjs is back to automatic discovery. Checks passed: selected search/session-expiration/runner tests (9/9) and full frontend tests (148/148).",
+      "completed_at": "2026-11-01T21:27:24.288Z"
+    },
+    {
+      "id": "task-2",
+      "name": "추천 컬렉션 갱신 후 현재 작품 스크롤 정렬",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/src/screens/RecommendationScreen.tsx",
+        "front/tests/unit/recommendationPreviewBuffer.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run test -- tests/unit/recommendationPreviewBuffer.test.ts tests/unit/savedVideoScreens.test.ts"
+      ],
+      "started_at": "2026-11-01T21:27:35.094Z",
+      "summary": "Added regressions for same-length reordering, removed and empty collections, metadata-only updates, stale responses, and interrupted alignment. RecommendationScreen now aligns the committed drama through the existing arrival check. The declared test command passed (29/29), including saved-video screen consumers; git diff --check passed. Read the Expo SDK 57 documentation before editing.",
+      "completed_at": "2026-11-01T21:33:06.828Z"
+    },
+    {
+      "id": "task-3",
+      "name": "저장 API 무료·유료 FULL fixture 분리와 실패 정리 검증",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/test/api/run.mjs",
+        "back/test/api/saved-videos.postman_collection.json",
+        "back/test/api/README.md"
+      ],
+      "checks": [
+        "npm --prefix back run test:unit -- test/unit/api/fixtureIsolation.spec.ts test/unit/api/suiteSelection.spec.ts test/unit/api/contentLock.spec.ts",
+        "npm --prefix back run test:api -- --suite saved-videos",
+        "npm --prefix back run test:api:parallel"
+      ],
+      "started_at": "2026-11-01T21:26:32.518Z",
+      "summary": "Fixed the paid FULL video being attached to the free episode and added a separate free FULL fixture. The runner now verifies each video's actual EPISODE/FULL join, episode UUID, shared drama, price, and paid-user entitlement state. The collection checks required free/paid UUIDs and API detail before episode writes; README documents the external fixture contract. The card check now uses the newest preview so it remains on page one. Checks passed: targeted unit tests (3 files, 21 tests), saved-videos API suite (176 requests, 89 assertions), and parallel API lock/isolation verification. Manual wrong-link setup failure reached the intended guard and left zero run-owned users, content, images, saves, or collection links. A controlled failure after the free PUT's 204 also left zero run-owned rows; the existing drama remained, and its saved-row snapshot stayed unchanged (0 rows before and after). Temporary injections and audit logging were removed; syntax, collection JSON, and diff checks passed.",
+      "completed_at": "2026-11-01T21:38:03.079Z"
+    }
+  ]
+}

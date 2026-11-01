@@ -368,7 +368,13 @@ async function main() {
       "SELECT COALESCE(MAX(display_order), 0) AS max_order FROM content_videos WHERE content_type = 'EPISODE' AND content_id = ? AND kind = 'FULL'",
       [savedPaidEpisodeId],
     );
-    if (orders[0].max_order + 64 > 32767 || paidOrders[0].max_order >= 32767) throw new Error('Saved-video media fixture display-order capacity is unavailable.');
+    const [freeOrders] = await db.execute(
+      "SELECT COALESCE(MAX(display_order), 0) AS max_order FROM content_videos WHERE content_type = 'EPISODE' AND content_id = ? AND kind = 'FULL'",
+      [savedEpisodeId],
+    );
+    if (orders[0].max_order + 64 > 32767 || paidOrders[0].max_order >= 32767 || freeOrders[0].max_order >= 32767) {
+      throw new Error('Saved-video media fixture display-order capacity is unavailable.');
+    }
     const previewVideos = Array.from({ length: 30 }, () => ({ uuid: randomUUID(), displayOrder: null }));
     for (let index = 0; index < previewVideos.length; index += 1) {
       previewVideos[index].displayOrder = orders[0].max_order + index + 1;
@@ -376,6 +382,7 @@ async function main() {
     const otherUserVideo = { uuid: randomUUID(), displayOrder: orders[0].max_order + 31 };
     const otherUserBaselineVideos = Array.from({ length: 31 }, (_, index) => ({ uuid: randomUUID(), displayOrder: orders[0].max_order + index + 32 }));
     const tieVideos = Array.from({ length: 2 }, (_, index) => ({ uuid: randomUUID(), displayOrder: orders[0].max_order + index + 63 }));
+    const freeVideo = { uuid: randomUUID(), episodeId: savedEpisodeId, displayOrder: freeOrders[0].max_order + 1 };
     const paidVideo = { uuid: randomUUID(), episodeId: savedPaidEpisodeId, displayOrder: paidOrders[0].max_order + 1 };
     Object.assign(savedVideoFixture, { dramaId: savedDramaId, previewVideos, otherUserVideo, otherUserBaselineVideos, tieVideos, paidVideo });
     const trackSavedPairs = async videoUuid => {
@@ -422,14 +429,6 @@ async function main() {
       );
       await trackSavedPairs(video.uuid);
     }
-    await db.execute(
-      `INSERT INTO content_videos
-        (uuid, content_type, content_id, kind, storage_key, duration_ms, display_order, created_at, updated_at)
-       VALUES (?, 'EPISODE', ?, 'FULL', ?, 60000, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
-      [paidVideo.uuid, savedEpisodeId, `api-test/${paidVideo.uuid}.mp4`, paidVideo.displayOrder],
-    );
-    stateFixtures.videos.push({ uuid: paidVideo.uuid });
-    await trackSavedPairs(paidVideo.uuid);
     const addDrama = async (status, publishedAt) => {
       const uuid = randomUUID();
       const slug = `api-test-${uuid}`;
@@ -445,8 +444,7 @@ async function main() {
       stateFixtures.dramas[stateFixtures.dramas.length - 1].id = rows[0].id;
       return rows[0].id;
     };
-    const addVideo = async (contentType, contentId, kind, displayOrder = 1) => {
-      const uuid = randomUUID();
+    const addVideo = async (contentType, contentId, kind, displayOrder = 1, uuid = randomUUID()) => {
       stateFixtures.videos.push({ uuid });
       await db.execute(
         `INSERT INTO content_videos
@@ -457,6 +455,34 @@ async function main() {
       await trackSavedPairs(uuid);
       return uuid;
     };
+    await addVideo('EPISODE', freeVideo.episodeId, 'FULL', freeVideo.displayOrder, freeVideo.uuid);
+    await addVideo('EPISODE', paidVideo.episodeId, 'FULL', paidVideo.displayOrder, paidVideo.uuid);
+    const [fullFixtureRows] = await db.execute(
+      `SELECT free_video.uuid AS free_video_uuid, free_video.content_type AS free_content_type,
+              free_video.kind AS free_kind, free_episode.id AS free_episode_id,
+              free_episode.uuid AS free_episode_uuid, free_episode.drama_id AS free_drama_id,
+              free_episode.price_points AS free_price_points,
+              paid_video.uuid AS paid_video_uuid, paid_video.content_type AS paid_content_type,
+              paid_video.kind AS paid_kind, paid_episode.id AS paid_episode_id,
+              paid_episode.uuid AS paid_episode_uuid, paid_episode.drama_id AS paid_drama_id,
+              paid_episode.price_points AS paid_price_points
+       FROM content_videos free_video
+       INNER JOIN episodes free_episode ON free_episode.id = free_video.content_id
+       INNER JOIN content_videos paid_video ON paid_video.uuid = ?
+       INNER JOIN episodes paid_episode ON paid_episode.id = paid_video.content_id
+       WHERE free_video.uuid = ?`,
+      [paidVideo.uuid, freeVideo.uuid],
+    );
+    const fullFixture = fullFixtureRows[0];
+    if (!fullFixture || fullFixture.free_content_type !== 'EPISODE' || fullFixture.free_kind !== 'FULL' ||
+        fullFixture.paid_content_type !== 'EPISODE' || fullFixture.paid_kind !== 'FULL' ||
+        fullFixture.free_video_uuid === fullFixture.paid_video_uuid ||
+        fullFixture.free_episode_uuid === fullFixture.paid_episode_uuid ||
+        fullFixture.free_episode_uuid !== savedEpisodeUuid || fullFixture.paid_episode_uuid !== savedPaidEpisodeUuid ||
+        Number(fullFixture.free_price_points) !== 0 || Number(fullFixture.paid_price_points) <= 0 ||
+        fullFixture.free_drama_id !== savedDramaId || fullFixture.paid_drama_id !== savedDramaId) {
+      throw new Error('Saved-video FREE and PAID FULL fixtures do not match their episode records.');
+    }
     const parentCases = [];
     for (const [key, status, publishedAt] of [
       ['draft', 'DRAFT', null], ['scheduled', 'SCHEDULED', null],
@@ -591,6 +617,9 @@ async function main() {
       entitledLoginId: entitled.login_id, entitledPassword: entitled.password,
       unentitledLoginId: unentitled.login_id, unentitledPassword: unentitled.password,
       savedPreviewVideoUuids: JSON.stringify(previewVideos.map(video => video.uuid)),
+      savedLookupEpisodeUuid: savedEpisodeUuid,
+      savedLookupEpisodeVideoUuid: freeVideo.uuid,
+      savedPaidEpisodeUuid,
       savedPaidVideoUuid: paidVideo.uuid,
       savedVideoIdOrder: JSON.stringify(savedVideoOrder.map(video => video.uuid)),
       savedTieVideoUuids: JSON.stringify(tieVideos.map(video => video.uuid)),
