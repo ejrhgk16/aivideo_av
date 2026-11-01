@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "plan_id": "plan-42-user-saved-videos-api",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "영상 저장·페이지 조회 API와 인증·문서·검증",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/playback/savedVideoController.ts",
+        "back/src/playback/savedVideoService.ts",
+        "back/src/playback/playback.module.ts",
+        "back/test/api/public.postman_collection.json",
+        "back/test/api/run.mjs",
+        "back/test/api/README.md",
+        "back/test/unit/playback/savedVideoService.spec.ts",
+        "_docs/api/04-playback/saved-videos.md",
+        "_docs/api/04-playback/README.md",
+        "_docs/api/00-overview/authentication.md",
+        "_docs/ARCHITECTURE.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-11-01T12:50:54.942Z",
+      "summary": "Implemented authenticated saved-video PUT and paginated GET APIs, added HTTP fixtures and checks, unit tests, and API/authentication/architecture documentation. `npm --prefix back run lint`, `npm --prefix back run test` (17 files, 109 unit tests; 215 API requests, 319 assertions, no failures), and `npm --prefix back run build` passed.",
+      "completed_at": "2026-11-01T13:04:04.605Z"
+    },
+    {
+      "id": "task-2",
+      "name": "영상 저장 해제 API와 본인 권한·문서·검증",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/playback/savedVideoController.ts",
+        "back/src/playback/savedVideoService.ts",
+        "back/test/api/public.postman_collection.json",
+        "back/test/api/run.mjs",
+        "back/test/api/README.md",
+        "back/test/unit/playback/savedVideoService.spec.ts",
+        "_docs/api/04-playback/saved-videos.md",
+        "_docs/api/04-playback/README.md",
+        "_docs/api/00-overview/authentication.md",
+        "_docs/ARCHITECTURE.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-11-01T14:35:15.972Z",
+      "summary": "Added authenticated, idempotent DELETE /me/saved-videos/:videoUuid scoped to the JWT user and video UUID, with Postman coverage, runner verification that hidden-video rows are deleted before cleanup, unit error-propagation coverage, and updated API/authentication/architecture/test documentation. Lint and build passed; full test passed with 110 unit tests and 246 API requests / 337 assertions, zero failures.",
+      "completed_at": "2026-11-01T14:50:03.417Z"
+    },
+    {
+      "id": "task-3",
+      "name": "리뷰 수정: 전체 페이지·삭제 격리 검증과 QueryBuilder upsert",
+      "status": "completed",
+      "depends_on": [
+        "task-2"
+      ],
+      "files": [
+        "back/src/playback/savedVideoService.ts",
+        "back/test/unit/playback/savedVideoService.spec.ts",
+        "back/test/api/public.postman_collection.json",
+        "back/test/api/run.mjs",
+        "back/test/api/README.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-11-01T17:12:22.424Z",
+      "summary": "Fixed the three review findings: added 31 owned entitled-user pagination fixtures and hasNext-based full-list assertions, verified caller deletes preserve the counterpart row while both rows exist, and changed save upsert to TypeORM InsertQueryBuilder with UTC timestamps and duplicate metadata preservation. Updated API test README. Lint and build passed; full test passed with 110 unit tests and 262 API requests / 336 assertions, zero failures.",
+      "completed_at": "2026-11-01T17:28:02.083Z"
+    }
+  ]
+}

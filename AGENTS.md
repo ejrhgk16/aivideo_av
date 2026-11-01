@@ -96,6 +96,11 @@
 
 프로젝트 디렉터리 책임, 프론트-백엔드 경계, 테스트 구조의 단일 기준은 `_docs/ARCHITECTURE.md`다. 구조나 파일 책임을 변경하기 전 이 문서를 읽고, 변경했다면 같은 작업에서 함께 갱신한다.
 
+## DB 접근 방식
+
+- 백엔드 애플리케이션의 DB 조회·삽입·수정·삭제는 TypeORM QueryBuilder를 기본으로 사용한다.
+- QueryBuilder로 표현하기 어려운 구문에만 raw SQL(`DataSource.query`, `EntityManager.query` 등)을 사용하며, 해당 코드에 사용 이유를 짧게 명시한다.
+
 ## Test placement
 
 - 프론트 제품 테스트는 `front/tests/**/*.test.ts(x)`에 둔다. `front/src/`에는 새 테스트를 만들지 않는다. 검증은 `npm --prefix front run typecheck`, `npm --prefix front run test`, `npm --prefix front run export`를 사용한다.

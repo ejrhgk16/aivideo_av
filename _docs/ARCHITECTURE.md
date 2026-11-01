@@ -29,7 +29,7 @@ NestJS API server. Own `package.json` and lockfile.
 | `src/` | NestJS modules, controllers, and services. |
 | `src/{domain}/entities/` | Domain-specific Entity classes and persistence metadata. |
 | `src/identity/` | User identity, credential lookup, login/refresh/logout APIs, JWT issuance, Passport Access validation, and session-scoped Refresh rotation/revocation. |
-| `src/playback/` | JWT-authenticated episode watch-progress writes against the existing user/episode progress key. |
+| `src/playback/` | JWT-authenticated saved-video writes and pages, plus episode watch-progress writes against the existing user/episode progress key. |
 | `src/common/entities/` | Shared persistence base entities and metadata. |
 | `src/common/error/` | Shared custom HTTP error base, error codes, concrete exceptions, and response filter used by opted-in controllers. |
 | `src/common/database/` | Shared TypeORM configuration and Entity registry, CLI `DataSource`, explicit development seed CLI, and migration files. |
@@ -80,7 +80,7 @@ The root navigation renders one session-expiration modal. Closing it only dismis
 ## Backend verification
 
 - `npm --prefix back run test` runs focused unit tests followed by the Postman CLI API collection. `test:unit` and `test:api` run each separately.
-- `back/test/api/run.mjs` forwards fixture credentials through a temporary Postman environment for both normal tests and Harness finish. Its default local-development mode restores temporary fixture logins and removes only progress rows created by the run. `API_TEST_ENVIRONMENT_FILE` selects an externally prepared environment without automatic database preparation or cleanup.
+- `back/test/api/run.mjs` forwards fixture credentials through a temporary Postman environment for both normal tests and Harness finish. Its default local-development mode restores temporary fixture logins and removes only progress and saved-video fixtures created by the run; it confirms the hidden-video saved row was deleted before cleanup. `API_TEST_ENVIRONMENT_FILE` selects an externally prepared environment without automatic database preparation or cleanup.
 - API tests use the existing development server at `http://localhost:3000` by default, with its configured MySQL connection. The server must reflect the code being verified. The collection discovers public UUIDs from responses; tests may prepare development-only fixtures and mutate data as needed.
 - `back/test/api/README.md` defines startup, target URL overrides, required existing content, and coverage limits. Missing server/data or failed assertions fail verification.
 
@@ -90,6 +90,7 @@ The root navigation renders one session-expiration modal. Closing it only dismis
 - Refresh rotation and logout lock the auth session row before the refresh token row. Rotation marks the old token used and appends the replacement in one transaction. Replaying any used token commits session revocation before returning 401, so every Refresh from that login is rejected; other device sessions remain independent.
 - Passport's HS256 Strategy checks Access purpose, expiry, and active user. `JwtAuthGuard` protects `/me/points/increase` and `/me/episodes/:episodeUuid/purchaseSingle`; the optional guard protects drama detail and episode playback. Those endpoints derive identity from the verified JWT subject and ignore caller-provided `userUuid` queries. Session revocation does not revoke existing Access tokens, which can remain valid for up to 15 minutes. Until an old Refresh is replayed, the server cannot identify an attacker's first use.
 - `PlaybackModule` protects `PUT /me/episodes/:episodeUuid/watch-progress` with `JwtAuthGuard`, checks current public episode/video and paid entitlement, and upserts the existing composite-key row. The user comes from the Access JWT; a completed row cannot be reset by a later start request.
+- Saved-video routes use the Access JWT user for `PUT` writes, idempotent `DELETE` removal, and 30-item `GET` pages. Removal is scoped to the authenticated user and video UUID, including when the video is no longer public.
 - The frontend session layer stores the Refresh JWT in native SecureStore and restores a session with `/auth/refresh`. On web, the browser sends the server-set HttpOnly cookie to the existing auth endpoints; page reload restores Access, user, and points from the rotated session response. `/auth/logout` revokes the session and clears the cookie. A concurrent refresh or lost refresh response can trigger strict replay detection and require the user to sign in again.
 
 ## Media storage

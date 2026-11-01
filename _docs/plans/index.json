@@ -246,6 +246,18 @@
       "directory": "plan-41-user-saved-videos",
       "title": "사용자 저장 본편·프리뷰 영상 모델 전환",
       "status": "completed"
+    },
+    {
+      "id": "plan-42-user-saved-videos-api",
+      "directory": "plan-42-user-saved-videos-api",
+      "title": "JWT 사용자 영상 저장·저장 해제·30개 단위 조회 API",
+      "status": "completed"
+    },
+    {
+      "id": "plan-43-front-saved-videos",
+      "directory": "plan-43-front-saved-videos",
+      "title": "저장 영상 보관함·공통 저장 버튼과 사용자별 저장 여부 조회",
+      "status": "draft"
     }
   ]
 }

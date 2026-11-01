@@ -62,4 +62,9 @@
 
 ## 검증 결과
 
-- 계획 생성 단계다. 제품 코드 수정, 실제 DB 삭제·마이그레이션, 제품 테스트는 아직 수행하지 않았다.
+- 엔티티·마이그레이션·단위 테스트와 데이터 모델 문서 변경을 완료했다. lint, 단위 테스트 106개, API 요청 132개·assertion 274개, build가 통과했다.
+- 2026-11-01 개발 MySQL에 `ReplaceUserSavedDramasWithVideos20261101000000`을 실제 실행하고 적용 이력을 기록했다. 자동 동기화로 생성된 빈 대상 테이블을 확인·제거한 뒤 실행했으며 `user_saved_dramas`는 제거됐다.
+- 실제 DB에서 `EPISODE`·`PREVIEW` CHECK와 `(user_id, video_id)` PK를 확인했다. 잘못된 `DRAMA` 타입과 같은 사용자·영상의 중복 INSERT가 거절됐고, 검증용 데이터는 트랜잭션 롤백 후 남지 않았다. 적용 후 API 요청 132개·assertion 274개가 모두 통과했다.
+- 기존 `auth_sessions`·`refresh_tokens`는 이미 존재했지만 `AddAuthSessions20261028000000` 실행 이력이 누락돼 있었다. 컬럼 타입·길이·NULL·기본값·PK·자동 증가·고유 제약·인덱스를 마이그레이션 정의와 대조한 뒤 TypeORM의 `fake` 옵션으로 이력만 등록했다. 테이블 재생성이나 기존 인증 데이터 삭제는 수행하지 않았다.
+- 추가로 누락된 `AddUserLoginCredentials20261027000000`은 `DB_SYNCHRONIZE=false`를 설정한 CLI 프로세스에서 `npm --prefix back run db:migration:run`으로 실행했다. 기존 로그인 컬럼·고유 인덱스가 정의에 맞아 스키마 변경 없이 검사 후 실행 이력이 등록됐다.
+- 데이터 모델 정의서는 `user_saved_videos`, `auth_sessions`, `refresh_tokens`의 현재 구조를 반영한다. `_docs/AI_DRAMA_data_model/`은 기존 Git 제외 규칙에 따라 로컬 문서로 유지된다.
