@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "plan_id": "plan-44-scoped-parallel-tests",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "프론트 테스트 파일 선택 실행",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/scripts/test-front.cjs",
+        "front/tests/unit/testFrontRunner.test.ts",
+        "front/README.md"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-11-01T20:24:49.135Z",
+      "summary": "Added exact-file test selection, sorted discovery of all .test.ts/.test.tsx files when no paths are given, input validation, duplicate removal, and per-run temporary output cleanup. Added tests for selection, invalid paths, empty discovery, and concurrent subprocess isolation; documented usage in front/README.md. Checks passed: npm --prefix front run typecheck, npm --prefix front run test (145 passed), and npm --prefix front run export.",
+      "completed_at": "2026-11-01T20:28:13.484Z"
+    },
+    {
+      "id": "task-2",
+      "name": "백엔드 기능별 API 검증과 fixture 격리",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/package.json",
+        "back/test/api/run.mjs",
+        "back/test/api/suites.mjs",
+        "back/test/api/fixtureContext.mjs",
+        "back/test/api/contentLock.mjs",
+        "back/test/api/verifyParallel.mjs",
+        "back/test/api/public.postman_collection.json",
+        "back/test/api/http.postman_collection.json",
+        "back/test/api/identity.postman_collection.json",
+        "back/test/api/content.postman_collection.json",
+        "back/test/api/programming.postman_collection.json",
+        "back/test/api/playback.postman_collection.json",
+        "back/test/api/economy.postman_collection.json",
+        "back/test/api/watch-progress.postman_collection.json",
+        "back/test/api/saved-videos.postman_collection.json",
+        "back/test/unit/api/suiteSelection.spec.ts",
+        "back/test/unit/api/fixtureIsolation.spec.ts",
+        "back/test/unit/api/contentLock.spec.ts",
+        "back/test/api/README.md",
+        "_docs/ARCHITECTURE.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build",
+        "npm --prefix back run test:api:parallel"
+      ],
+      "started_at": "2026-11-01T20:25:24.469Z",
+      "summary": "Migrated scenarios into eight standalone collections with per-suite owned fixtures and cleanup. Lint, full test with 131 unit tests and all eight API suites, build, and actual watch-progress isolation plus content reader and saved writer parallel checks passed. Parallel proof confirmed no remaining run-owned users or progress rows.",
+      "completed_at": "2026-11-01T20:55:03.004Z"
+    },
+    {
+      "id": "task-3",
+      "name": "Harness 계획·실행의 기능별 검증 정책",
+      "status": "completed",
+      "depends_on": [
+        "task-1",
+        "task-2"
+      ],
+      "files": [
+        "AGENTS.md",
+        "front/AGENTS.md",
+        "_docs/plans/README.md",
+        ".agents/skills/harness-plan/SKILL.md",
+        ".agents/skills/harness/SKILL.md",
+        ".codex/agents/harness-worker.toml"
+      ],
+      "checks": [
+        "node tools/harness/cli.mjs validate --plan plan-44-scoped-parallel-tests",
+        "python C:/Users/jdh/.codex/skills/.system/skill-creator/scripts/quick_validate.py .agents/skills/harness-plan",
+        "python C:/Users/jdh/.codex/skills/.system/skill-creator/scripts/quick_validate.py .agents/skills/harness"
+      ],
+      "started_at": "2026-11-01T20:57:06.834Z",
+      "summary": "Clarified that lock waits remain pending until acquisition and that finish runs full checks only for changed products. Plan validation, both UTF-8 skill validations, and git diff --check passed.",
+      "completed_at": "2026-11-01T20:57:32.211Z"
+    }
+  ]
+}

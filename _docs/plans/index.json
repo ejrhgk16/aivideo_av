@@ -258,6 +258,12 @@
       "directory": "plan-43-front-saved-videos",
       "title": "저장 영상 보관함·공통 저장 버튼과 사용자별 저장 여부 조회",
       "status": "completed"
+    },
+    {
+      "id": "plan-44-scoped-parallel-tests",
+      "directory": "plan-44-scoped-parallel-tests",
+      "title": "기능별 테스트 선택·실행별 fixture 격리와 Harness 병렬 검증",
+      "status": "completed"
     }
   ]
 }

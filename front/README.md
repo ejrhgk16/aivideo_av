@@ -58,6 +58,13 @@ npm test
 npm run export
 ```
 
+`npm test`는 `tests/` 아래 모든 `.test.ts`와 `.test.tsx`를 실행합니다. 특정 테스트만 실행하려면 파일 경로를 지정합니다. 여러 경로를 지정할 수 있으며, 중복 경로는 한 번만 실행합니다.
+
+```sh
+npm test -- tests/unit/savedVideos.test.ts
+npm test -- tests/unit/media.test.ts tests/unit/savedVideos.test.ts
+```
+
 `npm test`는 API 콘텐츠와 이미지 URL 처리를 검사합니다. `npm run export`는 Android/iOS/Web의 JavaScript 번들과 자산을 생성하며, 실제 기기 빌드나 앱스토어 제출을 대신하지 않습니다.
 
 글꼴은 [Pretendard 공식 저장소](https://github.com/orioncactus/pretendard)의 정적 TTF를 사용하며 라이선스는 `assets/fonts/LICENSE.txt`에 있습니다.

@@ -1,0 +1,410 @@
+{
+  "info": {
+    "name": "AI Drama public API",
+    "description": "HTTP checks against the running development API and its MySQL database. Requires public dramas with free/paid episodes and previews, plus the documented zero-balance point error fixture. Does not download signed media URLs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "entitledLoginId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "entitledPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "unentitledLoginId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "unentitledPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "entitledAccessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "unentitledAccessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "entitledRefreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "unentitledRefreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "entitledUserUuid",
+      "value": "00000010-0000-4000-8000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "unentitledUserUuid",
+      "value": "00000012-0000-4000-8000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "entitlementDramaUuid",
+      "value": "00000002-0000-4000-8000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "entitledEpisodeUuid",
+      "value": "00000004-0000-4000-8000-000000000002",
+      "type": "string"
+    },
+    {
+      "key": "lockedEpisodeUuid",
+      "value": "00000004-0000-4000-8000-000000000003",
+      "type": "string"
+    },
+    {
+      "key": "purchaseTestEpisodeUuid",
+      "value": "00000004-0000-4000-8000-000000000004",
+      "type": "string"
+    },
+    {
+      "key": "watchProgressEpisodeUuid",
+      "value": "00000004-0000-4000-8000-000000000003",
+      "type": "string"
+    },
+    {
+      "key": "watchProgressPositionMs",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "watchProgressIsCompleted",
+      "value": "false",
+      "type": "string"
+    },
+    {
+      "key": "watchProgressLastPlayedAt",
+      "value": "2026-10-28T00:00:00.000Z",
+      "type": "string"
+    }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test(\"API does not return a server error\", () => {",
+          "  pm.expect(pm.response.code).to.be.below(500);",
+          "});",
+          "if (pm.response.code === 200 && pm.info.requestName !== \"Root\" && /application\\/json/i.test(pm.response.headers.get(\"Content-Type\") || \"\")) {",
+          "  pm.test(\"Public response shapes and identifiers follow the API contract\", () => {",
+          "    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;",
+          "    function check(value) {",
+          "      if (Array.isArray(value)) return value.forEach(check);",
+          "      if (!value || typeof value !== \"object\") return;",
+          "      if (\"uuid\" in value) {",
+          "        pm.expect(value.uuid).to.match(uuid);",
+          "        pm.expect(value).not.to.have.property(\"id\");",
+          "      }",
+          "      if (\"imageUrls\" in value) {",
+          "        [\"slug\", \"title\", \"shortDescription\"].forEach(key => pm.expect(value[key], key).to.be.a(\"string\"));",
+          "        pm.expect(value).not.to.have.property(\"images\");",
+          "        [\"poster\", \"posterLandscape\", \"homeHero\", \"detailCover\"].forEach(key => {",
+          "          const url = value.imageUrls[key];",
+          "          pm.expect(url === null || (typeof url === \"string\" && /^https:\\/\\//.test(url)), key).to.equal(true);",
+          "        });",
+          "        pm.expect(value.imageUrls.campaigns).to.be.an(\"array\");",
+          "        value.imageUrls.campaigns.forEach(url => pm.expect(url).to.match(/^https:\\/\\//));",
+          "        pm.expect(value.previewVideos).to.be.an(\"array\");",
+          "        value.previewVideos.forEach(video => {",
+          "          pm.expect(video.storageKey).to.be.a(\"string\").and.not.be.empty;",
+          "          pm.expect(video.durationMs).to.satisfy(Number.isInteger).and.be.above(0);",
+          "          pm.expect(video.isSaved).to.be.a(\"boolean\");",
+          "        });",
+          "        pm.expect(value.genres).to.be.an(\"array\");",
+          "        const genreIds = JSON.parse(pm.collectionVariables.get(\"genreIds\"));",
+          "        value.genres.forEach(genre => {",
+          "          pm.expect(genreIds).to.include(genre.id);",
+          "          pm.expect(genre.code).to.be.a(\"string\");",
+          "          pm.expect(genre.name).to.be.a(\"string\");",
+          "        });",
+          "        const count = value.episodeCount ?? value.publishedEpisodeCount;",
+          "        if (count !== undefined) {",
+          "          pm.expect(count).to.satisfy(Number.isInteger).and.be.at.least(0);",
+          "          pm.expect(value.freeEpisodeCount).to.satisfy(Number.isInteger).and.be.within(0, count);",
+          "        }",
+          "      }",
+          "      Object.values(value).forEach(check);",
+          "    }",
+          "    check(pm.response.json());",
+          "  });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Login as entitled fixture user",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Entitled fixture login uses environment credentials and matches the existing UUID', () => { const body = pm.response.json(); pm.response.to.have.status(200); pm.expect(body.uuid).to.equal(pm.variables.get('entitledUserUuid')); pm.expect(body.accessToken).to.be.a('string').and.not.empty; pm.collectionVariables.set('entitledAccessToken', body.accessToken); pm.collectionVariables.set('entitledRefreshToken', body.refreshToken); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"loginId\":\"{{entitledLoginId}}\",\"password\":\"{{entitledPassword}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "Login as unentitled fixture user",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Unentitled fixture login uses environment credentials and matches the existing UUID', () => { const body = pm.response.json(); pm.response.to.have.status(200); pm.expect(body.uuid).to.equal(pm.variables.get('unentitledUserUuid')); pm.expect(body.accessToken).to.be.a('string').and.not.empty; pm.collectionVariables.set('unentitledAccessToken', body.accessToken); pm.collectionVariables.set('unentitledRefreshToken', body.refreshToken); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"loginId\":\"{{unentitledLoginId}}\",\"password\":\"{{unentitledPassword}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "Root",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "[\"catalog\", \"selectedDrama\", \"dramaId\", \"otherDramaId\", \"previewId\", \"freeEpisode\", \"paidEpisode\", \"freeEpisodeId\", \"paidEpisodeId\", \"genreIds\"].forEach(key => pm.collectionVariables.unset(key));",
+              "pm.collectionVariables.set(\"missingId\", pm.variables.replaceIn(\"{{$guid}}\"));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Root responds\", () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.text()).to.equal(\"Hello World!\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/"
+      }
+    },
+    {
+      "name": "Genres",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "",
+              "const genres = pm.response.json();",
+              "pm.test(\"Genres contain database records with unique numeric IDs\", () => {",
+              "  pm.expect(genres).to.be.an(\"array\").and.not.be.empty;",
+              "  pm.expect(new Set(genres.map(genre => genre.id)).size).to.equal(genres.length);",
+              "  genres.forEach(genre => {",
+              "    pm.expect(genre.id).to.satisfy(Number.isInteger).and.be.above(0);",
+              "    pm.expect(genre.code).to.be.a(\"string\").and.not.be.empty;",
+              "    pm.expect(genre.name).to.be.a(\"string\").and.not.be.empty;",
+              "    pm.expect(genre.tileImage === null || typeof genre.tileImage === \"string\").to.equal(true);",
+              "  });",
+              "});",
+              "pm.collectionVariables.set(\"genreIds\", JSON.stringify(genres.map(genre => genre.id)));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/genres"
+      }
+    },
+    {
+      "name": "Latest dramas",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "",
+              "const dramas = pm.response.json();",
+              "pm.test(\"Catalog has distinct dramas for playback and ownership checks\", () => {",
+              "  pm.expect(dramas).to.be.an(\"array\");",
+              "  pm.expect(dramas.length).to.be.at.least(2);",
+              "  pm.expect(new Set(dramas.map(drama => drama.uuid)).size).to.equal(dramas.length);",
+              "});",
+              "const selected = dramas.find(drama => drama.previewVideos.length > 0 && drama.freeEpisodeCount > 0 && drama.episodeCount > drama.freeEpisodeCount);",
+              "pm.test(\"Database has a drama with a preview, free episode, and paid episode\", () => {",
+              "  pm.expect(selected, \"Prepare existing development data before running API tests\").to.exist;",
+              "});",
+              "pm.collectionVariables.set(\"catalog\", JSON.stringify(dramas));",
+              "if (selected) {",
+              "  pm.collectionVariables.set(\"selectedDrama\", JSON.stringify(selected));",
+              "  pm.collectionVariables.set(\"dramaId\", selected.uuid);",
+              "  pm.collectionVariables.set(\"previewId\", selected.previewVideos[0].uuid);",
+              "  const other = dramas.find(drama => drama.uuid !== selected.uuid);",
+              "  if (other) pm.collectionVariables.set(\"otherDramaId\", other.uuid);",
+              "} else {",
+              "  pm.execution.setNextRequest(null);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/dramas?sort=latest"
+      }
+    },
+    {
+      "name": "Saved video write and page boundaries",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const base = pm.variables.replaceIn('{{baseUrl}}'); const token = pm.collectionVariables.get('unentitledAccessToken'); const otherToken = pm.collectionVariables.get('entitledAccessToken'); const previews = JSON.parse(pm.variables.replaceIn('{{savedPreviewVideoUuids}}')); const idOrder = JSON.parse(pm.variables.replaceIn('{{savedVideoIdOrder}}')); const tieUuids = JSON.parse(pm.variables.replaceIn('{{savedTieVideoUuids}}')); const tieIdOrder = JSON.parse(pm.variables.replaceIn('{{savedTieVideoIdOrder}}')); const paid = pm.variables.replaceIn('{{savedPaidVideoUuid}}'); const otherPreview = pm.variables.replaceIn('{{savedOtherUserVideoUuid}}'); const expired = pm.variables.replaceIn('{{expiredAccessToken}}'); const url = base + '/me/saved-videos'; const send = (method, path, bearer, body) => new Promise((resolve, reject) => pm.sendRequest({ url: path, method, header: Object.assign({ 'Content-Type': 'application/json' }, bearer ? { Authorization: 'Bearer ' + bearer } : {}), body: body === undefined ? undefined : { mode: 'raw', raw: JSON.stringify(body) } }, (error, response) => error ? reject(error) : resolve(response)));",
+              "(async () => {",
+              "  pm.expect(previews).to.be.an('array').with.lengthOf(30); const empty = await send('GET', url, token); pm.test('A clean saved-video fixture starts empty', () => { pm.expect(empty.code).to.equal(200); pm.expect(empty.json()).to.deep.equal({ items: [], page: 1, hasNext: false }); });",
+              "  for (const page of ['', '0', '-1', '1.5', 'abc', '9007199254740991', '999999999999999999999']) { const response = await send('GET', url + '?page=' + encodeURIComponent(page), token); pm.test('Invalid page ' + page + ' returns 400', () => pm.expect(response.code).to.equal(400)); } const repeatedPage = await send('GET', url + '?page=1&page=2', token); pm.test('Repeated page values return 400', () => pm.expect(repeatedPage.code).to.equal(400));",
+              "  const put = (uuid, bearer, type, query = '') => send('PUT', url + '/' + uuid + query, bearer, { contentType: type }); const saveStartedAt = Date.now(); const first = await put(previews[0], token, 'PREVIEW'); pm.test('PREVIEW video is saved with 204', () => pm.expect(first.code).to.equal(204)); const firstRead = await send('GET', url, token); const savedAt = firstRead.json().items.find(item => item.videoUuid === previews[0]).savedAt; pm.test('First savedAt is UTC ISO and matches the write request window', () => { pm.expect(savedAt).to.match(/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/); pm.expect(Date.parse(savedAt)).to.be.within(saveStartedAt - 5000, Date.now() + 5000); }); const repeated = await Promise.all([put(previews[0], token, 'PREVIEW'), put(previews[0], token, 'PREVIEW')]); pm.test('Concurrent duplicate saves both succeed', () => repeated.forEach(response => pm.expect(response.code).to.equal(204)));",
+              "  for (const uuid of previews.slice(1)) { const response = await put(uuid, token, 'PREVIEW'); pm.expect(response.code).to.equal(204); } let list = await send('GET', url + '?page=1&limit=1', token); pm.test('Thirty saved videos fill a fixed page and ignore limit', () => { pm.expect(list.code).to.equal(200); pm.expect(list.json().items).to.have.lengthOf(30); pm.expect(list.json().hasNext).to.equal(false); pm.expect(new Set(list.json().items.map(item => item.videoUuid)).size).to.equal(30); pm.expect(list.json().items.every(item => item.contentType === 'PREVIEW' && Number.isFinite(Date.parse(item.savedAt)) && typeof item.dramaUuid === 'string' && typeof item.dramaTitle === 'string' && Number.isInteger(item.durationMs) && (item.imageUrl === null || typeof item.imageUrl === 'string') && item.episodeUuid === null && item.episodeNumber === null && item.episodeTitle === null)).to.equal(true); });",
+              "  const added = await put(paid, token, 'EPISODE'); pm.test('Unpurchased paid FULL episode can be saved', () => pm.expect(added.code).to.equal(204)); const afterDuplicate = await put(previews[0], token, 'PREVIEW'); pm.expect(afterDuplicate.code).to.equal(204); list = await send('GET', url + '?page=1', token); pm.test('Thirty-first item sets hasNext and keeps page size 30', () => { pm.expect(list.json().items).to.have.lengthOf(30); pm.expect(list.json().hasNext).to.equal(true); pm.expect(list.json().items.some(item => item.contentType === 'EPISODE')).to.equal(true); }); const second = await send('GET', url + '?page=2', token); pm.test('Second page contains the remaining saved video', () => { pm.expect(second.json().items).to.have.lengthOf(1); pm.expect(second.json().hasNext).to.equal(false); }); const third = await send('GET', url + '?page=3', token); pm.test('Page after the last row is empty', () => { pm.expect(third.json().items).to.eql([]); pm.expect(third.json().hasNext).to.equal(false); }); const combined = [...list.json().items, ...second.json().items]; pm.test('All saved UUIDs are unique, duplicate saves retain their first timestamp, and rows are ordered by savedAt then descending database video ID', () => { pm.expect(combined.map(item => item.videoUuid).sort()).to.eql(idOrder.slice().sort()); pm.expect(combined.find(item => item.videoUuid === previews[0]).savedAt).to.equal(savedAt); const rank = new Map(idOrder.map((uuid, index) => [uuid, index])); for (let index = 1; index < combined.length; index += 1) { const previous = combined[index - 1]; const current = combined[index]; pm.expect(Date.parse(previous.savedAt)).to.be.at.least(Date.parse(current.savedAt)); if (previous.savedAt === current.savedAt) pm.expect(rank.get(previous.videoUuid)).to.be.below(rank.get(current.videoUuid)); } });",
+              "  const wrongType = await put(previews[0], token, 'EPISODE'); const badType = await put(previews[1], token, 'preview'); const badBody = await send('PUT', url + '/' + previews[1], token, { contentType: 'PREVIEW', userUuid: pm.variables.get('entitledUserUuid') }); const badUuid = await send('PUT', url + '/not-a-uuid', token, { contentType: 'PREVIEW' }); const missing = await send('PUT', url + '/a1b2c3d4-0000-4000-8000-000000000099', token, { contentType: 'PREVIEW' }); pm.test('Type mismatch and missing targets return 404; invalid type and UUID return 400; userUuid body is ignored', () => { pm.expect(wrongType.code).to.equal(404); pm.expect(badType.code).to.equal(400); pm.expect(badBody.code).to.equal(204); pm.expect(badUuid.code).to.equal(400); pm.expect(missing.code).to.equal(404); });",
+              "  const statusCases = JSON.parse(pm.variables.replaceIn('{{savedStatusVideoCases}}')); for (const fixture of statusCases) { const response = await put(fixture.uuid, token, fixture.type); pm.test('Unpublished parent or episode ' + fixture.key + ' cannot be saved', () => pm.expect(response.code).to.equal(404)); } const hidden = await send('GET', url, token); pm.test('A video saved before its parent became hidden is excluded without deleting its saved row', () => pm.expect(hidden.json().items.some(item => item.videoUuid === pm.variables.replaceIn('{{savedHiddenVideoUuid}}'))).to.equal(false)); const hiddenPut = await put(pm.variables.replaceIn('{{savedHiddenVideoUuid}}'), token, 'PREVIEW'); pm.test('Hidden parent video can no longer be saved', () => pm.expect(hiddenPut.code).to.equal(404));",
+              "  const readAllSaved = async (bearer, query = '') => { const items = []; let page = 1; while (true) { const response = await send('GET', url + '?page=' + page + query, bearer); pm.expect(response.code).to.equal(200); const body = response.json(); pm.expect(body.page).to.equal(page); pm.expect(body.items).to.be.an('array'); pm.expect(body.hasNext).to.be.a('boolean'); items.push(...body.items); if (!body.hasNext) return items; page += 1; } }; const snapshot = items => items.map(item => ({ videoUuid: item.videoUuid, contentType: item.contentType, savedAt: item.savedAt })).sort((left, right) => left.videoUuid.localeCompare(right.videoUuid)); const baselineUuids = JSON.parse(pm.variables.replaceIn('{{savedOtherUserBaselineVideoUuids}}')); pm.expect(baselineUuids).to.have.lengthOf(31);",
+              "  const otherSave = await put(otherPreview, otherToken, 'PREVIEW'); pm.test('Second user can save their own temporary video', () => pm.expect(otherSave.code).to.equal(204)); const otherList = await readAllSaved(token); pm.test('One user cannot see a video saved only by another user', () => pm.expect(otherList.some(item => item.videoUuid === otherPreview)).to.equal(false)); const spoofSave = await put(otherPreview, token, 'PREVIEW', '?userUuid=' + encodeURIComponent(pm.variables.get('entitledUserUuid'))); pm.test('Spoofed userUuid cannot alter saved ownership', () => pm.expect(spoofSave.code).to.equal(204)); const spoofedList = await readAllSaved(token, '&userUuid=' + encodeURIComponent(pm.variables.get('entitledUserUuid'))); pm.test('Spoofed userUuid query cannot select another user', () => pm.expect(spoofedList.some(item => item.videoUuid === otherPreview)).to.equal(true)); const otherAfter = await readAllSaved(otherToken); pm.test('The other user does not receive the caller-owned item', () => pm.expect(otherAfter.some(item => item.videoUuid === previews[0])).to.equal(false)); pm.test('A tied pair beyond page one is returned in descending video ID order', () => { pm.expect(baselineUuids.every(uuid => otherAfter.some(item => item.videoUuid === uuid))).to.equal(true); pm.expect(otherAfter.slice(0, 30).some(item => tieUuids.includes(item.videoUuid))).to.equal(false); const tiedItems = otherAfter.filter(item => tieUuids.includes(item.videoUuid)); pm.expect(tiedItems).to.have.lengthOf(2); pm.expect(tiedItems[0].savedAt).to.equal(tiedItems[1].savedAt); pm.expect(tiedItems.map(item => item.videoUuid)).to.eql(tieIdOrder); });",
+              "  const deniedBefore = snapshot(await readAllSaved(token)); for (const bearer of [null, 'invalid-token', expired, pm.collectionVariables.get('unentitledRefreshToken')]) { const get = await send('GET', url, bearer); const save = await send('PUT', url + '/' + previews[0], bearer, { contentType: 'PREVIEW' }); const remove = await send('DELETE', url + '/' + previews[0], bearer); pm.test('All saved-video endpoints reject missing, invalid, expired, or Refresh JWT', () => { pm.expect(get.code).to.equal(401); pm.expect(get.json().errorCode).to.equal('AUTH_INVALID_TOKEN'); pm.expect(save.code).to.equal(401); pm.expect(save.json().errorCode).to.equal('AUTH_INVALID_TOKEN'); pm.expect(remove.code).to.equal(401); pm.expect(remove.json().errorCode).to.equal('AUTH_INVALID_TOKEN'); }); }",
+              "  const badDelete = await send('DELETE', url + '/not-a-uuid', token); pm.test('DELETE validates malformed UUIDs with 400', () => pm.expect(badDelete.code).to.equal(400)); const afterDeniedPages = snapshot(await readAllSaved(token)); pm.test('Rejected deletes leave all paginated saved rows and metadata unchanged', () => pm.expect(afterDeniedPages).to.eql(deniedBefore));",
+              "  const deleteTarget = previews[1]; const removeUrl = url + '/' + deleteTarget; const removal = await send('DELETE', removeUrl, token); pm.test('DELETE removes an owned PREVIEW and returns bodyless 204', () => { pm.expect(removal.code).to.equal(204); pm.expect(removal.text()).to.equal(''); }); const repeatedRemoval = await send('DELETE', removeUrl, token); pm.test('Repeated DELETE is idempotent', () => pm.expect(repeatedRemoval.code).to.equal(204)); let afterRemove = await send('GET', url + '?page=1', token); const afterRemovePage2 = await send('GET', url + '?page=2', token); pm.test('Deleting one PREVIEW moves the saved list from 32 to 31 rows', () => { pm.expect(afterRemove.json().items).to.have.lengthOf(30); pm.expect(afterRemove.json().hasNext).to.equal(true); pm.expect(afterRemovePage2.json().items).to.have.lengthOf(1); pm.expect(afterRemovePage2.json().hasNext).to.equal(false); pm.expect(afterRemove.json().items.some(item => item.videoUuid === deleteTarget)).to.equal(false); }); const restored = await put(deleteTarget, token, 'PREVIEW'); pm.test('A deleted source video can be saved again', () => pm.expect(restored.code).to.equal(204)); const concurrentRemoval = await Promise.all([send('DELETE', removeUrl, token), send('DELETE', removeUrl, token)]); pm.test('Concurrent DELETEs of an existing row both succeed', () => concurrentRemoval.forEach(response => pm.expect(response.code).to.equal(204))); afterRemove = await send('GET', url, token); pm.test('Concurrent removal leaves the row absent', () => pm.expect(afterRemove.json().items.some(item => item.videoUuid === deleteTarget)).to.equal(false)); const missingRemoval = await send('DELETE', url + '/a1b2c3d4-0000-4000-8000-000000000099', token); pm.test('Unknown valid video UUID returns 204', () => pm.expect(missingRemoval.code).to.equal(204));",
+              "  const paidRemoval = await send('DELETE', url + '/' + paid, token); pm.test('An unpurchased paid EPISODE can be removed', () => pm.expect(paidRemoval.code).to.equal(204)); afterRemove = await send('GET', url + '?page=1', token); const paidPage2 = await send('GET', url + '?page=2', token); pm.test('Removing the paid video leaves exactly 30 previews and no second page', () => { pm.expect(afterRemove.json().items).to.have.lengthOf(30); pm.expect(afterRemove.json().hasNext).to.equal(false); pm.expect(afterRemove.json().items.some(item => item.videoUuid === paid)).to.equal(false); pm.expect(paidPage2.json().items).to.eql([]); pm.expect(paidPage2.json().hasNext).to.equal(false); }); const paidResave = await put(paid, token, 'EPISODE'); const paidRestored = await send('GET', url, token); pm.test('Deleting a saved row leaves the paid video source available', () => { pm.expect(paidResave.code).to.equal(204); pm.expect(paidRestored.json().items.some(item => item.videoUuid === paid)).to.equal(true); }); const paidAgain = await send('DELETE', url + '/' + paid, token); pm.expect(paidAgain.code).to.equal(204); const hiddenRemoval = await send('DELETE', url + '/' + pm.variables.replaceIn('{{savedHiddenVideoUuid}}'), token); pm.test('A saved video remains removable after its parent becomes hidden', () => pm.expect(hiddenRemoval.code).to.equal(204));",
+              "  const counterpartBefore = snapshot(await readAllSaved(otherToken)); const callerBefore = await readAllSaved(token); pm.expect(counterpartBefore.some(item => item.videoUuid === otherPreview)).to.equal(true); pm.expect(callerBefore.some(item => item.videoUuid === otherPreview)).to.equal(true); const bodySpoofDelete = await send('DELETE', url + '/' + otherPreview, token, { userUuid: pm.variables.get('entitledUserUuid') }); const repeatedBodyDelete = await send('DELETE', url + '/' + otherPreview, token, { userUuid: pm.variables.get('entitledUserUuid') }); const callerAfterBodySpoof = await readAllSaved(token); const counterpartAfterBodySpoof = snapshot(await readAllSaved(otherToken)); pm.test('Body spoof and repeated delete remove caller row while counterpart baseline remains', () => { pm.expect(bodySpoofDelete.code).to.equal(204); pm.expect(repeatedBodyDelete.code).to.equal(204); pm.expect(callerAfterBodySpoof.some(item => item.videoUuid === otherPreview)).to.equal(false); pm.expect(counterpartAfterBodySpoof).to.eql(counterpartBefore); }); const bodySpoofRestore = await put(otherPreview, token, 'PREVIEW'); pm.expect(bodySpoofRestore.code).to.equal(204); pm.expect((await readAllSaved(token)).some(item => item.videoUuid === otherPreview)).to.equal(true); pm.expect((await readAllSaved(otherToken)).some(item => item.videoUuid === otherPreview)).to.equal(true); const querySpoofDelete = await send('DELETE', url + '/' + otherPreview + '?userUuid=' + encodeURIComponent(pm.variables.get('entitledUserUuid')), token); const repeatedQueryDelete = await send('DELETE', url + '/' + otherPreview + '?userUuid=' + encodeURIComponent(pm.variables.get('entitledUserUuid')), token); const callerAfterQuerySpoof = await readAllSaved(token); const counterpartAfterQuerySpoof = snapshot(await readAllSaved(otherToken)); pm.test('Query spoof and repeated delete remove caller row while preserving counterpart metadata', () => { pm.expect(querySpoofDelete.code).to.equal(204); pm.expect(repeatedQueryDelete.code).to.equal(204); pm.expect(callerAfterQuerySpoof.some(item => item.videoUuid === otherPreview)).to.equal(false); pm.expect(counterpartAfterQuerySpoof).to.eql(counterpartBefore); }); const counterpartOwnRemoval = await send('DELETE', url + '/' + otherPreview, otherToken); pm.test('Counterpart can remove its own row with 204', () => pm.expect(counterpartOwnRemoval.code).to.equal(204)); const expectedCounterpartAfterRemoval = counterpartBefore.filter(item => item.videoUuid !== otherPreview); const counterpartAfterOwnRemoval = snapshot(await readAllSaved(otherToken)); pm.test('Counterpart own delete changes only the target row', () => pm.expect(counterpartAfterOwnRemoval).to.eql(expectedCounterpartAfterRemoval));",
+              "})().catch(error => pm.test('Saved video HTTP scenarios complete', () => { throw error; }));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/"
+      }
+    },
+    {
+      "name": "Saved state follows JWT across public video lookups",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const base = pm.variables.replaceIn('{{baseUrl}}'); const token = pm.collectionVariables.get('unentitledAccessToken'); const other = pm.collectionVariables.get('entitledAccessToken'); const previewUuid = pm.variables.replaceIn('{{savedOtherUserVideoUuid}}'); const invalid = 'malformed-token';",
+              "const send = (method, path, bearer, body) => new Promise((resolve, reject) => pm.sendRequest({ url: base + path, method, header: Object.assign({ 'Content-Type': 'application/json' }, bearer ? { Authorization: 'Bearer ' + bearer } : {}), body: body === undefined ? undefined : { mode: 'raw', raw: JSON.stringify(body) } }, (error, response) => error ? reject(error) : resolve(response)));",
+              "(async () => {",
+              "  const catalogResponse = await send('GET', '/dramas', token); pm.expect(catalogResponse.code).to.equal(200); const catalog = catalogResponse.json(); const drama = catalog.find(item => item.previewVideos.some(video => video.uuid === previewUuid)); pm.expect(drama, 'fixture preview must be in the public catalog').to.exist; const preview = drama.previewVideos.find(video => video.uuid === previewUuid);",
+              "  const codes = ['HOME_FEATURED', 'EDITORIAL_TOP_3', 'RECOMMENDATION_DAILY', 'HOME_CAMPAIGN']; let collectionCode; let collectionItem; for (const code of codes) { const response = await send('GET', '/collections/' + code, token); if (response.code !== 200) continue; collectionItem = response.json().dramas.find(item => item.uuid === drama.uuid && item.previewVideos.some(video => video.uuid === previewUuid)); if (collectionItem) { collectionCode = code; break; } } pm.expect(collectionItem, 'fixture preview must appear in a public collection').to.exist;",
+              "  const detailResponse = await send('GET', '/dramas/' + drama.uuid, token); pm.expect(detailResponse.code).to.equal(200); const episode = detailResponse.json().episodes.find(item => item.pricePoints === 0 && item.videoUuid); pm.expect(episode, 'public drama must have a free FULL episode').to.exist; const episodeVideoUuid = episode.videoUuid;",
+              "  const anonymousBefore = await send('GET', '/dramas', null); const anonymousDramaBefore = anonymousBefore.json().find(item => item.uuid === drama.uuid); pm.expect(anonymousDramaBefore.previewVideos.find(video => video.uuid === previewUuid).isSaved).to.equal(false);",
+              "  const previewSave = await send('PUT', '/me/saved-videos/' + previewUuid, token, { contentType: 'PREVIEW' }); const episodeSave = await send('PUT', '/me/saved-videos/' + episodeVideoUuid, token, { contentType: 'EPISODE' }); pm.test('Both PREVIEW and EPISODE save requests succeed', () => { pm.expect(previewSave.code).to.equal(204); pm.expect(episodeSave.code).to.equal(204); });",
+              "  const [listSaved, detailSaved, catalogSaved, collectionSaved, previewPlaybackSaved, episodePlaybackSaved] = await Promise.all([send('GET', '/dramas', token), send('GET', '/dramas/' + drama.uuid, token), send('GET', '/dramas', token), send('GET', '/collections/' + collectionCode, token), send('GET', '/dramas/' + drama.uuid + '/previews/' + previewUuid + '/playback', token), send('GET', '/episodes/' + episode.uuid + '/playback', token)]); const savedDetail = detailSaved.json(); const savedListDrama = listSaved.json().find(item => item.uuid === drama.uuid); const savedCatalogDrama = catalogSaved.json().find(item => item.uuid === drama.uuid); const savedCollectionDrama = collectionSaved.json().dramas.find(item => item.uuid === drama.uuid); pm.test('The saving JWT sees saved state in list, detail, collection, and playback responses', () => { pm.expect(savedListDrama.previewVideos.find(video => video.uuid === previewUuid).isSaved).to.equal(true); pm.expect(savedDetail.previewVideos.find(video => video.uuid === previewUuid).isSaved).to.equal(true); pm.expect(savedDetail.episodes.find(item => item.uuid === episode.uuid).isSaved).to.equal(true); pm.expect(savedCollectionDrama.previewVideos.find(video => video.uuid === previewUuid).isSaved).to.equal(true); pm.expect(previewPlaybackSaved.json().videoUuid).to.equal(previewUuid); pm.expect(previewPlaybackSaved.json().isSaved).to.equal(true); pm.expect(episodePlaybackSaved.json().videoUuid).to.equal(episodeVideoUuid); pm.expect(episodePlaybackSaved.json().isSaved).to.equal(true); pm.expect(savedCatalogDrama).to.exist; });",
+              "  const [otherCatalog, otherDetail, otherCollection, otherPreviewPlayback, otherEpisodePlayback, anonymousCollection, anonymousPreviewPlayback, anonymousEpisodePlayback] = await Promise.all([send('GET', '/dramas', other), send('GET', '/dramas/' + drama.uuid, other), send('GET', '/collections/' + collectionCode, other), send('GET', '/dramas/' + drama.uuid + '/previews/' + previewUuid + '/playback', other), send('GET', '/episodes/' + episode.uuid + '/playback', other), send('GET', '/collections/' + collectionCode, null), send('GET', '/dramas/' + drama.uuid + '/previews/' + previewUuid + '/playback', null), send('GET', '/episodes/' + episode.uuid + '/playback', null)]); pm.test('Anonymous and other JWT users never see another user saved state', () => { pm.expect(otherCatalog.json().find(item => item.uuid === drama.uuid).previewVideos.find(video => video.uuid === previewUuid).isSaved).to.equal(false); pm.expect(otherDetail.json().previewVideos.find(video => video.uuid === previewUuid).isSaved).to.equal(false); pm.expect(otherDetail.json().episodes.find(item => item.uuid === episode.uuid).isSaved).to.equal(false); pm.expect(otherCollection.json().dramas.find(item => item.uuid === drama.uuid).previewVideos.find(video => video.uuid === previewUuid).isSaved).to.equal(false); pm.expect(otherPreviewPlayback.json().isSaved).to.equal(false); pm.expect(otherEpisodePlayback.json().isSaved).to.equal(false); pm.expect(anonymousCollection.json().dramas.find(item => item.uuid === drama.uuid).previewVideos.find(video => video.uuid === previewUuid).isSaved).to.equal(false); pm.expect(anonymousPreviewPlayback.json().isSaved).to.equal(false); pm.expect(anonymousEpisodePlayback.json().isSaved).to.equal(false); });",
+              "  const badCatalog = await send('GET', '/dramas', invalid); const badCollection = await send('GET', '/collections/' + collectionCode, invalid); const badPreviewPlayback = await send('GET', '/dramas/' + drama.uuid + '/previews/' + previewUuid + '/playback', invalid); pm.test('Optional-auth GET routes reject malformed bearer headers', () => { [badCatalog, badCollection, badPreviewPlayback].forEach(response => { pm.expect(response.code).to.equal(401); pm.expect(response.json().errorCode).to.equal('AUTH_INVALID_TOKEN'); }); });",
+              "  const [previewDelete, episodeDelete] = await Promise.all([send('DELETE', '/me/saved-videos/' + previewUuid, token), send('DELETE', '/me/saved-videos/' + episodeVideoUuid, token)]); pm.test('Both PREVIEW and EPISODE delete requests succeed', () => { pm.expect(previewDelete.code).to.equal(204); pm.expect(episodeDelete.code).to.equal(204); });",
+              "  const [catalogAfter, detailAfter, collectionAfter, previewPlaybackAfter, episodePlaybackAfter] = await Promise.all([send('GET', '/dramas', token), send('GET', '/dramas/' + drama.uuid, token), send('GET', '/collections/' + collectionCode, token), send('GET', '/dramas/' + drama.uuid + '/previews/' + previewUuid + '/playback', token), send('GET', '/episodes/' + episode.uuid + '/playback', token)]); pm.test('Deleting both saves clears authenticated lookup flags', () => { pm.expect(catalogAfter.json().find(item => item.uuid === drama.uuid).previewVideos.find(video => video.uuid === previewUuid).isSaved).to.equal(false); pm.expect(detailAfter.json().previewVideos.find(video => video.uuid === previewUuid).isSaved).to.equal(false); pm.expect(detailAfter.json().episodes.find(item => item.uuid === episode.uuid).isSaved).to.equal(false); pm.expect(collectionAfter.json().dramas.find(item => item.uuid === drama.uuid).previewVideos.find(video => video.uuid === previewUuid).isSaved).to.equal(false); pm.expect(previewPlaybackAfter.json().isSaved).to.equal(false); pm.expect(episodePlaybackAfter.json().isSaved).to.equal(false); });",
+              "})().catch(error => pm.test('Saved-state HTTP coverage completes', () => { throw error; }));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/"
+      }
+    },
+    {
+      "name": "Saved cards use the drama poster for preview and episode",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const base = pm.variables.replaceIn('{{baseUrl}}'); const token = pm.collectionVariables.get('unentitledAccessToken'); const previewUuid = JSON.parse(pm.variables.replaceIn('{{savedPreviewVideoUuids}}'))[0]; const episodeVideoUuid = pm.variables.replaceIn('{{savedPaidVideoUuid}}'); const url = base + '/me/saved-videos';",
+              "const send = (method, path, body) => new Promise((resolve, reject) => pm.sendRequest({ url: path, method, header: Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {}), body: body === undefined ? undefined : { mode: 'raw', raw: JSON.stringify(body) } }, (error, response) => error ? reject(error) : resolve(response)));",
+              "(async () => { try { const previewSave = await send('PUT', url + '/' + previewUuid, { contentType: 'PREVIEW' }); const episodeSave = await send('PUT', url + '/' + episodeVideoUuid, { contentType: 'EPISODE' }); pm.expect(previewSave.code).to.equal(204); pm.expect(episodeSave.code).to.equal(204); const page = await send('GET', url + '?page=1'); pm.expect(page.code).to.equal(200); const items = page.json().items; for (const [type, uuid] of [['PREVIEW', previewUuid], ['EPISODE', episodeVideoUuid]]) { const item = items.find(saved => saved.videoUuid === uuid); pm.expect(item, type + ' card fixture must appear on page one').to.exist; pm.expect(item.contentType).to.equal(type); const detail = await send('GET', base + '/dramas/' + item.dramaUuid); pm.expect(detail.code).to.equal(200); const drama = detail.json(); const expected = drama.imageUrls.posterLandscape ?? drama.imageUrls.poster; pm.test(type + ' card uses its drama landscape poster or poster fallback', () => { pm.expect(item.imageUrl).to.equal(expected); pm.expect(item.durationMs).to.be.a('number').and.be.above(0); }); } } finally { const removals = await Promise.all([send('DELETE', url + '/' + previewUuid), send('DELETE', url + '/' + episodeVideoUuid)]); removals.forEach(response => pm.expect(response.code).to.equal(204)); } })().catch(error => pm.test('Saved card poster HTTP checks complete', () => { throw error; }));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/"
+      }
+    }
+  ]
+}

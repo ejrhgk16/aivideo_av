@@ -105,7 +105,7 @@
 
 - 프론트 제품 테스트는 `front/tests/**/*.test.ts(x)`에 둔다. `front/src/`에는 새 테스트를 만들지 않는다. 검증은 `npm --prefix front run typecheck`, `npm --prefix front run test`, `npm --prefix front run export`를 사용한다.
 - 백엔드 HTTP API 동작은 `back/test/api/**/*.postman_collection.json`에 Postman CLI 테스트로 작성한다. DB 설정·시드·저장 키 등 내부 규칙과 기존 데이터 변경 없이 재현하기 어려운 공개 시점·환경 경계 조건은 `back/test/unit/**/*.spec.ts`에 최소한의 단위 테스트로 유지한다. `back/src/`에는 새 테스트를 만들지 않는다.
-- 백엔드 검증은 `npm --prefix back run lint`, `npm --prefix back run test`, `npm --prefix back run build`를 사용한다. `test`는 `test:unit`과 `test:api`를 모두 실행한다. 각각 별도로 실행할 수도 있다.
+- 각 task의 `checks`에는 변경 기능과 영향받는 기능을 검증하는 정확한 테스트 파일 또는 API suite를 선언한다. 일반 제품 task에서 전체 테스트·build·export를 반복하지 않는다. 공통 모듈·계약 변경은 실제 소비 기능도 검사하고, 영향 범위를 좁힐 근거가 없으면 전체 검증을 선택해 이유를 기록한다. 프론트 테스트는 `npm --prefix front run test -- tests/unit/<feature>.test.ts`처럼 파일을 선택할 수 있으며, 인자가 없으면 `front/tests/`의 모든 `.test.ts`와 `.test.tsx`를 실행한다. 백엔드 API는 `npm --prefix back run test:api -- --suite <suite>`로 선택하고, 여러 suite를 함께 지정할 수 있다. `$finish-plan`은 변경된 프론트의 `typecheck`·`test`·`export`와 변경된 백엔드의 `lint`·`test`·`build`를 전체 검증한다. 테스트 실행기 자체 변경은 선택 실행과 무인자 전체 실행 회귀 검증을 포함한다.
 - Harness 자체 테스트만 `tools/harness/**/*.test.mjs`에 colocate하며 `node --test tools/harness/*.test.mjs`로 실행한다. 제품 테스트용 최상위 `tests/` 폴더는 만들지 않는다.
 
 ## API 테스트
@@ -113,8 +113,8 @@
 - Postman CLI는 실행 중인 개발 API를 HTTP로 호출하며, API가 사용하는 실제 MySQL DB까지 연결해 검증한다. 기본 주소는 `http://localhost:3000`이며 실행 방법과 데이터 조건은 `back/test/api/README.md`를 따른다.
 - API 검증 전 기존 개발 서버에 HTTP 요청으로 연결되는지 먼저 확인한다. 서버가 이미 실행 중이면 현재 변경 코드가 반영됐는지 확인한 뒤 반드시 해당 서버에서 테스트한다. 포트·프로세스 조회 결과가 비어 있다는 이유만으로 서버가 없다고 판단하지 않는다.
 - 테스트용 서버를 추가로 띄우거나 임의로 다른 포트에서 실행하지 않는다. 코드 반영 여부를 확인할 수 없으면 사용자에게 확인한다. 백엔드 서버가 실행 중이지 않으면 오류와 `npm --prefix back run start:dev` 실행 안내를 출력하고 검증을 실패 처리한다. 연결 실패·필수 데이터 부족을 검증 통과로 처리하지 않는다.
-- REST endpoint의 경로·요청·응답·인증·노출 규칙을 변경하면 관련 API 문서와 Postman 컬렉션을 함께 갱신한다. Harness task의 `files`에 해당 파일을 선언하고 `checks`에 전체 백엔드 검증 명령을 포함한다.
-- API 테스트는 GET·OPTIONS뿐 아니라 POST·PUT·PATCH·DELETE 등 해당 endpoint의 실제 HTTP 메서드를 사용해 동작을 검증한다. 테스트에 필요한 개발 DB 생성·초기화·시드 및 데이터 변경을 허용한다. 비밀 값은 환경 파일에서 관리하고 컬렉션에 넣지 않는다.
+- REST endpoint의 경로·요청·응답·인증·노출 규칙을 변경하면 관련 API 문서와 Postman 컬렉션을 함께 갱신한다. Harness task의 `files`에는 수정 허용 파일을 선언하고, `checks`에는 변경 동작과 영향받는 기능을 검증하는 API suite 및 필요한 내부 테스트를 정확히 선언한다. `files`에 읽기 전용으로 실행하는 기존 테스트 파일을 추가하지 않는다.
+- API 테스트는 GET·OPTIONS뿐 아니라 POST·PUT·PATCH·DELETE 등 해당 endpoint의 실제 HTTP 메서드를 사용해 동작을 검증한다. 관리형 suite는 실행별 fixture만 생성하고 소유한 키로 정리하며, 기존 개발 데이터의 reset·seed·수정에 의존하지 않는다. 외부 환경은 사전에 준비된 fixture를 사용하고 자동 정리하지 않는다. 비밀 값은 환경 파일에서 관리하고 컬렉션에 넣지 않는다.
 
 ## Codex Harness
 

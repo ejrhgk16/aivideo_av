@@ -33,7 +33,7 @@ NestJS API server. Own `package.json` and lockfile.
 | `src/common/entities/` | Shared persistence base entities and metadata. |
 | `src/common/error/` | Shared custom HTTP error base, error codes, concrete exceptions, and response filter used by opted-in controllers. |
 | `src/common/database/` | Shared TypeORM configuration and Entity registry, CLI `DataSource`, explicit development seed CLI, and migration files. |
-| `test/api/` | Postman collections that call the running development API and its real MySQL database; execution instructions and data requirements. |
+| `test/api/` | Feature-scoped Postman suites, per-run fixture preparation and cleanup, cross-process content locks, and instructions for HTTP tests against the running API and its MySQL database. |
 | `test/unit/` | Focused tests for internal rules and publication/environment boundaries that cannot be exercised without changing existing data. |
 
 ## Web prototype — `web-prototype/`
@@ -81,10 +81,10 @@ The root navigation renders one session-expiration modal. Closing it only dismis
 
 ## Backend verification
 
-- `npm --prefix back run test` runs focused unit tests followed by the Postman CLI API collection. `test:unit` and `test:api` run each separately.
-- `back/test/api/run.mjs` forwards fixture credentials through a temporary Postman environment for both normal tests and Harness finish. Its default local-development mode restores temporary fixture logins and removes only progress and saved-video fixtures created by the run; it confirms the hidden-video saved row was deleted before cleanup. `API_TEST_ENVIRONMENT_FILE` selects an externally prepared environment without automatic database preparation or cleanup.
+- `npm --prefix back run test` runs focused unit tests followed by the eight Postman CLI API suites. `test:api` accepts repeated `--suite <name>` selectors and defaults to all suites; `test:api:parallel` proves separate HTTP-created watch-progress ownership, first-run cleanup preserving the second run's rows, no residual rows/users, and a content reader waiting ahead of a saved-videos writer.
+- `back/test/api/run.mjs` creates fresh fixture users and credentials only for suites that need them, holds the normalized base-URL content lock through fixture setup, HTTP assertions, verification, and cleanup, and removes only records owned by that run. Each invocation uses a temporary copy of its one static suite collection and environment. The saved-video suite adds run-owned drama, images, free and paid episodes, preview/full media, and its collection link while holding an exclusive lock. `API_TEST_ENVIRONMENT_FILE` keeps external fixture setup and cleanup with the caller and uses an exclusive lock for the effective API URL.
 - API tests use the existing development server at `http://localhost:3000` by default, with its configured MySQL connection. The server must reflect the code being verified. The collection discovers public UUIDs from responses; tests may prepare development-only fixtures and mutate data as needed.
-- `back/test/api/README.md` defines startup, target URL overrides, required existing content, and coverage limits. Missing server/data or failed assertions fail verification.
+- `back/test/api/README.md` defines suite selection, startup, URL overrides, required existing content, fixture ownership, lock behavior, and coverage limits. Missing server/data, failed assertions, or cleanup errors fail verification.
 
 ## Backend identity sessions
 

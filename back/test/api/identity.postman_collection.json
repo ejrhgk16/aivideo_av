@@ -1,0 +1,1052 @@
+{
+  "info": {
+    "name": "AI Drama public API",
+    "description": "HTTP checks against the running development API and its MySQL database. Requires public dramas with free/paid episodes and previews, plus the documented zero-balance point error fixture. Does not download signed media URLs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "entitledLoginId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "entitledPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "unentitledLoginId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "unentitledPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "entitledAccessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "unentitledAccessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "entitledRefreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "unentitledRefreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "entitledUserUuid",
+      "value": "00000010-0000-4000-8000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "unentitledUserUuid",
+      "value": "00000012-0000-4000-8000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "entitlementDramaUuid",
+      "value": "00000002-0000-4000-8000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "entitledEpisodeUuid",
+      "value": "00000004-0000-4000-8000-000000000002",
+      "type": "string"
+    },
+    {
+      "key": "lockedEpisodeUuid",
+      "value": "00000004-0000-4000-8000-000000000003",
+      "type": "string"
+    },
+    {
+      "key": "purchaseTestEpisodeUuid",
+      "value": "00000004-0000-4000-8000-000000000004",
+      "type": "string"
+    },
+    {
+      "key": "watchProgressEpisodeUuid",
+      "value": "00000004-0000-4000-8000-000000000003",
+      "type": "string"
+    },
+    {
+      "key": "watchProgressPositionMs",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "watchProgressIsCompleted",
+      "value": "false",
+      "type": "string"
+    },
+    {
+      "key": "watchProgressLastPlayedAt",
+      "value": "2026-10-28T00:00:00.000Z",
+      "type": "string"
+    }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test(\"API does not return a server error\", () => {",
+          "  pm.expect(pm.response.code).to.be.below(500);",
+          "});",
+          "if (pm.response.code === 200 && pm.info.requestName !== \"Root\" && /application\\/json/i.test(pm.response.headers.get(\"Content-Type\") || \"\")) {",
+          "  pm.test(\"Public response shapes and identifiers follow the API contract\", () => {",
+          "    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;",
+          "    function check(value) {",
+          "      if (Array.isArray(value)) return value.forEach(check);",
+          "      if (!value || typeof value !== \"object\") return;",
+          "      if (\"uuid\" in value) {",
+          "        pm.expect(value.uuid).to.match(uuid);",
+          "        pm.expect(value).not.to.have.property(\"id\");",
+          "      }",
+          "      if (\"imageUrls\" in value) {",
+          "        [\"slug\", \"title\", \"shortDescription\"].forEach(key => pm.expect(value[key], key).to.be.a(\"string\"));",
+          "        pm.expect(value).not.to.have.property(\"images\");",
+          "        [\"poster\", \"posterLandscape\", \"homeHero\", \"detailCover\"].forEach(key => {",
+          "          const url = value.imageUrls[key];",
+          "          pm.expect(url === null || (typeof url === \"string\" && /^https:\\/\\//.test(url)), key).to.equal(true);",
+          "        });",
+          "        pm.expect(value.imageUrls.campaigns).to.be.an(\"array\");",
+          "        value.imageUrls.campaigns.forEach(url => pm.expect(url).to.match(/^https:\\/\\//));",
+          "        pm.expect(value.previewVideos).to.be.an(\"array\");",
+          "        value.previewVideos.forEach(video => {",
+          "          pm.expect(video.storageKey).to.be.a(\"string\").and.not.be.empty;",
+          "          pm.expect(video.durationMs).to.satisfy(Number.isInteger).and.be.above(0);",
+          "          pm.expect(video.isSaved).to.be.a(\"boolean\");",
+          "        });",
+          "        pm.expect(value.genres).to.be.an(\"array\");",
+          "        const genreIds = JSON.parse(pm.collectionVariables.get(\"genreIds\"));",
+          "        value.genres.forEach(genre => {",
+          "          pm.expect(genreIds).to.include(genre.id);",
+          "          pm.expect(genre.code).to.be.a(\"string\");",
+          "          pm.expect(genre.name).to.be.a(\"string\");",
+          "        });",
+          "        const count = value.episodeCount ?? value.publishedEpisodeCount;",
+          "        if (count !== undefined) {",
+          "          pm.expect(count).to.satisfy(Number.isInteger).and.be.at.least(0);",
+          "          pm.expect(value.freeEpisodeCount).to.satisfy(Number.isInteger).and.be.within(0, count);",
+          "        }",
+          "      }",
+          "      Object.values(value).forEach(check);",
+          "    }",
+          "    check(pm.response.json());",
+          "  });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Login as entitled fixture user",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Entitled fixture login uses environment credentials and matches the existing UUID', () => { const body = pm.response.json(); pm.response.to.have.status(200); pm.expect(body.uuid).to.equal(pm.variables.get('entitledUserUuid')); pm.expect(body.accessToken).to.be.a('string').and.not.empty; pm.collectionVariables.set('entitledAccessToken', body.accessToken); pm.collectionVariables.set('entitledRefreshToken', body.refreshToken); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"loginId\":\"{{entitledLoginId}}\",\"password\":\"{{entitledPassword}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "Login as unentitled fixture user",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Unentitled fixture login uses environment credentials and matches the existing UUID', () => { const body = pm.response.json(); pm.response.to.have.status(200); pm.expect(body.uuid).to.equal(pm.variables.get('unentitledUserUuid')); pm.expect(body.accessToken).to.be.a('string').and.not.empty; pm.collectionVariables.set('unentitledAccessToken', body.accessToken); pm.collectionVariables.set('unentitledRefreshToken', body.refreshToken); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"loginId\":\"{{unentitledLoginId}}\",\"password\":\"{{unentitledPassword}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "Root",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "[\"catalog\", \"selectedDrama\", \"dramaId\", \"otherDramaId\", \"previewId\", \"freeEpisode\", \"paidEpisode\", \"freeEpisodeId\", \"paidEpisodeId\", \"genreIds\"].forEach(key => pm.collectionVariables.unset(key));",
+              "pm.collectionVariables.set(\"missingId\", pm.variables.replaceIn(\"{{$guid}}\"));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Root responds\", () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.text()).to.equal(\"Hello World!\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/"
+      }
+    },
+    {
+      "name": "Login returns admin user, points, and tokens",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Admin login returns public fields and an access/refresh pair', () => { const body = pm.response.json(); pm.response.to.have.status(200); pm.expect(Object.keys(body).sort()).to.eql(['accessToken','accountType','availablePoints','displayName','expiresIn','refreshToken','uuid']); pm.expect(body.uuid).to.be.a('string'); pm.expect(body.accountType).to.be.a('string'); pm.expect(body.availablePoints).to.be.a('number').and.at.least(0); pm.expect(body.accessToken).to.be.a('string').and.not.be.empty; pm.expect(body.refreshToken).to.be.a('string').and.not.be.empty; pm.expect(body.expiresIn).to.equal(900); pm.expect(body).not.to.have.property('password'); pm.expect(body).not.to.have.property('id'); pm.expect(pm.response.headers.has('Set-Cookie')).to.equal(false); pm.collectionVariables.set('loginUserUuid', body.uuid); pm.collectionVariables.set('loginAccessToken', body.accessToken); pm.collectionVariables.set('loginRefresh0', body.refreshToken); const parts = body.refreshToken.split('.'); parts[2] = (parts[2][0] === 'A' ? 'B' : 'A') + parts[2].slice(1); pm.collectionVariables.set('tamperedRefresh', parts.join('.')); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"loginId\":\"{{entitledLoginId}}\",\"password\":\"{{entitledPassword}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "Establish independent login B before login A rotation",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Independent login B succeeds before login A rotates', () => { const body = pm.response.json(); pm.response.to.have.status(200); pm.collectionVariables.set('loginBRefresh0', body.refreshToken); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"loginId\":\"{{entitledLoginId}}\",\"password\":\"{{entitledPassword}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "Login rejects incorrect credentials",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('An unmatched well-formed credential pair returns the existing login 401', () => { const body = pm.response.json(); pm.response.to.have.status(401); pm.expect(body).to.include({ errorCode: 'AUTH_LOGIN_FAILED', errorName: 'LoginFailed', statusCode: 401, path: '/auth/login' }); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"loginId\":\"another-valid-id\",\"password\":\"another-password\"}"
+        },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "Login rejects missing fields",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Missing login fields return custom 400', () => { const body = pm.response.json(); pm.response.to.have.status(400); pm.expect(body).to.include({ errorCode: 'AUTH_INVALID_LOGIN_INPUT', errorName: 'InvalidLoginInput', statusCode: 400, path: '/auth/login' }); pm.expect(new Date(body.timestamp).toISOString()).to.equal(body.timestamp); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"loginId\":\"admin\"}"
+        },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "Login rejects blank credentials",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Blank credentials return custom 400', () => { const body = pm.response.json(); pm.response.to.have.status(400); pm.expect(body).to.include({ errorCode: 'AUTH_INVALID_LOGIN_INPUT', errorName: 'InvalidLoginInput', statusCode: 400, path: '/auth/login' }); pm.expect(new Date(body.timestamp).toISOString()).to.equal(body.timestamp); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"loginId\":\"   \",\"password\":\"   \"}"
+        },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "Login rejects non-string fields",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Non-string fields return custom 400', () => { const body = pm.response.json(); pm.response.to.have.status(400); pm.expect(body).to.include({ errorCode: 'AUTH_INVALID_LOGIN_INPUT', errorName: 'InvalidLoginInput', statusCode: 400, path: '/auth/login' }); pm.expect(new Date(body.timestamp).toISOString()).to.equal(body.timestamp); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"loginId\":123,\"password\":\"unused-invalid-input\"}"
+        },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "Victim-first rotation followed by replay revokes the login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('Refresh returns the login response shape and rotates the token', () => { pm.response.to.have.status(200); pm.expect(Object.keys(body).sort()).to.eql(['accessToken','accountType','availablePoints','displayName','expiresIn','refreshToken','uuid']); pm.expect(body.uuid).to.equal(pm.collectionVariables.get('loginUserUuid')); pm.expect(body.expiresIn).to.equal(900); pm.expect(body.refreshToken).not.to.equal(pm.collectionVariables.get('loginRefresh0')); });",
+              "pm.collectionVariables.set('loginRefresh1', body.refreshToken);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{loginRefresh0}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/refresh"
+      }
+    },
+    {
+      "name": "Refresh chain advances to a second token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('The second refresh succeeds and returns another token', () => { pm.response.to.have.status(200); pm.expect(body.uuid).to.equal(pm.collectionVariables.get('loginUserUuid')); pm.expect(body.refreshToken).not.to.equal(pm.collectionVariables.get('loginRefresh1')); });",
+              "pm.collectionVariables.set('loginRefresh2', body.refreshToken);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{loginRefresh1}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/refresh"
+      }
+    },
+    {
+      "name": "Refresh rejects a replayed token and commits session revocation",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Replayed refresh is a generic custom 401', () => { const body = pm.response.json(); pm.response.to.have.status(401); pm.expect(body).to.include({ errorCode: 'AUTH_INVALID_TOKEN', errorName: 'InvalidToken', statusCode: 401, path: '/auth/refresh' }); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{loginRefresh0}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/refresh"
+      }
+    },
+    {
+      "name": "Replay revocation also rejects the latest token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('A token from the revoked login is rejected on a later request', () => { const body = pm.response.json(); pm.response.to.have.status(401); pm.expect(body.errorCode).to.equal('AUTH_INVALID_TOKEN'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{loginRefresh2}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/refresh"
+      }
+    },
+    {
+      "name": "A separate login survives the first login replay",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('Pre-existing login B can still refresh after login A replay', () => { pm.response.to.have.status(200); pm.expect(body.uuid).to.equal(pm.collectionVariables.get('loginUserUuid')); });",
+              "pm.collectionVariables.set('loginRefreshB1', body.refreshToken);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{loginBRefresh0}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/refresh"
+      }
+    },
+    {
+      "name": "Logout login A after replay revocation",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Logout after replay remains idempotently successful', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{loginRefresh0}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/logout"
+      }
+    },
+    {
+      "name": "Login B remains usable after login A logout",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "pm.test('Login B refresh succeeds after login A logout', () => { pm.response.to.have.status(200); pm.expect(body.uuid).to.equal(pm.collectionVariables.get('loginUserUuid')); });",
+              "pm.collectionVariables.set('loginRefreshB2', body.refreshToken);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{loginRefreshB1}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/refresh"
+      }
+    },
+    {
+      "name": "Logout accepts an already used token and revokes its login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Logout of a previous used token returns 204 and revokes the full login', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{loginBRefresh0}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/logout"
+      }
+    },
+    {
+      "name": "Logout is idempotent for an already revoked login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Repeated logout returns 204', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{loginBRefresh0}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/logout"
+      }
+    },
+    {
+      "name": "Logout blocks later refresh",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Refresh after logout returns 401', () => { const body = pm.response.json(); pm.response.to.have.status(401); pm.expect(body.errorCode).to.equal('AUTH_INVALID_TOKEN'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{loginRefreshB1}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/refresh"
+      }
+    },
+    {
+      "name": "Refresh rejects malformed body",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Malformed refresh input returns custom 400', () => { const body = pm.response.json(); pm.response.to.have.status(400); pm.expect(body).to.include({ errorCode: 'AUTH_INVALID_TOKEN_INPUT', errorName: 'InvalidTokenInput', statusCode: 400, path: '/auth/refresh' }); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"   \"}"
+        },
+        "url": "{{baseUrl}}/auth/refresh"
+      }
+    },
+    {
+      "name": "Refresh rejects malformed signed token input",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Malformed token returns custom 401', () => { const body = pm.response.json(); pm.response.to.have.status(401); pm.expect(body).to.include({ errorCode: 'AUTH_INVALID_TOKEN', errorName: 'InvalidToken', statusCode: 401, path: '/auth/refresh' }); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"not-a-jwt\"}"
+        },
+        "url": "{{baseUrl}}/auth/refresh"
+      }
+    },
+    {
+      "name": "Refresh rejects an access token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Access token cannot be used for refresh', () => { const body = pm.response.json(); pm.response.to.have.status(401); pm.expect(body.errorCode).to.equal('AUTH_INVALID_TOKEN'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{loginAccessToken}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/refresh"
+      }
+    },
+    {
+      "name": "Refresh rejects a tampered signature",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('A one-character signature mutation returns generic 401', () => { const body = pm.response.json(); pm.response.to.have.status(401); pm.expect(body.errorCode).to.equal('AUTH_INVALID_TOKEN'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{tamperedRefresh}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/refresh"
+      }
+    },
+    {
+      "name": "Attacker-first refresh is revoked when the user retries the old token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const send = options => new Promise((resolve, reject) => pm.sendRequest(options, (error, response) => error ? reject(error) : resolve(response)));",
+              "(async () => { const baseUrl = pm.variables.replaceIn('{{baseUrl}}'); const login = await send({ url: baseUrl + '/auth/login', method: 'POST', header: { 'Content-Type': 'application/json' }, body: { mode: 'raw', raw: JSON.stringify({ loginId: pm.variables.replaceIn('{{entitledLoginId}}'), password: pm.variables.replaceIn('{{entitledPassword}}') }) } }); const oldToken = login.json().refreshToken; const rotate = token => send({ url: baseUrl + '/auth/refresh', method: 'POST', header: { 'Content-Type': 'application/json' }, body: { mode: 'raw', raw: JSON.stringify({ refreshToken: token }) } }); const attacker = await rotate(oldToken); pm.test('Attacker-first refresh receives the first successful rotation', () => pm.expect(attacker.code).to.equal(200)); const victimRetry = await rotate(oldToken); pm.test('Victim retry detects the replay and revokes that login', () => { pm.expect(victimRetry.code).to.equal(401); pm.expect(victimRetry.json().errorCode).to.equal('AUTH_INVALID_TOKEN'); }); const newest = await rotate(attacker.json().refreshToken); pm.test('The attacker-first response token is rejected after replay detection', () => pm.expect(newest.code).to.equal(401)); })().catch(error => pm.test('Attacker-first refresh scenario completes', () => { throw error; }));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "OPTIONS",
+        "header": [
+          {
+            "key": "Origin",
+            "value": "http://localhost:8081"
+          },
+          {
+            "key": "Access-Control-Request-Method",
+            "value": "POST"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/refresh"
+      }
+    },
+    {
+      "name": "Create a login for current-token logout",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Current-token logout fixture login succeeds', () => { const body = pm.response.json(); pm.response.to.have.status(200); pm.collectionVariables.set('currentLogoutRefresh', body.refreshToken); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"loginId\":\"{{entitledLoginId}}\",\"password\":\"{{entitledPassword}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "Current refresh token logout revokes its login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Logout with the current refresh token returns 204', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{currentLogoutRefresh}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/logout"
+      }
+    },
+    {
+      "name": "Current-token logout blocks refresh",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Current-token logout revokes the session', () => { const body = pm.response.json(); pm.response.to.have.status(401); pm.expect(body.errorCode).to.equal('AUTH_INVALID_TOKEN'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{currentLogoutRefresh}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/refresh"
+      }
+    },
+    {
+      "name": "Concurrent refresh permits one response and revokes the resulting session on replay",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const send = options => new Promise((resolve, reject) => pm.sendRequest(options, (error, response) => error ? reject(error) : resolve(response)));",
+              "(async () => { const login = await send({ url: pm.variables.replaceIn('{{baseUrl}}/auth/login'), method: 'POST', header: { 'Content-Type': 'application/json' }, body: { mode: 'raw', raw: JSON.stringify({ loginId: pm.variables.replaceIn('{{entitledLoginId}}'), password: pm.variables.replaceIn('{{entitledPassword}}') }) } }); pm.test('Concurrency fixture login succeeds', () => pm.expect(login.code).to.equal(200)); const token = login.json().refreshToken; const request = { url: pm.variables.replaceIn('{{baseUrl}}/auth/refresh'), method: 'POST', header: { 'Content-Type': 'application/json' }, body: { mode: 'raw', raw: JSON.stringify({ refreshToken: token }) } }; const pair = await Promise.all([send(request), send(request)]); const codes = pair.map(response => response.code).sort(); pm.test('Exactly one simultaneous refresh succeeds', () => pm.expect(codes).to.eql([200, 401])); const success = pair.find(response => response.code === 200).json(); const replay = await send({ url: pm.variables.replaceIn('{{baseUrl}}/auth/refresh'), method: 'POST', header: { 'Content-Type': 'application/json' }, body: { mode: 'raw', raw: JSON.stringify({ refreshToken: success.refreshToken }) } }); pm.test('Successful response token is rejected after concurrent replay detection', () => { pm.expect(replay.code).to.equal(401); pm.expect(replay.json().errorCode).to.equal('AUTH_INVALID_TOKEN'); }); })().catch(error => pm.test('Concurrent refresh scenario completes', () => { throw error; }));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "OPTIONS",
+        "header": [
+          {
+            "key": "Origin",
+            "value": "http://localhost:8081"
+          },
+          {
+            "key": "Access-Control-Request-Method",
+            "value": "POST"
+          }
+        ],
+        "url": "{{baseUrl}}/auth/refresh"
+      }
+    },
+    {
+      "name": "Logout entitled fixture test session",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Entitled fixture session is logged out', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{entitledRefreshToken}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/logout"
+      }
+    },
+    {
+      "name": "Logout unentitled fixture test session",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Unentitled fixture session is logged out', () => pm.response.to.have.status(204));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"refreshToken\":\"{{unentitledRefreshToken}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/logout"
+      }
+    },
+    {
+      "name": "Web refresh cookie login, rotation, CSRF checks, and logout",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const send = options => new Promise((resolve, reject) => pm.sendRequest(Object.assign({ disableCookies: true }, options), (error, response) => error ? reject(error) : resolve(response)));",
+              "const base = pm.variables.replaceIn('{{baseUrl}}'); const origin = 'http://localhost:8081'; const webHeaders = { 'Content-Type': 'application/json', Origin: origin, 'X-Auth-Transport': 'cookie' }; const cookieValue = response => { const header = response.headers.get('Set-Cookie'); return header ? header.split(';')[0] : null; }; const clearJar = () => new Promise((resolve, reject) => pm.cookies.jar().clear(base, error => error ? reject(error) : resolve()));",
+              "(async () => {",
+              "  const login = await send({ url: base + '/auth/login', method: 'POST', header: webHeaders, body: { mode: 'raw', raw: JSON.stringify({ loginId: pm.variables.replaceIn('{{entitledLoginId}}'), password: pm.variables.replaceIn('{{entitledPassword}}') }) } }); const loginCookie = cookieValue(login); pm.test('Web login sets cookie attributes and omits Refresh from JSON', () => { pm.expect(login.code).to.equal(200); pm.expect(Object.keys(login.json()).sort()).to.eql(['accessToken','accountType','availablePoints','displayName','expiresIn','uuid']); pm.expect(login.headers.get('Cache-Control')).to.include('no-store'); pm.expect(loginCookie).to.be.a('string'); const setCookie = login.headers.get('Set-Cookie'); pm.expect(setCookie).to.include('HttpOnly'); pm.expect(setCookie).to.include('SameSite=Lax'); pm.expect(setCookie).to.include('Path=/auth'); pm.expect(setCookie).to.include('Max-Age=1209600'); pm.expect(setCookie.toLowerCase()).not.to.include('domain='); });",
+              "  const blocked = await send({ url: base + '/auth/refresh', method: 'POST', header: Object.assign({}, webHeaders, { Origin: 'https://unapproved.example', Cookie: loginCookie }), body: { mode: 'raw', raw: '{}' } }); pm.test('Unapproved Origin is rejected before rotating the cookie session', () => pm.expect(blocked.code).to.equal(403));",
+              "  const missingMode = await send({ url: base + '/auth/refresh', method: 'POST', header: { 'Content-Type': 'application/json', Origin: origin, Cookie: loginCookie }, body: { mode: 'raw', raw: '{}' } }); pm.test('Cookie auth with a missing transport header is forbidden', () => pm.expect(missingMode.code).to.equal(403));",
+              "  const missingOrigin = await send({ url: base + '/auth/refresh', method: 'POST', header: { 'Content-Type': 'application/json', 'X-Auth-Transport': 'cookie', Cookie: loginCookie }, body: { mode: 'raw', raw: '{}' } }); pm.test('Cookie auth with a missing Origin is forbidden', () => pm.expect(missingOrigin.code).to.equal(403));",
+              "  const badLoginOrigin = await send({ url: base + '/auth/login', method: 'POST', header: { 'Content-Type': 'application/json', Origin: origin }, body: { mode: 'raw', raw: JSON.stringify({ loginId: pm.variables.replaceIn('{{entitledLoginId}}'), password: pm.variables.replaceIn('{{entitledPassword}}') }) } }); pm.test('Login rejects web Origin without its transport header', () => pm.expect(badLoginOrigin.code).to.equal(403));",
+              "  const rotated = await send({ url: base + '/auth/refresh', method: 'POST', header: Object.assign({}, webHeaders, { Cookie: loginCookie }), body: { mode: 'raw', raw: JSON.stringify({ refreshToken: 'body-token-must-be-ignored' }) } }); const rotatedCookie = cookieValue(rotated); pm.test('Web refresh rotates only the cookie and ignores body Refresh', () => { pm.expect(rotated.code).to.equal(200); pm.expect(Object.keys(rotated.json()).sort()).to.eql(['accessToken','accountType','availablePoints','displayName','expiresIn','uuid']); pm.expect(rotated.headers.get('Cache-Control')).to.include('no-store'); pm.expect(rotatedCookie).to.be.a('string'); pm.expect(rotatedCookie).not.to.equal(loginCookie); });",
+              "  const malformed = await send({ url: base + '/auth/refresh', method: 'POST', header: Object.assign({}, webHeaders, { Cookie: 'auth.refreshToken=%' }), body: { mode: 'raw', raw: '{}' } }); pm.test('Malformed cookie returns AUTH_INVALID_TOKEN and clears cookie', () => { pm.expect(malformed.code).to.equal(401); pm.expect(malformed.json().errorCode).to.equal('AUTH_INVALID_TOKEN'); const cleared = malformed.headers.get('Set-Cookie'); pm.expect(cleared).to.include('Path=/auth'); pm.expect(Date.parse(cleared.split('Expires=')[1].split(';')[0])).to.be.below(Date.now()); });",
+              "  const accessCookie = 'auth.refreshToken=' + login.json().accessToken; const accessRejected = await send({ url: base + '/auth/refresh', method: 'POST', header: Object.assign({}, webHeaders, { Cookie: accessCookie }), body: { mode: 'raw', raw: '{}' } }); pm.test('Access token in the Refresh cookie is rejected and cleared', () => { pm.expect(accessRejected.code).to.equal(401); pm.expect(accessRejected.json().errorCode).to.equal('AUTH_INVALID_TOKEN'); });",
+              "  const nativeRefresh = await send({ url: base + '/auth/refresh', method: 'POST', header: { 'Content-Type': 'application/json', Cookie: accessCookie }, body: { mode: 'raw', raw: JSON.stringify({ refreshToken: decodeURIComponent(rotatedCookie.slice('auth.refreshToken='.length)) }) } }); pm.test('Native JSON Refresh ignores an invalid cookie header', () => { pm.expect(nativeRefresh.code).to.equal(200); pm.expect(nativeRefresh.json().refreshToken).to.be.a('string').and.not.be.empty; });",
+              "  const logout = await send({ url: base + '/auth/logout', method: 'POST', header: Object.assign({}, webHeaders, { Cookie: rotatedCookie }), body: { mode: 'raw', raw: '{}' } }); pm.test('Web logout revokes session and clears cookie', () => { pm.expect(logout.code).to.equal(204); pm.expect(logout.headers.get('Cache-Control')).to.include('no-store'); const cleared = logout.headers.get('Set-Cookie'); pm.expect(cleared).to.include('HttpOnly'); pm.expect(cleared).to.include('Path=/auth'); pm.expect(Date.parse(cleared.split('Expires=')[1].split(';')[0])).to.be.below(Date.now()); });",
+              "  const afterLogout = await send({ url: base + '/auth/refresh', method: 'POST', header: Object.assign({}, webHeaders, { Cookie: rotatedCookie }), body: { mode: 'raw', raw: '{}' } }); pm.test('Logout makes the last cookie unusable', () => { pm.expect(afterLogout.code).to.equal(401); pm.expect(afterLogout.json().errorCode).to.equal('AUTH_INVALID_TOKEN'); });",
+              "  await clearJar(); const bypass = await send({ url: base + '/auth/refresh', method: 'POST', header: Object.assign({}, webHeaders, { Cookie: 'other=value' }), body: { mode: 'raw', raw: JSON.stringify({ refreshToken: rotatedCookie.slice('auth.refreshToken='.length) }) } }); pm.test('Body Refresh cannot bypass a missing web cookie and receives anonymous 204', () => pm.expect(bypass.code).to.equal(204));",
+              "  const anonymous = await send({ url: base + '/auth/refresh', method: 'POST', header: Object.assign({}, webHeaders, { Cookie: 'other=value' }), body: { mode: 'raw', raw: '{}' } }); pm.test('Cookie-free web refresh ends as anonymous 204', () => pm.expect(anonymous.code).to.equal(204));",
+              "  const emptyLogout = await send({ url: base + '/auth/logout', method: 'POST', header: Object.assign({}, webHeaders, { Cookie: 'other=value' }), body: { mode: 'raw', raw: '{}' } }); pm.test('Cookie-free web logout returns 204 and expires the cookie', () => { pm.expect(emptyLogout.code).to.equal(204); const cleared = emptyLogout.headers.get('Set-Cookie'); pm.expect(cleared).to.include('Path=/auth'); pm.expect(Date.parse(cleared.split('Expires=')[1].split(';')[0])).to.be.below(Date.now()); });",
+              "})().catch(error => pm.test('Web cookie auth scenarios complete', () => { throw error; }));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/"
+      }
+    }
+  ]
+}

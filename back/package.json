@@ -22,6 +22,7 @@
     "test": "npm run test:unit && npm run test:api",
     "test:unit": "vitest run",
     "test:api": "node test/api/run.mjs",
+    "test:api:parallel": "node test/api/verifyParallel.mjs",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism"

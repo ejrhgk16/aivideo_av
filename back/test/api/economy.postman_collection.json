@@ -1,0 +1,725 @@
+{
+  "info": {
+    "name": "AI Drama public API",
+    "description": "HTTP checks against the running development API and its MySQL database. Requires public dramas with free/paid episodes and previews, plus the documented zero-balance point error fixture. Does not download signed media URLs.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "entitledLoginId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "entitledPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "unentitledLoginId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "unentitledPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "entitledAccessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "unentitledAccessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "entitledRefreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "unentitledRefreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "entitledUserUuid",
+      "value": "00000010-0000-4000-8000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "unentitledUserUuid",
+      "value": "00000012-0000-4000-8000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "entitlementDramaUuid",
+      "value": "00000002-0000-4000-8000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "entitledEpisodeUuid",
+      "value": "00000004-0000-4000-8000-000000000002",
+      "type": "string"
+    },
+    {
+      "key": "lockedEpisodeUuid",
+      "value": "00000004-0000-4000-8000-000000000003",
+      "type": "string"
+    },
+    {
+      "key": "purchaseTestEpisodeUuid",
+      "value": "00000004-0000-4000-8000-000000000004",
+      "type": "string"
+    },
+    {
+      "key": "watchProgressEpisodeUuid",
+      "value": "00000004-0000-4000-8000-000000000003",
+      "type": "string"
+    },
+    {
+      "key": "watchProgressPositionMs",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "watchProgressIsCompleted",
+      "value": "false",
+      "type": "string"
+    },
+    {
+      "key": "watchProgressLastPlayedAt",
+      "value": "2026-10-28T00:00:00.000Z",
+      "type": "string"
+    }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test(\"API does not return a server error\", () => {",
+          "  pm.expect(pm.response.code).to.be.below(500);",
+          "});",
+          "if (pm.response.code === 200 && pm.info.requestName !== \"Root\" && /application\\/json/i.test(pm.response.headers.get(\"Content-Type\") || \"\")) {",
+          "  pm.test(\"Public response shapes and identifiers follow the API contract\", () => {",
+          "    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;",
+          "    function check(value) {",
+          "      if (Array.isArray(value)) return value.forEach(check);",
+          "      if (!value || typeof value !== \"object\") return;",
+          "      if (\"uuid\" in value) {",
+          "        pm.expect(value.uuid).to.match(uuid);",
+          "        pm.expect(value).not.to.have.property(\"id\");",
+          "      }",
+          "      if (\"imageUrls\" in value) {",
+          "        [\"slug\", \"title\", \"shortDescription\"].forEach(key => pm.expect(value[key], key).to.be.a(\"string\"));",
+          "        pm.expect(value).not.to.have.property(\"images\");",
+          "        [\"poster\", \"posterLandscape\", \"homeHero\", \"detailCover\"].forEach(key => {",
+          "          const url = value.imageUrls[key];",
+          "          pm.expect(url === null || (typeof url === \"string\" && /^https:\\/\\//.test(url)), key).to.equal(true);",
+          "        });",
+          "        pm.expect(value.imageUrls.campaigns).to.be.an(\"array\");",
+          "        value.imageUrls.campaigns.forEach(url => pm.expect(url).to.match(/^https:\\/\\//));",
+          "        pm.expect(value.previewVideos).to.be.an(\"array\");",
+          "        value.previewVideos.forEach(video => {",
+          "          pm.expect(video.storageKey).to.be.a(\"string\").and.not.be.empty;",
+          "          pm.expect(video.durationMs).to.satisfy(Number.isInteger).and.be.above(0);",
+          "          pm.expect(video.isSaved).to.be.a(\"boolean\");",
+          "        });",
+          "        pm.expect(value.genres).to.be.an(\"array\");",
+          "        const genreIds = JSON.parse(pm.collectionVariables.get(\"genreIds\"));",
+          "        value.genres.forEach(genre => {",
+          "          pm.expect(genreIds).to.include(genre.id);",
+          "          pm.expect(genre.code).to.be.a(\"string\");",
+          "          pm.expect(genre.name).to.be.a(\"string\");",
+          "        });",
+          "        const count = value.episodeCount ?? value.publishedEpisodeCount;",
+          "        if (count !== undefined) {",
+          "          pm.expect(count).to.satisfy(Number.isInteger).and.be.at.least(0);",
+          "          pm.expect(value.freeEpisodeCount).to.satisfy(Number.isInteger).and.be.within(0, count);",
+          "        }",
+          "      }",
+          "      Object.values(value).forEach(check);",
+          "    }",
+          "    check(pm.response.json());",
+          "  });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Login as entitled fixture user",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Entitled fixture login uses environment credentials and matches the existing UUID', () => { const body = pm.response.json(); pm.response.to.have.status(200); pm.expect(body.uuid).to.equal(pm.variables.get('entitledUserUuid')); pm.expect(body.accessToken).to.be.a('string').and.not.empty; pm.collectionVariables.set('entitledAccessToken', body.accessToken); pm.collectionVariables.set('entitledRefreshToken', body.refreshToken); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"loginId\":\"{{entitledLoginId}}\",\"password\":\"{{entitledPassword}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "Login as unentitled fixture user",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Unentitled fixture login uses environment credentials and matches the existing UUID', () => { const body = pm.response.json(); pm.response.to.have.status(200); pm.expect(body.uuid).to.equal(pm.variables.get('unentitledUserUuid')); pm.expect(body.accessToken).to.be.a('string').and.not.empty; pm.collectionVariables.set('unentitledAccessToken', body.accessToken); pm.collectionVariables.set('unentitledRefreshToken', body.refreshToken); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"loginId\":\"{{unentitledLoginId}}\",\"password\":\"{{unentitledPassword}}\"}"
+        },
+        "url": "{{baseUrl}}/auth/login"
+      }
+    },
+    {
+      "name": "Root",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "[\"catalog\", \"selectedDrama\", \"dramaId\", \"otherDramaId\", \"previewId\", \"freeEpisode\", \"paidEpisode\", \"freeEpisodeId\", \"paidEpisodeId\", \"genreIds\"].forEach(key => pm.collectionVariables.unset(key));",
+              "pm.collectionVariables.set(\"missingId\", pm.variables.replaceIn(\"{{$guid}}\"));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Root responds\", () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.text()).to.equal(\"Hello World!\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/"
+      }
+    },
+    {
+      "name": "Genres",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "",
+              "const genres = pm.response.json();",
+              "pm.test(\"Genres contain database records with unique numeric IDs\", () => {",
+              "  pm.expect(genres).to.be.an(\"array\").and.not.be.empty;",
+              "  pm.expect(new Set(genres.map(genre => genre.id)).size).to.equal(genres.length);",
+              "  genres.forEach(genre => {",
+              "    pm.expect(genre.id).to.satisfy(Number.isInteger).and.be.above(0);",
+              "    pm.expect(genre.code).to.be.a(\"string\").and.not.be.empty;",
+              "    pm.expect(genre.name).to.be.a(\"string\").and.not.be.empty;",
+              "    pm.expect(genre.tileImage === null || typeof genre.tileImage === \"string\").to.equal(true);",
+              "  });",
+              "});",
+              "pm.collectionVariables.set(\"genreIds\", JSON.stringify(genres.map(genre => genre.id)));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/genres"
+      }
+    },
+    {
+      "name": "Latest dramas",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+              "",
+              "const dramas = pm.response.json();",
+              "pm.test(\"Catalog has distinct dramas for playback and ownership checks\", () => {",
+              "  pm.expect(dramas).to.be.an(\"array\");",
+              "  pm.expect(dramas.length).to.be.at.least(2);",
+              "  pm.expect(new Set(dramas.map(drama => drama.uuid)).size).to.equal(dramas.length);",
+              "});",
+              "const selected = dramas.find(drama => drama.previewVideos.length > 0 && drama.freeEpisodeCount > 0 && drama.episodeCount > drama.freeEpisodeCount);",
+              "pm.test(\"Database has a drama with a preview, free episode, and paid episode\", () => {",
+              "  pm.expect(selected, \"Prepare existing development data before running API tests\").to.exist;",
+              "});",
+              "pm.collectionVariables.set(\"catalog\", JSON.stringify(dramas));",
+              "if (selected) {",
+              "  pm.collectionVariables.set(\"selectedDrama\", JSON.stringify(selected));",
+              "  pm.collectionVariables.set(\"dramaId\", selected.uuid);",
+              "  pm.collectionVariables.set(\"previewId\", selected.previewVideos[0].uuid);",
+              "  const other = dramas.find(drama => drama.uuid !== selected.uuid);",
+              "  if (other) pm.collectionVariables.set(\"otherDramaId\", other.uuid);",
+              "} else {",
+              "  pm.execution.setNextRequest(null);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/dramas?sort=latest"
+      }
+    },
+    {
+      "name": "Point increase preflight",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Preflight allows the development origin and POST\", () => {",
+              "  pm.response.to.have.status(204);",
+              "  pm.expect(pm.response.headers.get(\"Access-Control-Allow-Origin\")).to.equal(\"http://localhost:8081\");",
+              "  pm.expect(pm.response.headers.get(\"Access-Control-Allow-Credentials\")).to.equal(\"true\");",
+              "  pm.expect(pm.response.headers.get(\"Access-Control-Allow-Headers\").toLowerCase()).to.include(\"x-auth-transport\");",
+              "  pm.expect(pm.response.headers.get(\"Access-Control-Allow-Methods\")).to.include(\"POST\");",
+              "  pm.expect(pm.response.headers.get(\"Access-Control-Allow-Headers\").toLowerCase()).to.include(\"authorization\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "OPTIONS",
+        "header": [
+          {
+            "key": "Origin",
+            "value": "http://localhost:8081"
+          },
+          {
+            "key": "Access-Control-Request-Method",
+            "value": "POST"
+          },
+          {
+            "key": "Access-Control-Request-Headers",
+            "value": "authorization,content-type"
+          }
+        ],
+        "url": "{{baseUrl}}/me/points/increase"
+      }
+    },
+    {
+      "name": "Point increase requires a JWT",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Unauthenticated point increase returns AUTH_INVALID_TOKEN', () => { const body = pm.response.json(); pm.response.to.have.status(401); pm.expect(body).to.include({ errorCode: 'AUTH_INVALID_TOKEN', errorName: 'InvalidToken', statusCode: 401 }); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"amount\":1,\"idempotencyKey\":\"invalid-user-check\"}"
+        },
+        "url": "{{baseUrl}}/me/points/increase"
+      }
+    },
+    {
+      "name": "Single episode purchase requires a JWT",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Unauthenticated purchase returns AUTH_INVALID_TOKEN', () => { const body = pm.response.json(); pm.response.to.have.status(401); pm.expect(body).to.include({ errorCode: 'AUTH_INVALID_TOKEN', errorName: 'InvalidToken', statusCode: 401 }); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": "{{baseUrl}}/me/episodes/not-a-uuid/purchaseSingle"
+      }
+    },
+    {
+      "name": "Legacy user UUID point route is removed",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('The former user-selected point route returns 404', () => pm.response.to.have.status(404));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{entitledAccessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"amount\":1,\"idempotencyKey\":\"legacy-route-removal\"}"
+        },
+        "url": "{{baseUrl}}/users/{{entitledUserUuid}}/points/increase"
+      }
+    },
+    {
+      "name": "Legacy user UUID purchase route is removed",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('The former user-selected purchase route returns 404', () => pm.response.to.have.status(404));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{entitledAccessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/users/{{entitledUserUuid}}/episodes/{{purchaseTestEpisodeUuid}}/purchaseSingle"
+      }
+    },
+    {
+      "name": "Point increase invalid body returns custom 400",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Invalid increase body returns custom 400', () => { const body = pm.response.json(); pm.response.to.have.status(400); pm.expect(body).to.include({ errorCode: 'POINT_INVALID_INCREASE', errorName: 'InvalidPointIncrease', statusCode: 400 }); pm.expect(body.path).to.equal('/me/points/increase'); pm.expect(new Date(body.timestamp).toISOString()).to.equal(body.timestamp); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{entitledAccessToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"amount\":0,\"idempotencyKey\":\"invalid-body\"}"
+        },
+        "url": "{{baseUrl}}/me/points/increase"
+      }
+    },
+    {
+      "name": "Point increase reused key returns custom 409",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Reused idempotency key returns custom 409', () => { const body = pm.response.json(); pm.response.to.have.status(409); pm.expect(body).to.include({ errorCode: 'POINT_IDEMPOTENCY_CONFLICT', errorName: 'PointIdempotencyConflict', statusCode: 409 }); pm.expect(new Date(body.timestamp).toISOString()).to.equal(body.timestamp); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{entitledAccessToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"amount\":1,\"idempotencyKey\":\"seed:admin:initial-points:v1\"}"
+        },
+        "url": "{{baseUrl}}/me/points/increase"
+      }
+    },
+    {
+      "name": "Single episode purchase missing episode returns custom 404",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Missing episode returns custom 404', () => { const body = pm.response.json(); pm.response.to.have.status(404); pm.expect(body).to.include({ errorCode: 'POINT_EPISODE_NOT_FOUND', errorName: 'PointEpisodeNotFound', statusCode: 404 }); pm.expect(new Date(body.timestamp).toISOString()).to.equal(body.timestamp); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{entitledAccessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/me/episodes/00000020-0000-4000-8000-000000000099/purchaseSingle"
+      }
+    },
+    {
+      "name": "Single episode purchase insufficient balance returns custom 409",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Insufficient balance returns custom 409', () => { const body = pm.response.json(); pm.response.to.have.status(409); pm.expect(body).to.include({ errorCode: 'POINT_INSUFFICIENT_BALANCE', errorName: 'InsufficientPoints', statusCode: 409 }); pm.expect(new Date(body.timestamp).toISOString()).to.equal(body.timestamp); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{unentitledAccessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/me/episodes/00000004-0000-4000-8000-000000000042/purchaseSingle"
+      }
+    },
+    {
+      "name": "Single episode purchase preflight",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Preflight allows the development origin and POST\", () => {",
+              "  pm.response.to.have.status(204);",
+              "  pm.expect(pm.response.headers.get(\"Access-Control-Allow-Origin\")).to.equal(\"http://localhost:8081\");",
+              "  pm.expect(pm.response.headers.get(\"Access-Control-Allow-Methods\")).to.include(\"POST\");",
+              "  pm.expect(pm.response.headers.get(\"Access-Control-Allow-Headers\").toLowerCase()).to.include(\"authorization\");",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "OPTIONS",
+        "header": [
+          {
+            "key": "Origin",
+            "value": "http://localhost:8081"
+          },
+          {
+            "key": "Access-Control-Request-Method",
+            "value": "POST"
+          },
+          {
+            "key": "Access-Control-Request-Headers",
+            "value": "authorization,content-type"
+          }
+        ],
+        "url": "{{baseUrl}}/me/episodes/00000020-0000-4000-8000-000000000001/purchaseSingle"
+      }
+    },
+    {
+      "name": "Point increase succeeds for the authenticated user",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('The authenticated user receives the idempotent point increase', () => { const body = pm.response.json(); pm.response.to.have.status(200); pm.expect(body.amount).to.equal(1); pm.expect(body.balanceAfter).to.be.a('number'); pm.collectionVariables.set('jwtPointIncreaseResult', JSON.stringify(body)); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{entitledAccessToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"amount\":1,\"idempotencyKey\":\"{{pointIncreaseIdempotencyKey}}\",\"memo\":\"API test verification\"}"
+        },
+        "url": "{{baseUrl}}/me/points/increase"
+      }
+    },
+    {
+      "name": "Point increase retry does not change balance twice",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('The same intent returns its first response without a second increase', () => { pm.response.to.have.status(200); pm.expect(pm.response.json()).to.deep.equal(JSON.parse(pm.collectionVariables.get('jwtPointIncreaseResult'))); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{entitledAccessToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"amount\":1,\"idempotencyKey\":\"{{pointIncreaseIdempotencyKey}}\",\"memo\":\"API test verification\"}"
+        },
+        "url": "{{baseUrl}}/me/points/increase"
+      }
+    },
+    {
+      "name": "Purchase an isolated paid test episode as the authenticated user",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('The authenticated user purchases the configured public paid episode', () => { const body = pm.response.json(); pm.response.to.have.status(200); pm.expect(body.episodeUuid).to.equal(pm.variables.get('purchaseTestEpisodeUuid')); pm.expect(body.chargedPoints).to.be.a('number').and.at.least(0); pm.expect(body.availablePoints).to.be.a('number').and.at.least(0); pm.collectionVariables.set('jwtPurchaseResult', JSON.stringify(body)); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{entitledAccessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/me/episodes/{{purchaseTestEpisodeUuid}}/purchaseSingle"
+      }
+    },
+    {
+      "name": "Repeat purchase does not charge twice",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Repeated purchase returns the existing entitlement with no second charge', () => { const first = JSON.parse(pm.collectionVariables.get('jwtPurchaseResult')); const body = pm.response.json(); pm.response.to.have.status(200); pm.expect(body.episodeUuid).to.equal(first.episodeUuid); pm.expect(body.chargedPoints).to.equal(0); pm.expect(body.availablePoints).to.equal(first.availablePoints); pm.expect(body.entitlementUuid).to.equal(first.entitlementUuid); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{entitledAccessToken}}"
+          }
+        ],
+        "url": "{{baseUrl}}/me/episodes/{{purchaseTestEpisodeUuid}}/purchaseSingle"
+      }
+    }
+  ]
+}
