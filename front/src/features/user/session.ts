@@ -1,4 +1,4 @@
-import { ApiError } from '../../common/http/api';
+import { ApiError, readApiError } from '../../common/http/api';
 import type { LoginResponse, RefreshTransport } from './login';
 
 export type RefreshTokenStorage = {
@@ -19,14 +19,7 @@ async function post(path: 'refresh' | 'logout', body: object, fetcher: typeof fe
     body: JSON.stringify(body),
     ...(transport === 'cookie' ? { credentials: 'include' as const } : {}),
   });
-  if (!response.ok) {
-    let body: unknown;
-    try { body = await response.json(); } catch { body = null; }
-    const errorCode = body !== null && typeof body === 'object' && 'errorCode' in body && typeof body.errorCode === 'string'
-      ? body.errorCode
-      : null;
-    throw new ApiError(response.status, errorCode);
-  }
+  if (!response.ok) throw await readApiError(response);
   return response;
 }
 

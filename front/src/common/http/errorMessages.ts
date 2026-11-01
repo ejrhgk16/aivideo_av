@@ -16,12 +16,16 @@ const messages: Record<string, string> = {
 };
 
 export function getErrorMessage(error: unknown): string {
-  if (error instanceof ApiError && error.errorCode !== null) {
-    return messages[error.errorCode] ?? '요청을 처리하지 못했습니다. 다시 시도해 주세요.';
+  if (!(error instanceof ApiError)) return '네트워크 연결을 확인하고 다시 시도해 주세요.';
+  const known = error.errorCode === null ? undefined : messages[error.errorCode];
+  if (typeof known === 'string') return known;
+  if (error.status >= 500) return '서버에 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.';
+  switch (error.status) {
+    case 400: return '요청 정보를 확인해 주세요.';
+    case 401: return '로그인이 필요합니다.';
+    case 403: return '이 요청을 수행할 권한이 없습니다.';
+    case 404: return '요청한 정보를 찾을 수 없습니다.';
+    case 409: return '요청 상태가 변경됐습니다. 다시 확인해 주세요.';
+    default: return '요청을 처리하지 못했습니다. 다시 시도해 주세요.';
   }
-  if (error instanceof ApiError) {
-    if (error.status >= 500) return '서버에 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.';
-    return '요청을 처리하지 못했습니다. 다시 시도해 주세요.';
-  }
-  return '네트워크 연결을 확인하고 다시 시도해 주세요.';
 }

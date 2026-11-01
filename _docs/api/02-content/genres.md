@@ -38,6 +38,8 @@
 
 장르는 `genres.display_order` 오름차순으로 반환한다.
 
+요청 오류는 공통 `{ errorCode, errorName, statusCode, timestamp, path }` 형식으로 반환한다.
+
 ## 관련 데이터 모델
 
 - `genres`

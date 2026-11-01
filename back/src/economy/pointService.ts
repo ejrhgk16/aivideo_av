@@ -4,6 +4,10 @@ import { DataSource, type EntityManager } from 'typeorm';
 import { Drama, Episode } from '../content/entities/index.js';
 import { User } from '../identity/entities/index.js';
 import { EpisodeEntitlement, PointTransaction, Wallet } from './entities/index.js';
+import type {
+  IncreasePointsResponse,
+  PurchaseEpisodeResponse,
+} from './pointResponses.js';
 import {
   InsufficientPointsException,
   PointBalanceOverflowException,
@@ -25,7 +29,10 @@ const MAX_POINTS = 2147483647;
 export class PointService {
   constructor(private readonly dataSource: DataSource) {}
 
-  async increase(userUuid: string, input: IncreasePointsInput) {
+  async increase(
+    userUuid: string,
+    input: IncreasePointsInput,
+  ): Promise<IncreasePointsResponse> {
     try {
       return await this.dataSource.transaction('READ COMMITTED', async (manager) => {
         const user = await manager.getRepository(User).findOneBy({ uuid: userUuid });
@@ -79,7 +86,10 @@ export class PointService {
     }
   }
 
-  async purchaseSingle(userUuid: string, episodeUuid: string) {
+  async purchaseSingle(
+    userUuid: string,
+    episodeUuid: string,
+  ): Promise<PurchaseEpisodeResponse> {
     return this.dataSource.transaction('READ COMMITTED', async (manager) => {
       const user = await manager.getRepository(User).findOneBy({ uuid: userUuid });
       if (!user) throw new PointUserNotFoundException();

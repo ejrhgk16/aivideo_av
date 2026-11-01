@@ -10,6 +10,14 @@ export type ApiRequestOptions = {
 
 export type SessionState = { version: number; accessToken: string | null };
 
+export type ApiErrorResponse = {
+  errorCode: string;
+  errorName: string;
+  statusCode: number;
+  timestamp: string;
+  path: string;
+};
+
 export type ApiSession = {
   ready: () => Promise<void>;
   getSessionState: () => SessionState;
@@ -22,6 +30,19 @@ export class ApiError extends Error {
     super(errorCode ?? `HTTP_${status}`);
     this.name = 'ApiError';
   }
+}
+
+export async function readApiError(response: Response): Promise<ApiError> {
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    body = null;
+  }
+  const errorCode = body !== null && typeof body === 'object' && 'errorCode' in body && typeof body.errorCode === 'string'
+    ? body.errorCode
+    : null;
+  return new ApiError(response.status, errorCode);
 }
 
 export class SessionChangedError extends Error {
@@ -54,18 +75,7 @@ export function createApiClient({ baseUrl, fetcher = fetch, session }: ApiClient
       ...(options.credentials === undefined ? {} : { credentials: options.credentials }),
     });
 
-    if (!response.ok) {
-      let body: unknown;
-      try {
-        body = await response.json();
-      } catch {
-        body = null;
-      }
-      const errorCode = body !== null && typeof body === 'object' && 'errorCode' in body && typeof body.errorCode === 'string'
-        ? body.errorCode
-        : null;
-      throw new ApiError(response.status, errorCode);
-    }
+    if (!response.ok) throw await readApiError(response);
     if (response.status === 204) return undefined as T;
     return await response.json() as T;
   }

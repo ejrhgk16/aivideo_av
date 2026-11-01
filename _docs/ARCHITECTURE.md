@@ -14,7 +14,7 @@ Expo React Native client. Own `package.json` and lockfile.
 | `src/screens/` | Screen-level UI. |
 | `src/components/` | Reusable UI components. |
 | `src/common/` | Shared HTTP, storage, environment, theme, and pure utility code. |
-| `src/features/` | Feature-specific state, endpoints, and types. `user/` owns the current nullable user, points, and in-memory playback preferences in one Context. |
+| `src/features/` | Feature-specific state, endpoints, and types. Each feature owns its API response types in `*Responses.ts` and keeps existing feature type exports. `user/` owns the current nullable user, points, and in-memory playback preferences in one Context. |
 | `assets/images/` | Static screen images. |
 | `assets/icons/` | Static icons. |
 | `assets/fonts/` | Font files and licenses. |
@@ -28,10 +28,11 @@ NestJS API server. Own `package.json` and lockfile.
 |---|---|
 | `src/` | NestJS modules, controllers, and services. |
 | `src/{domain}/entities/` | Domain-specific Entity classes and persistence metadata. |
+| `src/{domain}/*Responses.ts` | Named public API response types, kept separate from Entities and database query rows. Async controller and service methods declare `Promise<ResponseType>` or `Promise<ResponseType[]>`; empty 204 responses declare `Promise<void>`. |
 | `src/identity/` | User identity, credential lookup, login/refresh/logout APIs, JWT issuance, Passport Access validation, and session-scoped Refresh rotation/revocation. |
 | `src/playback/` | JWT-authenticated saved-video writes and pages, plus episode watch-progress writes against the existing user/episode progress key. |
 | `src/common/entities/` | Shared persistence base entities and metadata. |
-| `src/common/error/` | Shared custom HTTP error base, error codes, concrete exceptions, and response filter used by opted-in controllers. |
+| `src/common/error/` | Shared custom HTTP errors and application-wide exception filter that maps business, HTTP, parser, and unknown errors to the common five-field response. |
 | `src/common/database/` | Shared TypeORM configuration and Entity registry, CLI `DataSource`, explicit development seed CLI, and migration files. |
 | `test/api/` | Feature-scoped Postman suites, per-run fixture preparation and cleanup, cross-process content locks, and instructions for HTTP tests against the running API and its MySQL database. |
 | `test/unit/` | Focused tests for internal rules and publication/environment boundaries that cannot be exercised without changing existing data. |
@@ -56,6 +57,7 @@ Preserved standalone web prototype. It is not imported or run by `front/`, and i
 ## Boundaries
 
 - Frontend and backend dependencies are managed independently.
+- Frontend and backend API response types are defined independently in their respective feature/domain folders; neither side imports the other side's source types.
 - `front/tests/`, `back/test/`, and `tools/harness/` are the only test roots.
 - A directory responsibility change must update this document in the same task.
 
@@ -63,7 +65,9 @@ Preserved standalone web prototype. It is not imported or run by `front/`, and i
 
 The root layout provides one `UserProvider`. Its in-memory session holds the nullable user, points, Access token, restore state, session version, and session-expiration signal alongside playback preferences. Native Refresh remains in SecureStore; web Refresh is stored in a server-set HttpOnly cookie and is never read by frontend JavaScript. Login updates user, points, and Access together; logout or invalidation clears them. Session changes do not remount navigation.
 
-The app HTTP client in `src/features/user/sessionClient.ts` uses `src/common/http/api.ts`. Home collections, catalog lists, drama details, and preview/episode playback use optional Access authentication: anonymous reads omit Authorization, while a current session supplies it so responses can include per-user saved flags. Purchases and saved-video reads/writes use required authentication. A 401 with `AUTH_INVALID_TOKEN` on an authenticated request shares one Refresh rotation, retries that request once, then signals session expiry if it still fails. Error codes are mapped to Korean guidance; each screen handles its own retry or purchase explanation.
+The app HTTP client in `src/features/user/sessionClient.ts` uses `src/common/http/api.ts`. Home collections, catalog lists, drama details, and preview/episode playback use optional Access authentication: anonymous reads omit Authorization, while a current session supplies it so responses can include per-user saved flags. Purchases and saved-video reads/writes use required authentication. A 401 with `AUTH_INVALID_TOKEN` on an authenticated request shares one Refresh rotation, retries that request once, then signals session expiry if it still fails.
+
+Read [frontend API error handling](api/00-overview/error-code.md) before changing frontend error parsing, guidance, or session recovery.
 
 The root layout nests `SavedVideosProvider` inside `UserProvider`. The playback feature owns the saved-video API and in-memory per-session state; the provider creates a fresh store for each user UUID and session version. Saved flags from API observations are reconciled by revision so an older read cannot overwrite a completed save/remove, while pending writes are protected. Saved-video pages use the same store to keep playback buttons and the library in sync; save writes use the actual video UUID and never grant episode entitlement.
 

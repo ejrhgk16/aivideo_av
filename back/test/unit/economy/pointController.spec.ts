@@ -4,7 +4,6 @@ import { HTTP_CODE_METADATA, METHOD_METADATA, PATH_METADATA } from '@nestjs/comm
 import { describe, expect, it, vi } from 'vitest';
 import { PointController } from '../../../src/economy/pointController.js';
 import { InvalidPointIncreaseException } from '../../../src/common/error/error.customExceptions.js';
-import { AllExceptionFilter } from '../../../src/common/error/error.filter.js';
 import { JwtAuthGuard } from '../../../src/identity/jwtAuthGuard.js';
 
 const userUuid = '00000010-0000-4000-8000-000000000001';
@@ -66,9 +65,7 @@ describe('PointController', () => {
       expect(Reflect.getMetadata(HTTP_CODE_METADATA, handler)).toBe(200);
     }
     expect(PointController.prototype).not.toHaveProperty('decrease');
-    expect(Reflect.getMetadata('__exceptionFilters__', PointController)).toEqual([
-      AllExceptionFilter,
-    ]);
+    expect(Reflect.getMetadata('__exceptionFilters__', PointController)).toBeUndefined();
     expect(Reflect.getMetadata('__guards__', PointController)).toEqual([JwtAuthGuard]);
   });
 });

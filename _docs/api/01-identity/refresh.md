@@ -28,7 +28,8 @@ Refresh JWT를 한 번 사용해 새 Access/Refresh 쌍으로 회전한다. 네�
 | --- | --- | --- | --- |
 | 400 | `AUTH_INVALID_TOKEN_INPUT` | `InvalidTokenInput` | body 또는 refreshToken 누락·공백·비문자열 |
 | 401 | `AUTH_INVALID_TOKEN` | `InvalidToken` | 서명·용도·만료·사용자·이력 검증 실패 또는 재사용 탐지 |
+| 403 | `HTTP_FORBIDDEN` | `FORBIDDEN` | 웹 전송 헤더 또는 allowlist Origin이 잘못됨 |
 
 DB 장애는 인증 실패로 바꾸지 않고 서버 오류로 처리한다.
 
-요청에 Origin 또는 `X-Auth-Transport`가 있으면 두 값 모두 웹 쿠키 모드 계약에 맞아야 한다. 헤더 또는 Origin 누락·불일치는 서비스 호출 전 403이다. 둘 다 없는 요청은 네이티브 JSON 모드다.
+요청에 Origin 또는 `X-Auth-Transport`가 있으면 두 값 모두 웹 쿠키 모드 계약에 맞아야 한다. 헤더 또는 Origin 누락·불일치는 서비스 호출 전 공통 오류 형식 `{ errorCode, errorName, statusCode, timestamp, path }`의 403이다. 둘 다 없는 요청은 네이티브 JSON 모드다.

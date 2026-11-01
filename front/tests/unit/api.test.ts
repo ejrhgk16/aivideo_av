@@ -60,14 +60,53 @@ test('required requests without a token fail locally without fetching', async ()
 test('JSON requests set content type, handle 204, and preserve HTTP errors without JSON bodies', async () => {
   const { session } = fakeSession();
   const requests: RequestInit[] = [];
+  let emptyJsonCalls = 0;
   const client = createApiClient({ baseUrl: 'http://localhost:3000', session, fetcher: (async (_url, init) => {
     requests.push(init ?? {});
-    return requests.length === 1 ? response(204) : { ok: false, status: 503, json: async () => { throw new Error('not json'); } } as unknown as Response;
+    return requests.length === 1
+      ? { ok: true, status: 204, json: async () => { emptyJsonCalls += 1; return null; } } as unknown as Response
+      : { ok: false, status: 503, json: async () => { throw new Error('not json'); } } as unknown as Response;
   }) as typeof fetch });
   assert.equal(await client.request('/write', { auth: 'public', method: 'POST', json: { value: 1 } }), undefined);
   assert.deepEqual(requests[0].headers, { 'Content-Type': 'application/json' });
   assert.equal(requests[0].body, JSON.stringify({ value: 1 }));
+  assert.equal(emptyJsonCalls, 0);
   await assert.rejects(client.request('/fail', { auth: 'public' }), (error) => error instanceof ApiError && error.status === 503 && error.errorCode === null);
+});
+
+test('successful API responses are returned as the original JSON, including business data fields', async () => {
+  const { session } = fakeSession();
+  const original = { data: { label: 'a business field' }, value: null, items: [1, { name: 'one' }] };
+  const client = createApiClient({ baseUrl: 'http://localhost:3000', session, fetcher: (async () => response(200, original)) as typeof fetch });
+  const result = await client.request<typeof original>('/raw-response', { auth: 'public' });
+  assert.deepEqual(result, original);
+  assert.strictEqual(result, original);
+});
+
+test('shared API error parsing keeps the HTTP status and tolerates malformed or non-JSON bodies', async (t) => {
+  for (const [name, status, body] of [
+    ['standard error with mismatched body status', 409, { errorCode: 'HTTP_CONFLICT', statusCode: 503 }],
+    ['unknown error code', 404, { errorCode: 'HTTP_FUTURE_STATUS' }],
+    ['body without error code', 403, { statusCode: 401 }],
+  ] as const) {
+    await t.test(name, async () => {
+      const { session } = fakeSession();
+      const client = createApiClient({ baseUrl: 'http://localhost:3000', session, fetcher: (async () => response(status, body)) as typeof fetch });
+      await assert.rejects(client.request('/failure', { auth: 'public' }), (error) =>
+        error instanceof ApiError && error.status === status && error.errorCode === ('errorCode' in body ? body.errorCode : null));
+    });
+  }
+
+  for (const [name, status] of [['malformed JSON', 400], ['non-JSON response', 502]] as const) {
+    await t.test(name, async () => {
+      const { session } = fakeSession();
+      const client = createApiClient({ baseUrl: 'http://localhost:3000', session, fetcher: (async () => ({
+        ok: false, status, json: async () => { throw new SyntaxError('invalid JSON'); },
+      }) as unknown as Response) as typeof fetch });
+      await assert.rejects(client.request('/failure', { auth: 'public' }), (error) =>
+        error instanceof ApiError && error.status === status && error.errorCode === null);
+    });
+  }
 });
 
 test('explicit cookie request options are forwarded without enabling cookies for product requests', async () => {
@@ -135,13 +174,16 @@ test('a late 401 from the old access token uses the rotated token without anothe
 test('403, 5xx, and public auth requests never trigger refresh', async (t) => {
   for (const [path, auth, status, code] of [
     ['/forbidden', 'required', 403, 'EPISODE_ACCESS_DENIED'],
-    ['/server-error', 'required', 503, null],
+    ['/global-forbidden', 'required', 403, 'HTTP_FORBIDDEN'],
+    ['/server-error', 'required', 503, 'HTTP_SERVICE_UNAVAILABLE'],
+    ['/generic-unauthorized', 'required', 401, 'HTTP_UNAUTHORIZED'],
+    ['/login-failed', 'required', 401, 'AUTH_LOGIN_FAILED'],
     ['/auth/login', 'public', 401, 'AUTH_INVALID_TOKEN'],
   ] as const) {
     await t.test(path, async () => {
       const { session, refreshCount } = fakeSession();
-      const client = createApiClient({ baseUrl: 'http://localhost:3000', session, fetcher: (async () => response(status, code === null ? null : { errorCode: code })) as typeof fetch });
-      await assert.rejects(client.request(path, { auth }), (error) => error instanceof ApiError && error.status === status);
+      const client = createApiClient({ baseUrl: 'http://localhost:3000', session, fetcher: (async () => response(status, { errorCode: code })) as typeof fetch });
+      await assert.rejects(client.request(path, { auth }), (error) => error instanceof ApiError && error.status === status && error.errorCode === code);
       assert.equal(refreshCount(), 0);
     });
   }

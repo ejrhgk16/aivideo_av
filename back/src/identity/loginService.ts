@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Wallet } from '../economy/entities/index.js';
 import { LoginFailedException } from '../common/error/error.customExceptions.js';
 import { User } from './entities/index.js';
+import type { NativeSessionResponse } from './identityResponses.js';
 import { TokenService } from './tokenService.js';
 
 export interface LoginInput {
@@ -18,7 +19,7 @@ export class LoginService {
     private readonly tokenService: TokenService,
   ) {}
 
-  async login(input: LoginInput) {
+  async login(input: LoginInput): Promise<NativeSessionResponse> {
     const row = await this.users
       .createQueryBuilder('user')
       .leftJoin(Wallet, 'wallet', 'wallet.userId = user.id')

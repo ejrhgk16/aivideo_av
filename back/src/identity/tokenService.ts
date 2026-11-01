@@ -7,6 +7,7 @@ import { DataSource, Repository } from 'typeorm';
 import { Wallet } from '../economy/entities/index.js';
 import { InvalidTokenException } from '../common/error/error.customExceptions.js';
 import { AuthSession, RefreshToken, User } from './entities/index.js';
+import type { NativeSessionResponse } from './identityResponses.js';
 
 const accessLifetime = 900;
 const refreshLifetime = 1209600;
@@ -19,6 +20,12 @@ interface RefreshClaims {
   iat: number;
   exp: number;
 }
+
+type GeneratedTokens = {
+  accessToken: string;
+  refreshToken: string;
+  refreshExpiresAt: Date;
+};
 
 @Injectable()
 export class TokenService {
@@ -39,7 +46,7 @@ export class TokenService {
     }
   }
 
-  async generateTokens(userUuid: string) {
+  async generateTokens(userUuid: string): Promise<GeneratedTokens> {
     const [accessToken, refreshToken] = await Promise.all([
       this.jwt.signAsync(
         { sub: userUuid, tokenType: 'access' },
@@ -78,7 +85,7 @@ export class TokenService {
     });
   }
 
-  async refresh(refreshToken: string) {
+  async refresh(refreshToken: string): Promise<NativeSessionResponse> {
     const claims = await this.verifyRefresh(refreshToken);
     const found = await this.refreshTokens.findOneBy({ tokenHash: this.hash(refreshToken) });
     if (!found) throw new InvalidTokenException();

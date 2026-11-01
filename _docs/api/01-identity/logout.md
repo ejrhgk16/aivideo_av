@@ -28,3 +28,6 @@ Refresh JWT 이력이 연결된 로그인 전체를 폐기한다.
 | --- | --- | --- | --- |
 | 400 | `AUTH_INVALID_TOKEN_INPUT` | `InvalidTokenInput` | body 또는 refreshToken 누락·공백·비문자열 |
 | 401 | `AUTH_INVALID_TOKEN` | `InvalidToken` | 서명·용도·만료·소유자 검증 실패 |
+| 403 | `HTTP_FORBIDDEN` | `FORBIDDEN` | 웹 전송 헤더 또는 allowlist Origin이 잘못됨 |
+
+모든 오류는 `{ errorCode, errorName, statusCode, timestamp, path }` 형식이다.

@@ -1,11 +1,7 @@
 import { apiRequest } from '../user/sessionClient';
+import type { EpisodePurchaseResponse } from './economyResponses';
 
-export interface EpisodePurchaseResponse {
-  episodeUuid: string;
-  entitlementUuid: string | null;
-  chargedPoints: number;
-  availablePoints: number;
-}
+export type { EpisodePurchaseResponse } from './economyResponses';
 
 export function purchaseEpisode(episodeUuid: string): Promise<EpisodePurchaseResponse> {
   return apiRequest<EpisodePurchaseResponse>(

@@ -61,7 +61,7 @@ PREVIEW와 EPISODE 모두 같은 경로로 해제한다. 공개·구매 상태�
 
 ## 오류
 
-401 `AUTH_INVALID_TOKEN`은 `{ "errorCode", "errorName", "statusCode", "timestamp", "path" }` 형식이다. 입력 400과 대상 404는 NestJS 기본 `{ "statusCode", "message", "error" }` body를 사용한다.
+모든 오류는 `{ "errorCode", "errorName", "statusCode", "timestamp", "path" }`의 공통 형식이다. 업무 오류 코드는 기존 값을 유지하고, 입력 오류는 `HTTP_BAD_REQUEST`(400), 대상이 없거나 공개되지 않은 경우는 `HTTP_NOT_FOUND`(404)를 사용한다.
 
 | HTTP | 조건 |
 | --- | --- |

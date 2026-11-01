@@ -13,54 +13,17 @@ import { User } from '../identity/entities/user.entity.js';
 import { UserWatchProgress } from '../playback/entities/userWatchProgress.entity.js';
 import { UserSavedVideo } from '../playback/entities/userSavedVideo.entity.js';
 import { createDramaImageUrls } from './mediaUrl.js';
+import type {
+  DramaDetailResponse,
+  DramaSummaryResponse,
+  EpisodePlaybackResponse,
+  GenreResponse,
+  PreviewPlaybackResponse,
+} from './contentResponses.js';
 import { S3VideoUrlService } from './s3VideoUrlService.js';
 import { EpisodeAccessDeniedException, InvalidTokenException } from '../common/error/error.customExceptions.js';
 
 const PUBLIC_STATUS = 'PUBLISHED';
-
-export type DramaSummary = {
-  uuid: string;
-  slug: string;
-  title: string;
-  shortDescription: string;
-  productionCompany: string | null;
-  genres: Array<{ id: number; code: string; name: string }>;
-  imageUrls: ReturnType<typeof createDramaImageUrls>;
-  previewVideos: Array<{ uuid: string; storageKey: string; durationMs: number; isSaved: boolean }>;
-  episodeCount: number;
-  freeEpisodeCount: number;
-};
-
-export type GenreSummary = Pick<Genre, 'id' | 'code' | 'name'> & { tileImage: string | null };
-
-export type DramaDetail = {
-  uuid: string;
-  slug: string;
-  title: string;
-  shortDescription: string;
-  synopsis: string;
-  productionCompany: string | null;
-  genres: Array<{ id: number; code: string; name: string }>;
-  imageUrls: ReturnType<typeof createDramaImageUrls>;
-  previewVideos: Array<{ uuid: string; storageKey: string; durationMs: number; isSaved: boolean }>;
-  episodes: Array<{
-    uuid: string;
-    episodeNumber: number;
-    title: string | null;
-    synopsis: string | null;
-    durationMs: number;
-    pricePoints: number;
-    image: string | null;
-    isUnlocked: boolean;
-    videoUuid: string | null;
-    isSaved: boolean;
-    watchProgress: {
-      positionMs: number;
-      isCompleted: boolean;
-      lastPlayedAt: string;
-    } | null;
-  }>;
-};
 
 function mapImages(images: ContentImage[]) {
   const sorted = [...images].sort((left, right) => left.displayOrder - right.displayOrder);
@@ -129,7 +92,7 @@ export class PublicCatalogService {
     return rows.map((row) => ({ ...row, isSaved: Number(row.isSaved) === 1 }));
   }
 
-  async listDramas(sort: 'latest' = 'latest', now = new Date(), userUuid?: string): Promise<DramaSummary[]> {
+  async listDramas(sort: 'latest' = 'latest', now = new Date(), userUuid?: string): Promise<DramaSummaryResponse[]> {
     if (sort !== 'latest') {
       return [];
     }
@@ -210,7 +173,7 @@ export class PublicCatalogService {
     });
   }
 
-  async getDrama(dramaId: string, now = new Date(), userUuid?: string): Promise<DramaDetail> {
+  async getDrama(dramaId: string, now = new Date(), userUuid?: string): Promise<DramaDetailResponse> {
     const drama = await this.dramaRepository.findOne({
       where: { uuid: dramaId, status: PUBLIC_STATUS },
     });
@@ -389,14 +352,14 @@ export class PublicCatalogService {
     return video;
   }
 
-  async getEpisodePlaybackUrl(episodeId: string, userUuid?: string, now = new Date()): Promise<{ url: string; videoUuid: string; isSaved: boolean; title: string | null; episodeNumber: number; durationMs: number }> {
+  async getEpisodePlaybackUrl(episodeId: string, userUuid?: string, now = new Date()): Promise<EpisodePlaybackResponse> {
     if (process.env.NODE_ENV !== 'development') throw new NotFoundException(`Episode '${episodeId}' was not found`);
     const { storageKey, videoUuid, isSaved, title, episodeNumber, durationMs } = await this.getEpisodeVideo(episodeId, userUuid, now);
     const url = await this.s3VideoUrlService.createSignedGetUrl(storageKey);
     return { url, videoUuid, isSaved: Number(isSaved) === 1, title, episodeNumber, durationMs };
   }
 
-  async getDramaPreviewPlaybackUrl(dramaId: string, videoId: string, userUuid?: string): Promise<{ url: string; videoUuid: string; isSaved: boolean; durationMs: number }> {
+  async getDramaPreviewPlaybackUrl(dramaId: string, videoId: string, userUuid?: string): Promise<PreviewPlaybackResponse> {
     if (process.env.NODE_ENV !== 'development') throw new NotFoundException();
 
     const video = await this.contentVideoRepository.createQueryBuilder('video')
@@ -418,7 +381,7 @@ export class PublicCatalogService {
     return { url, videoUuid: video.videoUuid, isSaved: Number(video.isSaved) === 1, durationMs: video.durationMs };
   }
 
-  async listGenres(): Promise<GenreSummary[]> {
+  async listGenres(): Promise<GenreResponse[]> {
     const genres = await this.genreRepository.find({ order: { displayOrder: 'ASC' } });
     const tileImages = await this.contentImageRepository.findBy({
       contentType: 'GENRE',

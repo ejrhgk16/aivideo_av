@@ -109,12 +109,37 @@
         "exec": [
           "pm.test(\"API does not return a server error\", () => {",
           "  pm.expect(pm.response.code).to.be.below(500);",
+          "  if (pm.response.code === 204) pm.test('204 response body is empty', () => pm.expect(pm.response.text()).to.equal(''));",
           "});",
-          "if (pm.response.code === 200 && pm.info.requestName !== \"Root\" && /application\\/json/i.test(pm.response.headers.get(\"Content-Type\") || \"\")) {",
+          "if (pm.info.requestName !== \"Root\" && /application\\/json/i.test(pm.response.headers.get(\"Content-Type\") || \"\")) {",
           "  pm.test(\"Public response shapes and identifiers follow the API contract\", () => {",
           "    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;",
+          "    const exactKeys = (value, keys) => pm.expect(Object.keys(value).sort()).to.eql(keys.slice().sort());",
+          "    const checkGenre = value => { exactKeys(value, ['id', 'code', 'name', 'tileImage']); pm.expect(value.id).to.be.a('number').and.satisfy(Number.isInteger); pm.expect(value.code).to.be.a('string'); pm.expect(value.name).to.be.a('string'); pm.expect(value.tileImage === null || typeof value.tileImage === 'string').to.equal(true); };",
+          "    const checkDramaGenre = value => { exactKeys(value, ['id', 'code', 'name']); pm.expect(value.id).to.be.a('number').and.satisfy(Number.isInteger); pm.expect(value.code).to.be.a('string'); pm.expect(value.name).to.be.a('string'); };",
+          "    const checkMedia = value => { exactKeys(value, ['uuid', 'storageKey', 'durationMs', 'isSaved']); pm.expect(value.uuid).to.match(uuid); pm.expect(value.storageKey).to.be.a('string').and.not.empty; pm.expect(value.durationMs).to.be.a('number').and.satisfy(Number.isInteger); pm.expect(value.isSaved).to.be.a('boolean'); };",
+          "    const checkImages = value => { exactKeys(value, ['poster', 'posterLandscape', 'homeHero', 'detailCover', 'campaigns']); const validUrl = url => url === null || (typeof url === 'string' && /^https:\\/\\//.test(url)); ['poster', 'posterLandscape', 'homeHero', 'detailCover'].forEach(key => pm.expect(validUrl(value[key])).to.equal(true)); pm.expect(value.campaigns).to.be.an('array'); value.campaigns.forEach(url => pm.expect(url).to.match(/^https:\\/\\//)); };",
+          "    const checkDrama = (value, kind) => { const keys = kind === 'catalog' ? ['uuid','slug','title','shortDescription','productionCompany','genres','imageUrls','previewVideos','episodeCount','freeEpisodeCount'] : kind === 'detail' ? ['uuid','slug','title','shortDescription','synopsis','productionCompany','genres','imageUrls','previewVideos','episodes'] : ['uuid','slug','title','shortDescription','productionCompany','genres','imageUrls','previewVideos','publishedEpisodeCount','freeEpisodeCount','displayOrder']; exactKeys(value, keys); pm.expect(value.uuid).to.match(uuid); ['slug','title','shortDescription'].forEach(key => pm.expect(value[key]).to.be.a('string')); if (kind === 'detail') pm.expect(value.synopsis).to.be.a('string'); if(kind === 'collection') { if(value.productionCompany !== null) { exactKeys(value.productionCompany,['uuid','name']); pm.expect(value.productionCompany.uuid).to.match(uuid); pm.expect(value.productionCompany.name).to.be.a('string'); } } else pm.expect(value.productionCompany === null || typeof value.productionCompany === 'string').to.equal(true); pm.expect(value.genres).to.be.an('array'); value.genres.forEach(checkDramaGenre); checkImages(value.imageUrls); pm.expect(value.previewVideos).to.be.an('array'); value.previewVideos.forEach(checkMedia); if(kind === 'catalog') { pm.expect(value.episodeCount).to.satisfy(Number.isInteger); pm.expect(value.freeEpisodeCount).to.satisfy(Number.isInteger); } if(kind === 'collection') { pm.expect(value.publishedEpisodeCount).to.satisfy(Number.isInteger); pm.expect(value.freeEpisodeCount).to.satisfy(Number.isInteger); pm.expect(value.displayOrder).to.satisfy(Number.isInteger); } if(kind === 'detail') { pm.expect(value.episodes).to.be.an('array'); value.episodes.forEach(episode => { exactKeys(episode,['uuid','episodeNumber','title','synopsis','durationMs','pricePoints','image','isUnlocked','videoUuid','isSaved','watchProgress']); pm.expect(episode.episodeNumber).to.satisfy(Number.isInteger); pm.expect(episode.title === null || typeof episode.title === 'string').to.equal(true); pm.expect(episode.synopsis === null || typeof episode.synopsis === 'string').to.equal(true); pm.expect(episode.durationMs).to.satisfy(Number.isInteger); pm.expect(episode.pricePoints).to.satisfy(Number.isInteger); pm.expect(episode.image === null || typeof episode.image === 'string').to.equal(true); pm.expect(episode.isUnlocked).to.be.a('boolean'); pm.expect(episode.videoUuid === null || typeof episode.videoUuid === 'string').to.equal(true); pm.expect(episode.isSaved).to.be.a('boolean'); if(episode.watchProgress !== null) { exactKeys(episode.watchProgress,['positionMs','isCompleted','lastPlayedAt']); pm.expect(episode.watchProgress.positionMs).to.satisfy(Number.isInteger); pm.expect(episode.watchProgress.isCompleted).to.be.a('boolean'); pm.expect(episode.watchProgress.lastPlayedAt).to.be.a('string'); } }); } };",
+          "    const checkResponseRoot = (name, value) => { if(name === 'Genres') { pm.expect(value).to.be.an('array'); value.forEach(checkGenre); } else if(name === 'Latest dramas') { pm.expect(value).to.be.an('array'); value.forEach(item => checkDrama(item,'catalog')); } else if(name.startsWith('Drama detail')) { checkDrama(value,'detail'); const assertEpisodeOrder=episodes=>{const numbers=episodes.map(episode=>episode.episodeNumber);pm.expect(numbers).to.eql(numbers.slice().sort((a,b)=>a-b));}; assertEpisodeOrder(value.episodes); if(value.episodes.length>1) pm.expect(()=>assertEpisodeOrder(value.episodes.slice().reverse())).to.throw(); } else if(name.startsWith('Collection ')) { exactKeys(value,['code','title','description','dramas']); pm.expect(value.title).to.be.a('string'); pm.expect(value.description === null || typeof value.description === 'string').to.equal(true); pm.expect(value.dramas).to.be.an('array'); value.dramas.forEach(item => checkDrama(item,'collection')); } else if(name.toLowerCase().includes('playback') && pm.response.code === 200 ) { exactKeys(value, name.startsWith('Preview') ? ['url','videoUuid','isSaved','durationMs'] : ['url','videoUuid','isSaved','title','episodeNumber','durationMs']); pm.expect(value.url).to.match(/^https:\\/\\//); pm.expect(value.videoUuid).to.match(uuid); pm.expect(value.isSaved).to.be.a('boolean'); pm.expect(value.durationMs).to.satisfy(Number.isInteger); if('episodeNumber' in value) { pm.expect(value.title === null || typeof value.title === 'string').to.equal(true); pm.expect(value.episodeNumber).to.satisfy(Number.isInteger); } } else if(name.includes('Login') || name.includes('Refresh chain') || name.includes('rotation receives')) { exactKeys(value,['uuid','displayName','accountType','availablePoints','accessToken','refreshToken','expiresIn']); pm.expect(value.uuid).to.match(uuid); pm.expect(value.displayName === null || typeof value.displayName === 'string').to.equal(true); pm.expect(value.accountType).to.be.a('string'); pm.expect(value.availablePoints).to.satisfy(Number.isInteger); pm.expect(value.accessToken).to.be.a('string').and.not.empty; pm.expect(value.refreshToken).to.be.a('string').and.not.empty; pm.expect(value.expiresIn).to.equal(900); } else if(name.includes('Point increase succeeds') || name.includes('Point increase retry')) { exactKeys(value,['uuid','amount','balanceAfter']); pm.expect(value.amount).to.satisfy(Number.isInteger); pm.expect(value.balanceAfter).to.satisfy(Number.isInteger); } else if(name.includes('Purchase') && pm.response.code === 200) { exactKeys(value,['episodeUuid','entitlementUuid','chargedPoints','availablePoints']); pm.expect(value.entitlementUuid === null || typeof value.entitlementUuid === 'string').to.equal(true); pm.expect(value.chargedPoints).to.satisfy(Number.isInteger); pm.expect(value.availablePoints).to.satisfy(Number.isInteger); } };",
           "    function check(value) {",
           "      if (Array.isArray(value)) return value.forEach(check);",
+          "      if (!value || typeof value !== \"object\") return;",
+          "      const exact = keys => pm.expect(Object.keys(value).sort()).to.eql(keys.slice().sort());",
+          "      if (\"errorCode\" in value) { exact([\"errorCode\", \"errorName\", \"statusCode\", \"timestamp\", \"path\"]); pm.expect(value.statusCode).to.equal(pm.response.code); pm.expect(new Date(value.timestamp).toISOString()).to.equal(value.timestamp); const requestUrl = new URL(pm.variables.replaceIn(pm.request.url.toString())); pm.expect(value.path).to.equal(requestUrl.pathname + requestUrl.search); }",
+          "      if (\"accessToken\" in value) exact([\"uuid\", \"displayName\", \"accountType\", \"availablePoints\", \"accessToken\", \"refreshToken\", \"expiresIn\"]);",
+          "      if (\"tileImage\" in value) exact([\"id\", \"code\", \"name\", \"tileImage\"]);",
+          "      if (\"imageUrls\" in value) {",
+          "        if (\"publishedEpisodeCount\" in value) exact([\"uuid\", \"slug\", \"title\", \"shortDescription\", \"productionCompany\", \"genres\", \"imageUrls\", \"previewVideos\", \"publishedEpisodeCount\", \"freeEpisodeCount\", \"displayOrder\"]);",
+          "        else if (\"synopsis\" in value) exact([\"uuid\", \"slug\", \"title\", \"shortDescription\", \"synopsis\", \"productionCompany\", \"genres\", \"imageUrls\", \"previewVideos\", \"episodes\"]);",
+          "        else exact([\"uuid\", \"slug\", \"title\", \"shortDescription\", \"productionCompany\", \"genres\", \"imageUrls\", \"previewVideos\", \"episodeCount\", \"freeEpisodeCount\"]);",
+          "        pm.expect(Object.keys(value.imageUrls).sort()).to.eql([\"poster\", \"posterLandscape\", \"homeHero\", \"detailCover\", \"campaigns\"].sort());",
+          "      }",
+          "      if (\"storageKey\" in value && \"isSaved\" in value && \"durationMs\" in value) exact([\"uuid\", \"storageKey\", \"durationMs\", \"isSaved\"]);",
+          "      if (\"episodeNumber\" in value && \"pricePoints\" in value) exact([\"uuid\", \"episodeNumber\", \"title\", \"synopsis\", \"durationMs\", \"pricePoints\", \"image\", \"isUnlocked\", \"videoUuid\", \"isSaved\", \"watchProgress\"]);",
+          "      if (\"watchProgress\" in value && value.watchProgress !== null) pm.expect(Object.keys(value.watchProgress).sort()).to.eql([\"positionMs\", \"isCompleted\", \"lastPlayedAt\"].sort());",
+          "      if (\"code\" in value && \"dramas\" in value) exact([\"code\", \"title\", \"description\", \"dramas\"]);",
+          "      if (\"videoUuid\" in value && \"contentType\" in value) exact([\"videoUuid\", \"contentType\", \"savedAt\", \"dramaUuid\", \"dramaTitle\", \"imageUrl\", \"durationMs\", \"episodeUuid\", \"episodeNumber\", \"episodeTitle\"]);",
+          "      if (\"items\" in value && \"hasNext\" in value) exact([\"items\", \"page\", \"hasNext\"]);",
           "      if (!value || typeof value !== \"object\") return;",
           "      if (\"uuid\" in value) {",
           "        pm.expect(value.uuid).to.match(uuid);",
@@ -150,6 +175,7 @@
           "      }",
           "      Object.values(value).forEach(check);",
           "    }",
+          "    if (pm.response.code === 200) checkResponseRoot(pm.info.requestName, pm.response.json());",
           "    check(pm.response.json());",
           "  });",
           "}"
@@ -353,6 +379,53 @@
           }
         ],
         "url": "{{baseUrl}}/me/episodes/00000020-0000-4000-8000-000000000001/purchaseSingle"
+      }
+    },
+    {
+      "name": "Missing route uses the global error contract",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Missing route returns the shared 404 body', () => { const body = pm.response.json(); pm.response.to.have.status(404); pm.expect(Object.keys(body).sort()).to.eql(['errorCode', 'errorName', 'path', 'statusCode', 'timestamp']); pm.expect(body.errorCode).to.equal('HTTP_NOT_FOUND'); pm.expect(body.errorName).to.equal('NOT_FOUND'); pm.expect(body.statusCode).to.equal(404); pm.expect(body.path).to.equal('/__api_contract_missing__'); pm.expect(new Date(body.timestamp).toISOString()).to.equal(body.timestamp); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/__api_contract_missing__"
+      }
+    },
+    {
+      "name": "Malformed JSON uses the global error contract",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Malformed JSON returns the shared 400 body', () => { const body = pm.response.json(); pm.response.to.have.status(400); pm.expect(Object.keys(body).sort()).to.eql(['errorCode', 'errorName', 'path', 'statusCode', 'timestamp']); pm.expect(body.errorCode).to.equal('HTTP_BAD_REQUEST'); pm.expect(body.errorName).to.equal('BAD_REQUEST'); pm.expect(body.statusCode).to.equal(400); pm.expect(body.path).to.equal('/auth/login'); pm.expect(new Date(body.timestamp).toISOString()).to.equal(body.timestamp); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{"
+        },
+        "url": "{{baseUrl}}/auth/login"
       }
     }
   ]

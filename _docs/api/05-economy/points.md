@@ -18,7 +18,7 @@
 }
 ```
 
-예상하지 못한 내부 오류와 개발 환경 차단은 기본 NestJS 오류 형식을 유지한다. 내부 SQL 및 stack trace는 응답에 포함하지 않는다.
+일반 HTTP 오류와 예상하지 못한 내부 오류도 공통 다섯 필드 형식을 사용한다. 개발 환경 차단은 `HTTP_NOT_FOUND`(404), 예기치 않은 내부 오류는 `INTERNAL_SERVER_ERROR`(500)다. 내부 SQL 및 stack trace는 응답에 포함하지 않는다.
 
 ## 포인트 지급
 
@@ -65,7 +65,7 @@
 | 404 | `POINT_WALLET_NOT_FOUND` | `PointWalletNotFound` | 사용자 지갑이 없음 |
 | 409 | `POINT_IDEMPOTENCY_CONFLICT` | `PointIdempotencyConflict` | 키가 다른 요청에 이미 사용됨 |
 | 401 | `AUTH_INVALID_TOKEN` | `InvalidToken` | Access JWT 누락·오류 |
-| 404 | — | — | 인증 성공 후 개발 환경 외 접근 (기본 NestJS 오류) |
+| 404 | `HTTP_NOT_FOUND` | `NOT_FOUND` | 인증 성공 후 개발 환경 외 접근 |
 
 ## 회차 단건 구매
 
@@ -104,6 +104,6 @@
 | 404 | `POINT_EPISODE_NOT_FOUND` | `PointEpisodeNotFound` | 회차 없음, 비공개 또는 공개 예정 |
 | 409 | `POINT_INSUFFICIENT_BALANCE` | `InsufficientPoints` | 잔액 부족 |
 | 401 | `AUTH_INVALID_TOKEN` | `InvalidToken` | Access JWT 누락·오류 |
-| 404 | — | — | 인증 성공 후 개발 환경 외 접근 (기본 NestJS 오류) |
+| 404 | `HTTP_NOT_FOUND` | `NOT_FOUND` | 인증 성공 후 개발 환경 외 접근 |
 
 현재 회차 재생 URL API는 구매 권한을 확인하지 않는다. 이 구매 API를 추가해도 재생 접근 제어는 바뀌지 않는다.

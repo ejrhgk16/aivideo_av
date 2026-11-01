@@ -6,9 +6,9 @@
 - 성공 응답은 공통 envelope 없이 endpoint가 정의한 JSON 값 자체를 반환한다.
 - 필드명은 endpoint 정의서의 응답 예시를 기준으로 한다. 기존 구현의 대소문자는 임의로 통일하지 않는다.
 - 작품, 회차, 제작사, 영상의 공개 식별자는 `uuid` 필드로 반환하며, 작품·회차·프리뷰 조회 경로에도 해당 UUID를 전달한다. 자동 증가 숫자 `id`는 DB 내부 관계와 조인에만 사용하고 API 응답에 노출하지 않는다. 장르 `id`는 숫자 식별자로 유지한다.
-- 일반 endpoint 오류는 NestJS 기본 HTTP 오류 형식을 사용한다. 컨트롤러에 `AllExceptionFilter`를 지정한 포인트 API는 업무 오류에 `{ errorCode, errorName, statusCode, timestamp, path }` 형식을 사용하고, 해당 필터가 지정되지 않은 endpoint의 오류 응답은 바뀌지 않는다.
-- `AllExceptionFilter`를 지정한 로그인 API도 업무 오류에 `{ errorCode, errorName, statusCode, timestamp, path }` 형식을 사용한다. 잘못된 로그인 입력은 `AUTH_INVALID_LOGIN_INPUT`(400), 로그인 불가는 `AUTH_LOGIN_FAILED`(401)다. Refresh/logout 입력 오류는 `AUTH_INVALID_TOKEN_INPUT`(400), JWT 인증 실패는 `AUTH_INVALID_TOKEN`(401)이다.
-- 인증 응답은 성공·오류와 관계없이 `Cache-Control: no-store`를 설정한다. 웹 쿠키 인증은 allowlist Origin과 `X-Auth-Transport: cookie`가 모두 필요하며, 이 계약이 누락되거나 어긋나면 NestJS 기본 403 응답이다. 전송 모드 헤더와 Origin이 모두 없는 인증 요청은 네이티브 JSON 모드로 처리한다.
+- 모든 HTTP 오류는 `{ errorCode, errorName, statusCode, timestamp, path }`의 다섯 필드로 반환한다. 업무 예외는 기존 업무 코드·이름·상태를 유지하고, 일반 HTTP 예외는 `HTTP_<HTTP_STATUS_NAME>` 코드와 HTTP 상태 이름을 사용한다. 예상하지 못한 오류는 500 `INTERNAL_SERVER_ERROR` / `InternalServerError`로 반환한다.
+- 일반 4xx/5xx 오류의 응답 본문에는 예외 message, stack trace, SQL 또는 요청 비밀 값을 넣지 않는다. HTTP 상태에 대응하는 오류 예시는 각 endpoint 문서의 오류 표를 따른다.
+- 인증 응답은 성공·오류와 관계없이 `Cache-Control: no-store`를 설정한다. 웹 쿠키 인증은 allowlist Origin과 `X-Auth-Transport: cookie`가 모두 필요하며, 이 계약이 누락되거나 어긋나면 공통 403 오류 응답을 반환한다. 전송 모드 헤더와 Origin이 모두 없는 인증 요청은 네이티브 JSON 모드로 처리한다.
 
 ## 시간과 공개 콘텐츠
 

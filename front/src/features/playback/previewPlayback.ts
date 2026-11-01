@@ -1,11 +1,7 @@
 import { apiRequest } from '../user/sessionClient';
+import type { PreviewPlayback } from './playbackResponses';
 
-export interface PreviewPlayback {
-  url: string;
-  videoUuid: string;
-  isSaved: boolean;
-  durationMs: number;
-}
+export type { PreviewPlayback } from './playbackResponses';
 
 export async function getPreviewPlayback(dramaId: string, videoId: string): Promise<PreviewPlayback> {
   const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;

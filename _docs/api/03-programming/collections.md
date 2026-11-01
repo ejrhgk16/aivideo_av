@@ -92,9 +92,11 @@
 
 ```json
 {
-  "message": "Content collection 'UNKNOWN' was not found",
-  "error": "Not Found",
-  "statusCode": 404
+  "errorCode": "HTTP_NOT_FOUND",
+  "errorName": "NOT_FOUND",
+  "statusCode": 404,
+  "timestamp": "2026-11-02T00:00:00.000Z",
+  "path": "/collections/UNKNOWN"
 }
 ```
 

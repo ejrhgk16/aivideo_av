@@ -31,7 +31,7 @@ Access JWT가 필수다. Refresh JWT는 사용할 수 없다. `user_id`는 검�
 | `event` | 예 | string | `STARTED` 또는 `COMPLETED` |
 | `positionMs` | 예 | integer | 0 이상의 밀리초 위치. 서버가 선택된 FULL 영상 길이와 비교한다. |
 
-`STARTED`는 위치가 0이어야 한다. `COMPLETED`는 `positionMs * 3 >= durationMs * 2`일 때만 허용된다. 영상 길이와 완료 여부는 요청에서 지정할 수 없다. 입력 형식 오류, 음수·소수·FULL 길이 초과, 시작 위치 오류, 2/3 미만 완료 요청은 NestJS 기본 400 응답이다.
+`STARTED`는 위치가 0이어야 한다. `COMPLETED`는 `positionMs * 3 >= durationMs * 2`일 때만 허용된다. 영상 길이와 완료 여부는 요청에서 지정할 수 없다. 입력 형식 오류, 음수·소수·FULL 길이 초과, 시작 위치 오류, 2/3 미만 완료 요청은 공통 오류 형식의 `HTTP_BAD_REQUEST`(400) 응답이다.
 
 ### 저장 조건과 중복 동작
 
@@ -50,9 +50,9 @@ Access JWT가 필수다. Refresh JWT는 사용할 수 없다. `user_id`는 검�
 
 ### Errors
 
-- `400 Bad Request`: 요청 본문 또는 위치가 잘못됨. NestJS 기본 오류 형식.
+- `400 Bad Request`: 요청 본문 또는 위치가 잘못됨. 공통 오류 형식의 `HTTP_BAD_REQUEST`.
 - `401 Unauthorized`: Access JWT 누락 또는 유효하지 않음. `AUTH_INVALID_TOKEN` 사용자 정의 오류 형식.
 - `403 Forbidden`: 공개 유료 회차를 요청 사용자가 구매하지 않음. `EPISODE_ACCESS_DENIED` 사용자 정의 오류 형식.
-- `404 Not Found`: 회차/작품 비공개 또는 없음, 공개 FULL 영상 없음. NestJS 기본 오류 형식.
+- `404 Not Found`: 회차/작품 비공개 또는 없음, 공개 FULL 영상 없음. 공통 오류 형식의 `HTTP_NOT_FOUND`.
 
 이 API는 시청 기록 저장에 S3 서명 URL이 필요하지 않으며 별도 개발 환경 제한을 적용하지 않는다.

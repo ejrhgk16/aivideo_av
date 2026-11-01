@@ -1,36 +1,7 @@
 import { apiRequest } from '../user/sessionClient';
+import type { SavedContentType, SavedVideoItem, SavedVideoPage } from './playbackResponses';
 
-export type SavedContentType = 'EPISODE' | 'PREVIEW';
-
-type SavedVideoBase = {
-  videoUuid: string;
-  savedAt: string;
-  dramaUuid: string;
-  dramaTitle: string;
-  imageUrl: string | null;
-  durationMs: number;
-};
-
-export type SavedVideoItem = SavedVideoBase & (
-  | {
-      contentType: 'EPISODE';
-      episodeUuid: string;
-      episodeNumber: number;
-      episodeTitle: string | null;
-    }
-  | {
-      contentType: 'PREVIEW';
-      episodeUuid: null;
-      episodeNumber: null;
-      episodeTitle: null;
-    }
-);
-
-export type SavedVideoPage = {
-  items: SavedVideoItem[];
-  page: number;
-  hasNext: boolean;
-};
+export type { SavedContentType, SavedVideoItem, SavedVideoPage } from './playbackResponses';
 
 export function saveVideo(videoUuid: string, contentType: SavedContentType): Promise<void> {
   return apiRequest<void>('/me/saved-videos/' + encodeURIComponent(videoUuid), {

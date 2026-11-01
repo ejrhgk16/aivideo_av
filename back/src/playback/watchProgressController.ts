@@ -1,6 +1,5 @@
-import { BadRequestException, Body, Controller, HttpCode, Param, Put, Req, UseFilters, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, HttpCode, Param, Put, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
-import { AllExceptionFilter } from '../common/error/error.filter.js';
 import { JwtAuthGuard } from '../identity/jwtAuthGuard.js';
 import { WatchProgressService } from './watchProgressService.js';
 
@@ -8,7 +7,6 @@ type AuthenticatedRequest = Request & { user: { uuid: string } };
 type WatchProgressInput = { event: 'STARTED' | 'COMPLETED'; positionMs: number };
 
 @Controller('me')
-@UseFilters(AllExceptionFilter)
 @UseGuards(JwtAuthGuard)
 export class WatchProgressController {
   constructor(private readonly watchProgressService: WatchProgressService) {}

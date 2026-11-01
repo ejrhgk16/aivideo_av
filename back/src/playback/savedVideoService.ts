@@ -7,8 +7,8 @@ import { Episode } from '../content/entities/episode.entity.js';
 import { User } from '../identity/entities/user.entity.js';
 import { UserSavedVideo } from './entities/userSavedVideo.entity.js';
 import { createDramaImageUrls } from '../content/mediaUrl.js';
+import type { SavedContentType, SavedVideoBase, SavedVideoPageResponse } from './savedVideoResponses.js';
 
-export type SavedContentType = 'EPISODE' | 'PREVIEW';
 type SavedRow = {
   videoUuid: string;
   contentType: SavedContentType;
@@ -20,23 +20,6 @@ type SavedRow = {
   episodeNumber: number | string | null;
   episodeTitle: string | null;
   imageKey: string | null;
-};
-type SavedVideoBase = {
-  videoUuid: string;
-  savedAt: string;
-  dramaUuid: string;
-  dramaTitle: string;
-  imageUrl: string | null;
-  durationMs: number;
-};
-type SavedVideoItem = SavedVideoBase & (
-  | { contentType: 'PREVIEW'; episodeUuid: null; episodeNumber: null; episodeTitle: null }
-  | { contentType: 'EPISODE'; episodeUuid: string; episodeNumber: number; episodeTitle: string | null }
-);
-export type SavedVideoPage = {
-  items: SavedVideoItem[];
-  page: number;
-  hasNext: boolean;
 };
 
 @Injectable()
@@ -91,7 +74,7 @@ export class SavedVideoService {
     );
   }
 
-  async list(userUuid: string, page: number): Promise<SavedVideoPage> {
+  async list(userUuid: string, page: number): Promise<SavedVideoPageResponse> {
     const rows = await this.publicVideos()
       .innerJoin(UserSavedVideo, 'saved', 'saved.videoId = video.id')
       .innerJoin(User, 'appUser', 'appUser.id = saved.userId AND appUser.uuid = :userUuid', { userUuid })

@@ -2,6 +2,10 @@
 
 Read the exact versioned docs at https://docs.expo.dev/versions/v57.0.0/ before writing any code.
 
+## API 오류 처리
+
+API 오류 처리·안내 문구·세션 갱신을 수정하기 전에 [프론트 API 오류 처리](../_docs/api/00-overview/error-code.md)를 읽는다. 코드별 규칙은 그 문서에서 관리한다.
+
 ## Tests
 
 - 프론트 제품 테스트는 `front/tests/**/*.test.ts(x)`에만 둔다. `src/`에 새 테스트를 만들지 않는다.

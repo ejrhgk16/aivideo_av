@@ -1,15 +1,14 @@
-import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Put, Query, Req, UseFilters, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Put, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
-import { AllExceptionFilter } from '../common/error/error.filter.js';
 import { JwtAuthGuard } from '../identity/jwtAuthGuard.js';
 import { SavedVideoService } from './savedVideoService.js';
+import type { SavedVideoPageResponse } from './savedVideoResponses.js';
 
 type AuthenticatedRequest = Request & { user: { uuid: string } };
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 @Controller('me/saved-videos')
 @UseGuards(JwtAuthGuard)
-@UseFilters(AllExceptionFilter)
 export class SavedVideoController {
   constructor(private readonly savedVideos: SavedVideoService) {}
 
@@ -43,7 +42,7 @@ export class SavedVideoController {
   }
 
   @Get()
-  list(@Req() request: AuthenticatedRequest, @Query('page') rawPage: unknown) {
+  list(@Req() request: AuthenticatedRequest, @Query('page') rawPage: unknown): Promise<SavedVideoPageResponse> {
     const page = rawPage === undefined
       ? 1
       : typeof rawPage === 'string' && /^[1-9][0-9]*$/.test(rawPage) ? Number(rawPage) : NaN;

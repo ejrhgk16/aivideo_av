@@ -144,6 +144,42 @@ test('refresh 401 removes the stored token and does not retry it', async () => {
   }
 });
 
+test('refresh errors use the shared parser and preserve HTTP status for common errors', async (t) => {
+  const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+  process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
+  try {
+    for (const [name, status, errorCode, bodyStatus] of [
+      ['forbidden', 403, 'HTTP_FORBIDDEN', 401],
+      ['server failure', 503, 'HTTP_SERVICE_UNAVAILABLE', 500],
+    ] as const) {
+      await t.test(name, async () => {
+        const { storage, calls, token } = fakeStorage();
+        await assert.rejects(
+          restoreSession(storage, (async () => response({ errorCode, statusCode: bodyStatus }, status)) as typeof fetch),
+          (error) => error instanceof ApiError && error.status === status && error.errorCode === errorCode,
+        );
+        assert.equal(token(), 'refresh-old');
+        assert.deepEqual(calls, ['read']);
+      });
+    }
+
+    await t.test('malformed JSON', async () => {
+      const { storage, calls, token } = fakeStorage();
+      await assert.rejects(
+        restoreSession(storage, (async () => ({
+          ok: false, status: 503, json: async () => { throw new SyntaxError('invalid JSON'); },
+        }) as unknown as Response) as typeof fetch),
+        (error) => error instanceof ApiError && error.status === 503 && error.errorCode === null,
+      );
+      assert.equal(token(), 'refresh-old');
+      assert.deepEqual(calls, ['read']);
+    });
+  } finally {
+    if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    else process.env.EXPO_PUBLIC_API_BASE_URL = originalBaseUrl;
+  }
+});
+
 test('network and server errors preserve the stored token for the next explicit restore', async (t) => {
   process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
   try {

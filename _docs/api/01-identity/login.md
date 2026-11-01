@@ -49,6 +49,7 @@ Origin은 `WEB_CORS_ORIGINS`의 정확한 항목이어야 한다. 쿠키 모드�
 | --- | --- | --- | --- |
 | 400 | `AUTH_INVALID_LOGIN_INPUT` | `InvalidLoginInput` | 필드 누락, 공백 값, 문자열이 아닌 값, 100자를 넘는 loginId |
 | 401 | `AUTH_LOGIN_FAILED` | `LoginFailed` | DB에서 일치하는 활성 사용자를 찾지 못함 |
+| 403 | `HTTP_FORBIDDEN` | `FORBIDDEN` | 웹 전송 헤더 또는 allowlist Origin이 잘못됨 |
 
 예시:
 
@@ -62,4 +63,4 @@ Origin은 `WEB_CORS_ORIGINS`의 정확한 항목이어야 한다. 쿠키 모드�
 }
 ```
 
-전송 모드 헤더 또는 Origin이 있는 요청은 웹 쿠키 모드로 검증한다. 둘 중 하나라도 누락되거나 Origin이 allowlist와 일치하지 않으면 서비스 호출 전에 NestJS 기본 `ForbiddenException` 형식의 403을 반환한다. 두 헤더가 모두 없으면 기존 네이티브 모드다.
+전송 모드 헤더 또는 Origin이 있는 요청은 웹 쿠키 모드로 검증한다. 둘 중 하나라도 누락되거나 Origin이 allowlist와 일치하지 않으면 서비스 호출 전에 공통 오류 형식 `{ errorCode, errorName, statusCode, timestamp, path }`의 403을 반환한다. 두 헤더가 모두 없으면 기존 네이티브 모드다.

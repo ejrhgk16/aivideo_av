@@ -2,7 +2,6 @@ import { HTTP_CODE_METADATA, METHOD_METADATA, PATH_METADATA } from '@nestjs/comm
 import { describe, expect, it, vi } from 'vitest';
 import { ForbiddenException } from '@nestjs/common';
 import { InvalidLoginInputException, LoginFailedException } from '../../src/common/error/error.customExceptions.js';
-import { AllExceptionFilter } from '../../src/common/error/error.filter.js';
 import { LoginController } from '../../src/identity/loginController.js';
 import { LoginService } from '../../src/identity/loginService.js';
 
@@ -91,12 +90,12 @@ describe('LoginController', () => {
     expect(tokenService.refresh).not.toHaveBeenCalled();
   });
 
-  it('registers POST /auth/login with the custom exception filter and HTTP 200', () => {
+  it('registers POST /auth/login with HTTP 200 and no controller-local filter', () => {
     expect(Reflect.getMetadata(PATH_METADATA, LoginController)).toBe('auth');
     expect(Reflect.getMetadata(PATH_METADATA, LoginController.prototype.login)).toBe('login');
     expect(Reflect.getMetadata(METHOD_METADATA, LoginController.prototype.login)).toBe(1);
     expect(Reflect.getMetadata(HTTP_CODE_METADATA, LoginController.prototype.login)).toBe(200);
-    expect(Reflect.getMetadata('__exceptionFilters__', LoginController)).toEqual([AllExceptionFilter]);
+    expect(Reflect.getMetadata('__exceptionFilters__', LoginController)).toBeUndefined();
   });
 });
 

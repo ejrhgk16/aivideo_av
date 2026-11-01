@@ -77,7 +77,7 @@
 }
 ```
 
-회차 재생 endpoint의 커스텀 업무 오류는 `{ errorCode, errorName, statusCode, timestamp, path }` 형식이다. 입력 오류와 찾을 수 없는 리소스는 기존 NestJS 기본 오류 형식을 유지한다.
+회차 재생 endpoint의 모든 오류는 `{ errorCode, errorName, statusCode, timestamp, path }`의 공통 형식이다. 업무 오류는 기존 업무 코드를 유지하며, 유효하지 않은 입력·찾을 수 없는 리소스는 `HTTP_BAD_REQUEST`(400) 또는 `HTTP_NOT_FOUND`(404)를 사용한다.
 
 로컬 회차 영상 파일 API `GET /media/videos/episodes/:episodeId`는 제거했다. 프리뷰 영상은 [작품 API 정의](../02-content/dramas.md#프리뷰-재생-api)의 개발용 프리뷰 재생 API를 사용한다.
 

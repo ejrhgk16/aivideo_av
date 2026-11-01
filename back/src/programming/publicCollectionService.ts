@@ -14,39 +14,9 @@ import { ContentCollection } from './entities/contentCollection.entity.js';
 import { createDramaImageUrls } from '../content/mediaUrl.js';
 import { User } from '../identity/entities/user.entity.js';
 import { UserSavedVideo } from '../playback/entities/userSavedVideo.entity.js';
+import type { PublicCollectionResponse, PublicPreviewVideoResponse } from './programmingResponses.js';
 
-type PublicPreviewVideo = {
-  uuid: string;
-  storageKey: string;
-  durationMs: number;
-  isSaved: boolean;
-};
-
-type CollectionPreviewVideo = PublicPreviewVideo & { contentId: number; displayOrder: number };
-
-export interface PublicDramaSummary {
-  uuid: string;
-  slug: string;
-  title: string;
-  shortDescription: string;
-  productionCompany: { uuid: string; name: string } | null;
-  genres: Array<{ id: number; code: string; name: string }>;
-  imageUrls: ReturnType<typeof createDramaImageUrls>;
-  previewVideos: PublicPreviewVideo[];
-  publishedEpisodeCount: number;
-  freeEpisodeCount: number;
-}
-
-export interface PublicCollectionItem extends PublicDramaSummary {
-  displayOrder: number;
-}
-
-export interface PublicCollectionResponse {
-  code: string;
-  title: string;
-  description: string | null;
-  dramas: PublicCollectionItem[];
-}
+type CollectionPreviewVideo = PublicPreviewVideoResponse & { contentId: number; displayOrder: number };
 
 @Injectable()
 export class PublicCollectionService {

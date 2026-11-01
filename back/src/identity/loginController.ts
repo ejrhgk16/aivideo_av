@@ -6,7 +6,6 @@ import {
   Post,
   Req,
   Res,
-  UseFilters,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import {
@@ -14,13 +13,12 @@ import {
   InvalidTokenInputException,
   InvalidLoginInputException,
 } from '../common/error/error.customExceptions.js';
-import { AllExceptionFilter } from '../common/error/error.filter.js';
 import { clearRefreshCookie, readRefreshCookie, usesRefreshCookie, webSession } from './refreshCookie.js';
 import { LoginService } from './loginService.js';
 import { TokenService } from './tokenService.js';
+import type { NativeSessionResponse, WebSessionResponse } from './identityResponses.js';
 
 @Controller('auth')
-@UseFilters(AllExceptionFilter)
 export class LoginController {
   constructor(
     private readonly loginService: LoginService,
@@ -33,7 +31,7 @@ export class LoginController {
     @Body() body: unknown,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
-  ) {
+  ): Promise<NativeSessionResponse | WebSessionResponse> {
     response.setHeader('Cache-Control', 'no-store');
     const cookieMode = usesRefreshCookie(request);
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
@@ -61,7 +59,7 @@ export class LoginController {
     @Body() body: unknown,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
-  ) {
+  ): Promise<NativeSessionResponse | WebSessionResponse | void> {
     response.setHeader('Cache-Control', 'no-store');
     if (!usesRefreshCookie(request)) return this.tokenService.refresh(this.readRefreshToken(body));
     try {

@@ -1,0 +1,260 @@
+{
+  "version": 1,
+  "plan_id": "plan-46-api-response-contracts",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "기존 성공·업무 오류 응답의 엄격한 HTTP 계약 고정",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/test/api/http.postman_collection.json",
+        "back/test/api/identity.postman_collection.json",
+        "back/test/api/content.postman_collection.json",
+        "back/test/api/programming.postman_collection.json",
+        "back/test/api/playback.postman_collection.json",
+        "back/test/api/economy.postman_collection.json",
+        "back/test/api/watch-progress.postman_collection.json",
+        "back/test/api/saved-videos.postman_collection.json",
+        "back/test/api/README.md",
+        "_docs/api/00-overview/response-compatibility.md"
+      ],
+      "checks": [
+        "npm --prefix back run test:api -- --suite http --suite identity --suite content --suite programming --suite playback --suite economy --suite watch-progress --suite saved-videos"
+      ],
+      "started_at": "2026-11-01T22:26:32.163Z",
+      "summary": "Updated the eight Postman collections and response compatibility docs with strict response checks, internal-request coverage, and negative mutations. Ordering mutations now exercise the episodeNumber validator and the saved-video timestamp/fixture-ID comparator. The declared eight-suite API check passed on localhost:3000 with 0 failures; JSON and Postman script syntax validation passed.",
+      "completed_at": "2026-11-01T22:49:00.615Z"
+    },
+    {
+      "id": "task-5",
+      "name": "콘텐츠 응답 type·반환 선언",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/content/contentResponses.ts",
+        "back/src/content/publicCatalogService.ts",
+        "back/src/content/publicCatalogController.ts"
+      ],
+      "checks": [
+        "npm --prefix back run test:unit -- --no-cache test/unit/content/publicCatalogService.spec.ts"
+      ],
+      "started_at": "2026-11-01T22:49:08.647Z",
+      "summary": "Added named content response types and explicit Promise return types in the service and controller without changing runtime behavior or response fields. Declared check passed: `npm --prefix back run test:unit -- --no-cache test/unit/content/publicCatalogService.spec.ts` (12 tests passed). Shared build and HTTP checks remain for task-2.",
+      "completed_at": "2026-11-01T22:51:08.739Z"
+    },
+    {
+      "id": "task-6",
+      "name": "홈 컬렉션 응답 type·반환 선언",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/programming/programmingResponses.ts",
+        "back/src/programming/publicCollectionService.ts",
+        "back/src/programming/publicCollectionController.ts"
+      ],
+      "checks": [
+        "npm --prefix back run test:unit -- --no-cache test/unit/programming/publicCollectionService.spec.ts"
+      ],
+      "started_at": "2026-11-01T22:49:28.987Z",
+      "summary": "Moved the home collection response declarations into programmingResponses.ts as named types and updated the service and controller type imports. Preserved the existing fields and nullability, including productionCompany as { uuid, name } | null and publishedEpisodeCount/displayOrder. Check passed: npm --prefix back run test:unit -- --no-cache test/unit/programming/publicCollectionService.spec.ts (1 test passed). Integration build and HTTP suites remain for task-2.",
+      "completed_at": "2026-11-01T22:51:19.321Z"
+    },
+    {
+      "id": "task-7",
+      "name": "인증 응답 type·반환 선언",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/identity/identityResponses.ts",
+        "back/src/identity/loginService.ts",
+        "back/src/identity/tokenService.ts",
+        "back/src/identity/loginController.ts",
+        "back/src/identity/refreshCookie.ts"
+      ],
+      "checks": [
+        "npm --prefix back run test:unit -- --no-cache test/unit/loginController.spec.ts test/unit/refreshCookie.spec.ts test/unit/identity/tokenService.spec.ts"
+      ],
+      "started_at": "2026-11-01T22:49:48.871Z",
+      "summary": "Added identity response types and explicit Promise return types for login, refresh, and webSession without changing runtime behavior. The declared unit check passed: 3 files, 33 tests. Backend build and HTTP verification remain in task-2.",
+      "completed_at": "2026-11-01T22:51:13.874Z"
+    },
+    {
+      "id": "task-8",
+      "name": "포인트·구매 응답 type·반환 선언",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/economy/pointResponses.ts",
+        "back/src/economy/pointService.ts",
+        "back/src/economy/pointController.ts"
+      ],
+      "checks": [
+        "npm --prefix back run test:unit -- --no-cache test/unit/economy/pointController.spec.ts test/unit/economy/pointService.spec.ts"
+      ],
+      "started_at": "2026-11-01T22:51:18.807Z",
+      "summary": "Added named IncreasePointsResponse and PurchaseEpisodeResponse types and explicit Promise return types in the point service and controller; runtime behavior and response fields are unchanged. Declared check passed: `npm --prefix back run test:unit -- --no-cache test/unit/economy/pointController.spec.ts test/unit/economy/pointService.spec.ts` (2 files, 17 tests). Shared build and HTTP checks remain for task-2.",
+      "completed_at": "2026-11-01T22:51:59.775Z"
+    },
+    {
+      "id": "task-9",
+      "name": "저장 영상 응답 type·반환 선언",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/playback/savedVideoResponses.ts",
+        "back/src/playback/savedVideoService.ts",
+        "back/src/playback/savedVideoController.ts"
+      ],
+      "checks": [
+        "npm --prefix back run test:unit -- --no-cache test/unit/playback/savedVideoService.spec.ts"
+      ],
+      "started_at": "2026-11-01T22:51:32.752Z",
+      "summary": "Moved saved-video response types into savedVideoResponses.ts and added explicit Promise<SavedVideoPageResponse> return types to the service and controller. The declared check passed: npm --prefix back run test:unit -- --no-cache test/unit/playback/savedVideoService.spec.ts (1 file, 4 tests). Integration build and HTTP checks remain for task-2.",
+      "completed_at": "2026-11-01T22:52:42.163Z"
+    },
+    {
+      "id": "task-2",
+      "name": "백엔드 응답 type 통합 문서·컴파일·HTTP 보존 검증",
+      "status": "completed",
+      "depends_on": [
+        "task-5",
+        "task-6",
+        "task-7",
+        "task-8",
+        "task-9"
+      ],
+      "files": [
+        "back/src/content/contentResponses.ts",
+        "back/src/content/publicCatalogService.ts",
+        "back/src/content/publicCatalogController.ts",
+        "back/src/programming/programmingResponses.ts",
+        "back/src/programming/publicCollectionService.ts",
+        "back/src/programming/publicCollectionController.ts",
+        "back/src/identity/identityResponses.ts",
+        "back/src/identity/loginService.ts",
+        "back/src/identity/tokenService.ts",
+        "back/src/identity/loginController.ts",
+        "back/src/identity/refreshCookie.ts",
+        "back/src/economy/pointResponses.ts",
+        "back/src/economy/pointService.ts",
+        "back/src/economy/pointController.ts",
+        "back/src/playback/savedVideoResponses.ts",
+        "back/src/playback/savedVideoService.ts",
+        "back/src/playback/savedVideoController.ts",
+        "_docs/ARCHITECTURE.md"
+      ],
+      "checks": [
+        "npm --prefix back run build",
+        "npm --prefix back run test:api -- --suite identity --suite content --suite programming --suite playback --suite economy --suite saved-videos"
+      ],
+      "started_at": "2026-11-01T22:52:52.067Z",
+      "summary": "Added architecture guidance for domain response types, Promise return declarations, and independent frontend/backend contracts. `npm --prefix back run build` passed. The declared six-suite API check passed against localhost:3000 with 0 failures and completed fixture cleanup. The server returned 200 `Hello World!`; these type-only changes do not alter runtime JavaScript. `git diff --check` passed for the assigned files.",
+      "completed_at": "2026-11-01T22:56:27.576Z"
+    },
+    {
+      "id": "task-3",
+      "name": "전역 오류 응답 통일과 API 문서·HTTP 검증 반영",
+      "status": "completed",
+      "depends_on": [
+        "task-2"
+      ],
+      "files": [
+        "back/src/app.module.ts",
+        "back/src/common/error/error.filter.ts",
+        "back/src/common/error/error.enum.ts",
+        "back/src/common/error/error.vo.ts",
+        "back/src/content/publicCatalogController.ts",
+        "back/src/programming/publicCollectionController.ts",
+        "back/src/identity/loginController.ts",
+        "back/src/economy/pointController.ts",
+        "back/src/playback/savedVideoController.ts",
+        "back/src/playback/watchProgressController.ts",
+        "back/test/unit/common/errorFilter.spec.ts",
+        "back/test/unit/loginController.spec.ts",
+        "back/test/unit/economy/pointController.spec.ts",
+        "back/test/api/http.postman_collection.json",
+        "back/test/api/identity.postman_collection.json",
+        "back/test/api/content.postman_collection.json",
+        "back/test/api/programming.postman_collection.json",
+        "back/test/api/playback.postman_collection.json",
+        "back/test/api/economy.postman_collection.json",
+        "back/test/api/watch-progress.postman_collection.json",
+        "back/test/api/saved-videos.postman_collection.json",
+        "_docs/ARCHITECTURE.md",
+        "_docs/api/00-overview/conventions.md",
+        "_docs/api/00-overview/authentication.md",
+        "_docs/api/00-overview/response-compatibility.md",
+        "_docs/api/01-identity/login.md",
+        "_docs/api/01-identity/refresh.md",
+        "_docs/api/01-identity/logout.md",
+        "_docs/api/02-content/genres.md",
+        "_docs/api/02-content/dramas.md",
+        "_docs/api/03-programming/collections.md",
+        "_docs/api/04-playback/episodes.md",
+        "_docs/api/04-playback/watch-progress.md",
+        "_docs/api/04-playback/saved-videos.md",
+        "_docs/api/05-economy/points.md"
+      ],
+      "checks": [
+        "npm --prefix back run test:unit -- test/unit/common/errorFilter.spec.ts test/unit/loginController.spec.ts test/unit/economy/pointController.spec.ts test/unit/refreshCookie.spec.ts",
+        "npm --prefix back run test:api -- --suite http --suite identity --suite content --suite programming --suite playback --suite economy --suite watch-progress --suite saved-videos"
+      ],
+      "started_at": "2026-11-01T22:56:40.374Z",
+      "summary": "Passed the declared unit check (4 files, 39 tests) and all 8 requested API suites. Probed the existing server: missing route returned the expected five-field 404, and malformed JSON returned the expected five-field 400. `git diff --check` passed with only line-ending warnings. Final scan confirmed the global APP_FILTER registration and no controller-local AllExceptionFilter registrations.",
+      "completed_at": "2026-11-01T23:07:24.769Z"
+    },
+    {
+      "id": "task-4",
+      "name": "프론트 응답 type·오류 파싱·안내 및 소비 기능 회귀 검증",
+      "status": "completed",
+      "depends_on": [
+        "task-2"
+      ],
+      "files": [
+        "front/src/common/http/api.ts",
+        "front/src/common/http/errorMessages.ts",
+        "front/src/features/user/login.ts",
+        "front/src/features/user/userResponses.ts",
+        "front/src/features/user/session.ts",
+        "front/src/features/drama/dramaContent.ts",
+        "front/src/features/drama/dramaResponses.ts",
+        "front/src/features/home/homeContent.ts",
+        "front/src/features/home/homeResponses.ts",
+        "front/src/features/economy/episodePurchase.ts",
+        "front/src/features/economy/economyResponses.ts",
+        "front/src/features/playback/episodePlayback.ts",
+        "front/src/features/playback/previewPlayback.ts",
+        "front/src/features/playback/savedVideos.ts",
+        "front/src/features/playback/playbackResponses.ts",
+        "front/tests/unit/api.test.ts",
+        "front/tests/unit/errorMessages.test.ts",
+        "front/tests/unit/session.test.ts",
+        "front/tests/unit/login.test.ts",
+        "front/tests/unit/homeContent.test.ts",
+        "front/tests/unit/dramaContent.test.ts",
+        "front/tests/unit/episodePlayback.test.ts",
+        "front/tests/unit/previewPlayback.test.ts",
+        "front/tests/unit/episodePurchase.test.ts",
+        "front/tests/unit/savedVideos.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test -- tests/unit/api.test.ts tests/unit/errorMessages.test.ts tests/unit/session.test.ts tests/unit/login.test.ts tests/unit/homeContent.test.ts tests/unit/dramaContent.test.ts tests/unit/episodePlayback.test.ts tests/unit/previewPlayback.test.ts tests/unit/episodePurchase.test.ts tests/unit/savedVideos.test.ts tests/unit/watchProgress.test.ts tests/unit/episodeUnlockDialog.test.ts tests/unit/dramaDetailScreen.test.ts tests/unit/playbackScreenEpisode.test.ts tests/unit/sessionExpiredDialog.test.ts"
+      ],
+      "started_at": "2026-11-01T22:57:04.375Z",
+      "summary": "Moved frontend API response types into feature response files while preserving existing type exports. Added one shared error parser for API requests and session refresh, with HTTP status taking precedence over body status. Added status-based error guidance and regression checks for raw success responses, 204 bodies, malformed errors, refresh rules, and existing consumers. Read the exact Expo SDK 57 docs. `npm --prefix front run typecheck` passed; the declared 15-file test command passed with 119 tests and 0 failures.",
+      "completed_at": "2026-11-01T23:00:27.783Z"
+    }
+  ]
+}

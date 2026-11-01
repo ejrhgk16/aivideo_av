@@ -270,6 +270,12 @@
       "directory": "plan-45-saved-video-review-fixes",
       "title": "저장 기능 리뷰 수정: 검색 복구·추천 정렬·fixture 정리",
       "status": "completed"
+    },
+    {
+      "id": "plan-46-api-response-contracts",
+      "directory": "plan-46-api-response-contracts",
+      "title": "기존 성공 응답 보존과 오류·응답 타입 공통화",
+      "status": "completed"
     }
   ]
 }

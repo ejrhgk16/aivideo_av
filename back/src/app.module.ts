@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller.js';
@@ -9,6 +10,7 @@ import { EconomyModule } from './economy/economy.module.js';
 import { ProgrammingModule } from './programming/programming.module.js';
 import { IdentityModule } from './identity/identity.module.js';
 import { PlaybackModule } from './playback/playback.module.js';
+import { AllExceptionFilter } from './common/error/error.filter.js';
 
 @Module({
   imports: [
@@ -26,6 +28,6 @@ import { PlaybackModule } from './playback/playback.module.js';
     PlaybackModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, { provide: APP_FILTER, useClass: AllExceptionFilter }],
 })
 export class AppModule {}

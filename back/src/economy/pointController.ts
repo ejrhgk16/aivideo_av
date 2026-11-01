@@ -6,20 +6,21 @@ import {
   Param,
   Post,
   Req,
-  UseFilters,
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { Request } from 'express';
 import { PointService, type IncreasePointsInput } from './pointService.js';
 import { InvalidPointIncreaseException } from '../common/error/error.customExceptions.js';
-import { AllExceptionFilter } from '../common/error/error.filter.js';
 import { JwtAuthGuard } from '../identity/jwtAuthGuard.js';
+import type {
+  IncreasePointsResponse,
+  PurchaseEpisodeResponse,
+} from './pointResponses.js';
 
 type AuthenticatedRequest = Request & { user: { uuid: string } };
 
 @Controller('me')
-@UseFilters(AllExceptionFilter)
 @UseGuards(JwtAuthGuard)
 export class PointController {
   constructor(
@@ -29,7 +30,10 @@ export class PointController {
 
   @Post('points/increase')
   @HttpCode(200)
-  increase(@Req() request: AuthenticatedRequest, @Body() body: unknown) {
+  increase(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: unknown,
+  ): Promise<IncreasePointsResponse> {
     this.assertDevelopment();
     return this.pointService.increase(request.user.uuid, this.parseIncreaseInput(body));
   }
@@ -39,7 +43,7 @@ export class PointController {
   purchaseSingle(
     @Req() request: AuthenticatedRequest,
     @Param('episodeUuid') episodeUuid: string,
-  ) {
+  ): Promise<PurchaseEpisodeResponse> {
     this.assertDevelopment();
     return this.pointService.purchaseSingle(request.user.uuid, episodeUuid);
   }

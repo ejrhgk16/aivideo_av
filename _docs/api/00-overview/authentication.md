@@ -75,7 +75,7 @@ DB의 `auth_sessions`는 로그인별 사용자와 폐기 시각을 관리한다
 
 ## 인증 오류
 
-오류 형식은 `{ errorCode, errorName, statusCode, timestamp, path }`이며 프로젝트의 커스텀 예외와 `AllExceptionFilter`를 사용한다.
+모든 HTTP 오류는 `{ errorCode, errorName, statusCode, timestamp, path }` 형식이다. 프로젝트 업무 예외는 기존 코드를 유지하고, 일반 HTTP 오류는 `HTTP_<HTTP_STATUS_NAME>` 코드와 상태 이름을 사용한다. 예기치 않은 오류는 500 `INTERNAL_SERVER_ERROR` / `InternalServerError`로 정규화한다. 오류 본문에는 예외 message나 stack trace를 공개하지 않는다.
 
 | HTTP | 코드 | 의미 |
 | --- | --- | --- |

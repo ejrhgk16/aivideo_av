@@ -81,9 +81,11 @@
 
 ```json
 {
-  "message": "sort must be latest",
-  "error": "Bad Request",
-  "statusCode": 400
+  "errorCode": "HTTP_BAD_REQUEST",
+  "errorName": "BAD_REQUEST",
+  "statusCode": 400,
+  "timestamp": "2026-11-02T00:00:00.000Z",
+  "path": "/dramas?sort=invalid"
 }
 ```
 
@@ -238,9 +240,11 @@ Authorization 헤더가 있지만 Access JWT가 비어 있거나 잘못됐거나
 
 ```json
 {
-  "message": "Drama '00000002-0000-4000-8000-000000000001' was not found",
-  "error": "Not Found",
-  "statusCode": 404
+  "errorCode": "HTTP_NOT_FOUND",
+  "errorName": "NOT_FOUND",
+  "statusCode": 404,
+  "timestamp": "2026-11-02T00:00:00.000Z",
+  "path": "/dramas/00000002-0000-4000-8000-000000000001"
 }
 ```
 

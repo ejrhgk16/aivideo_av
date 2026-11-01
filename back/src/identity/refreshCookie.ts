@@ -52,7 +52,10 @@ export function clearRefreshCookie(response: Response): void {
   response.clearCookie(refreshCookieName, options);
 }
 
-export function webSession<T extends { refreshToken: string }>(session: T, response: Response) {
+export function webSession<T extends { refreshToken: string }>(
+  session: T,
+  response: Response,
+): Omit<T, 'refreshToken'> {
   setRefreshCookie(response, session.refreshToken);
   const { refreshToken: _refreshToken, ...publicSession } = session;
   return publicSession;
