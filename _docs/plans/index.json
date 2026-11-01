@@ -240,6 +240,12 @@
       "directory": "plan-40-recommendation-swipe-input",
       "title": "추천 웹·네이티브 단일 이동 처리와 드래그·휠 입력 분리",
       "status": "completed"
+    },
+    {
+      "id": "plan-41-user-saved-videos",
+      "directory": "plan-41-user-saved-videos",
+      "title": "사용자 저장 본편·프리뷰 영상 모델 전환",
+      "status": "completed"
     }
   ]
 }

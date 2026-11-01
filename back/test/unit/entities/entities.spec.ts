@@ -22,7 +22,7 @@ import {
   UserPreference,
   CollectionDrama,
   UserPreviewFeedState,
-  UserSavedDrama,
+  UserSavedVideo,
   UserWatchProgress,
   Wallet,
   aiDramaEntities,
@@ -44,7 +44,7 @@ const expectedTableNames = new Set([
   'content_collections',
   'collection_dramas',
   'user_preview_feed_states',
-  'user_saved_dramas',
+  'user_saved_videos',
   'user_watch_progress',
   'ad_reward_claims',
   'ad_reward_offers',
@@ -204,8 +204,8 @@ describe('AI DRAMA entity registry', () => {
       [UserPreviewFeedState, 'userId'],
       [UserPreviewFeedState, 'collectionId'],
       [UserPreviewFeedState, 'dramaId'],
-      [UserSavedDrama, 'userId'],
-      [UserSavedDrama, 'dramaId'],
+      [UserSavedVideo, 'userId'],
+      [UserSavedVideo, 'videoId'],
       [UserWatchProgress, 'userId'],
       [UserWatchProgress, 'episodeId'],
       [Wallet, 'userId'],
@@ -274,6 +274,41 @@ describe('AI DRAMA entity registry', () => {
     );
     expect(metadataStorage.indices).toContainEqual(
       expect.objectContaining({ target: RefreshToken, name: 'idx_refresh_tokens_expires_at', columns: ['expiresAt'] }),
+    );
+  });
+
+  it('defines saved video type, key, and index metadata', () => {
+    const primaryColumns = metadataStorage.columns
+      .filter(({ target, options }) => target === UserSavedVideo && options.primary)
+      .map(({ propertyName, options }) => options.name ?? propertyName);
+    expect(primaryColumns).toEqual(['user_id', 'video_id']);
+    expect(metadataStorage.columns).toContainEqual(
+      expect.objectContaining({
+        target: UserSavedVideo,
+        propertyName: 'videoId',
+        options: expect.objectContaining({ name: 'video_id', type: 'int', unsigned: true, primary: true }),
+      }),
+    );
+    expect(metadataStorage.columns).toContainEqual(
+      expect.objectContaining({
+        target: UserSavedVideo,
+        propertyName: 'contentType',
+        options: expect.objectContaining({ name: 'content_type', type: 'varchar', length: 16 }),
+      }),
+    );
+    expect(metadataStorage.checks).toContainEqual(
+      expect.objectContaining({
+        target: UserSavedVideo,
+        name: 'CHK_user_saved_videos_content_type',
+        expression: "content_type IN ('EPISODE','PREVIEW')",
+      }),
+    );
+    expect(metadataStorage.indices).toContainEqual(
+      expect.objectContaining({
+        target: UserSavedVideo,
+        name: 'IDX_user_saved_videos_user_id_saved_at',
+        columns: ['userId', 'savedAt'],
+      }),
     );
   });
 

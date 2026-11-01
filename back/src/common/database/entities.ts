@@ -26,7 +26,7 @@ import {
 } from '../../programming/entities/index.js';
 import {
   UserPreviewFeedState,
-  UserSavedDrama,
+  UserSavedVideo,
   UserWatchProgress,
 } from '../../playback/entities/index.js';
 import {
@@ -55,7 +55,7 @@ export const aiDramaEntities = [
   ContentCollection,
   CollectionDrama,
   UserPreviewFeedState,
-  UserSavedDrama,
+  UserSavedVideo,
   UserWatchProgress,
   AdRewardClaim,
   AdRewardOffer,

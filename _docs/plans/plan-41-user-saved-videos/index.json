@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "plan_id": "plan-41-user-saved-videos",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "사용자 저장 영상 모델 전환",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/playback/entities/userSavedDrama.entity.ts",
+        "back/src/playback/entities/userSavedVideo.entity.ts",
+        "back/src/playback/entities/index.ts",
+        "back/src/common/database/entities.ts",
+        "back/src/common/database/migrations/20261101000000ReplaceUserSavedDramasWithVideos.ts",
+        "back/test/unit/entities/entities.spec.ts",
+        "back/test/unit/database/userSavedVideosMigration.spec.ts",
+        "_docs/AI_DRAMA_data_model/04-playback/user_saved_dramas.md",
+        "_docs/AI_DRAMA_data_model/04-playback/user_saved_videos.md",
+        "_docs/AI_DRAMA_data_model/04-playback/README.md",
+        "_docs/AI_DRAMA_data_model/00-overview/README.md",
+        "_docs/AI_DRAMA_data_model/00-overview/ERD.md",
+        "_docs/AI_DRAMA_data_model/00-overview/scope.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-11-01T12:10:03.069Z",
+      "summary": "Replaced the active saved-drama entity with UserSavedVideo, added a TypeORM createTable migration with a MySQL CHECK SQL statement and a QueryBuilder count guard for rollback, updated entity and migration unit tests, and renamed/synchronized the data-model docs. Checks passed: lint; full back test (106 unit tests, 132 API requests, 274 assertions, 0 failures); build. Read-only DB inspection found both user_saved_dramas and user_saved_videos empty; the synchronized target table lacks the CHECK. The new migration was not applied because AddAuthSessions20261028000000 is also pending and migration:run would apply unrelated schema changes. The legacy entity file was moved out of its old path using apply_patch because DeleteFile failed.",
+      "completed_at": "2026-11-01T12:25:07.124Z"
+    }
+  ]
+}
