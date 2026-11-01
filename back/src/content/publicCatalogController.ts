@@ -11,11 +11,13 @@ export class PublicCatalogController {
   constructor(private readonly publicCatalogService: PublicCatalogService) {}
 
   @Get('dramas')
-  listDramas(@Query('sort') sort?: string) {
+  @UseGuards(OptionalJwtAuthGuard)
+  @UseFilters(AllExceptionFilter)
+  listDramas(@Query('sort') sort: string | undefined, @Req() request: AuthenticatedRequest) {
     if (sort !== undefined && sort !== 'latest') {
       throw new BadRequestException('sort must be latest');
     }
-    return this.publicCatalogService.listDramas('latest');
+    return this.publicCatalogService.listDramas('latest', undefined, request.user?.uuid);
   }
 
   @Get('dramas/:dramaId')
@@ -39,11 +41,14 @@ export class PublicCatalogController {
   }
 
   @Get('dramas/:dramaId/previews/:videoId/playback')
+  @UseGuards(OptionalJwtAuthGuard)
+  @UseFilters(AllExceptionFilter)
   getDramaPreviewPlayback(
     @Param('dramaId') dramaId: string,
     @Param('videoId') videoId: string,
+    @Req() request: AuthenticatedRequest,
   ) {
-    return this.publicCatalogService.getDramaPreviewPlaybackUrl(dramaId, videoId);
+    return this.publicCatalogService.getDramaPreviewPlaybackUrl(dramaId, videoId, request.user?.uuid);
   }
 
   @Get('genres')

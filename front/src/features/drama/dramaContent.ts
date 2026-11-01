@@ -15,13 +15,15 @@ export interface DramaContent {
     detailCover: string | null;
     campaigns: string[];
   };
-  previewVideos: Array<{ uuid: string; storageKey: string; durationMs: number }>;
+  previewVideos: Array<{ uuid: string; storageKey: string; durationMs: number; isSaved: boolean }>;
   episodes: Array<{
     uuid: string;
     episodeNumber: number;
     title: string | null;
     synopsis: string | null;
     durationMs: number;
+    videoUuid: string | null;
+    isSaved: boolean;
     pricePoints: number;
     isUnlocked: boolean;
     image: string | null;
@@ -47,7 +49,7 @@ export interface DramaSummary {
     detailCover: string | null;
     campaigns: string[];
   };
-  previewVideos: Array<{ uuid: string; storageKey: string; durationMs: number }>;
+  previewVideos: Array<{ uuid: string; storageKey: string; durationMs: number; isSaved: boolean }>;
   episodeCount: number;
   freeEpisodeCount: number;
 }
@@ -57,5 +59,5 @@ export function getDramaContent(dramaId: string): Promise<DramaContent> {
 }
 
 export function getDramaList(): Promise<DramaSummary[]> {
-  return apiRequest<DramaSummary[]>('/dramas?sort=latest', { auth: 'public' });
+  return apiRequest<DramaSummary[]>('/dramas?sort=latest', { auth: 'optional' });
 }

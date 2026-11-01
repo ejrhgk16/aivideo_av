@@ -11,6 +11,7 @@ import { ProductionCompany } from './entities/productionCompany.entity.js';
 import { EpisodeEntitlement } from '../economy/entities/episodeEntitlement.entity.js';
 import { User } from '../identity/entities/user.entity.js';
 import { UserWatchProgress } from '../playback/entities/userWatchProgress.entity.js';
+import { UserSavedVideo } from '../playback/entities/userSavedVideo.entity.js';
 import { createDramaImageUrls } from './mediaUrl.js';
 import { S3VideoUrlService } from './s3VideoUrlService.js';
 import { EpisodeAccessDeniedException, InvalidTokenException } from '../common/error/error.customExceptions.js';
@@ -25,7 +26,7 @@ export type DramaSummary = {
   productionCompany: string | null;
   genres: Array<{ id: number; code: string; name: string }>;
   imageUrls: ReturnType<typeof createDramaImageUrls>;
-  previewVideos: Array<{ uuid: string; storageKey: string; durationMs: number }>;
+  previewVideos: Array<{ uuid: string; storageKey: string; durationMs: number; isSaved: boolean }>;
   episodeCount: number;
   freeEpisodeCount: number;
 };
@@ -41,7 +42,7 @@ export type DramaDetail = {
   productionCompany: string | null;
   genres: Array<{ id: number; code: string; name: string }>;
   imageUrls: ReturnType<typeof createDramaImageUrls>;
-  previewVideos: Array<{ uuid: string; storageKey: string; durationMs: number }>;
+  previewVideos: Array<{ uuid: string; storageKey: string; durationMs: number; isSaved: boolean }>;
   episodes: Array<{
     uuid: string;
     episodeNumber: number;
@@ -51,6 +52,8 @@ export type DramaDetail = {
     pricePoints: number;
     image: string | null;
     isUnlocked: boolean;
+    videoUuid: string | null;
+    isSaved: boolean;
     watchProgress: {
       positionMs: number;
       isCompleted: boolean;
@@ -73,10 +76,16 @@ function mapImages(images: ContentImage[]) {
   return imageKeys;
 }
 
-function mapPreviewVideos(videos: ContentVideo[]) {
+type PreviewVideo = Pick<ContentVideo, 'uuid' | 'contentId' | 'storageKey' | 'durationMs' | 'displayOrder'> & {
+  isSaved: boolean;
+};
+
+type PreviewVideoRow = Omit<PreviewVideo, 'isSaved'> & { isSaved: number | string };
+
+function mapPreviewVideos(videos: PreviewVideo[]) {
   return [...videos]
     .sort((left, right) => left.displayOrder - right.displayOrder)
-    .map(({ uuid, storageKey, durationMs }) => ({ uuid, storageKey, durationMs }));
+    .map(({ uuid, storageKey, durationMs, isSaved }) => ({ uuid, storageKey, durationMs, isSaved }));
 }
 
 export class PublicCatalogService {
@@ -101,7 +110,26 @@ export class PublicCatalogService {
     private readonly s3VideoUrlService = new S3VideoUrlService(),
   ) {}
 
-  async listDramas(sort: 'latest' = 'latest', now = new Date()): Promise<DramaSummary[]> {
+  private async findPreviewVideos(dramaIds: number[], userUuid?: string): Promise<PreviewVideo[]> {
+    if (dramaIds.length === 0) return [];
+    const rows = await this.contentVideoRepository.createQueryBuilder('video')
+      .leftJoin(User, 'viewer', 'viewer.uuid = :userUuid', { userUuid: userUuid ?? null })
+      .leftJoin(UserSavedVideo, 'saved',
+        "saved.videoId = video.id AND saved.userId = viewer.id AND saved.contentType = 'PREVIEW'")
+      .select('video.uuid', 'uuid')
+      .addSelect('video.contentId', 'contentId')
+      .addSelect('video.storageKey', 'storageKey')
+      .addSelect('video.durationMs', 'durationMs')
+      .addSelect('video.displayOrder', 'displayOrder')
+      .addSelect('CASE WHEN saved.videoId IS NULL THEN 0 ELSE 1 END', 'isSaved')
+      .where("video.contentType = 'DRAMA' AND video.kind = 'PREVIEW'")
+      .andWhere('video.contentId IN (:...dramaIds)', { dramaIds })
+      .orderBy('video.displayOrder', 'ASC')
+      .getRawMany<PreviewVideoRow>();
+    return rows.map((row) => ({ ...row, isSaved: Number(row.isSaved) === 1 }));
+  }
+
+  async listDramas(sort: 'latest' = 'latest', now = new Date(), userUuid?: string): Promise<DramaSummary[]> {
     if (sort !== 'latest') {
       return [];
     }
@@ -123,7 +151,7 @@ export class PublicCatalogService {
       this.dramaGenreRepository.findBy({ dramaId: In(dramaIds) }),
       this.genreRepository.find({ order: { displayOrder: 'ASC' } }),
       this.contentImageRepository.findBy({ contentType: 'DRAMA', contentId: In(dramaIds) }),
-      this.contentVideoRepository.findBy({ contentType: 'DRAMA', contentId: In(dramaIds), kind: 'PREVIEW' }),
+      this.findPreviewVideos(dramaIds, userUuid),
       this.episodeRepository.findBy({ dramaId: In(dramaIds) }),
     ]);
 
@@ -141,7 +169,7 @@ export class PublicCatalogService {
       dramaImages.push(image);
       imagesByDrama.set(image.contentId, dramaImages);
     }
-    const videosByDrama = new Map<number, ContentVideo[]>();
+    const videosByDrama = new Map<number, PreviewVideo[]>();
     for (const video of videos) {
       const dramaVideos = videosByDrama.get(video.contentId) ?? [];
       dramaVideos.push(video);
@@ -212,14 +240,23 @@ export class PublicCatalogService {
       positionMs: number | string | null;
       isCompleted: number | string | null;
       lastPlayedAt: Date | null;
+      videoUuid: string | null;
+      isSaved: number | string;
     };
 
     const episodeQuery = this.episodeRepository.createQueryBuilder('episode')
+      .leftJoin(ContentVideo, 'video',
+        "video.contentType = 'EPISODE' AND video.contentId = episode.id AND video.kind = 'FULL' AND video.displayOrder = (" +
+        "SELECT MIN(full_video.display_order) FROM content_videos full_video " +
+        "WHERE full_video.content_type = 'EPISODE' AND full_video.content_id = episode.id AND full_video.kind = 'FULL')")
       .leftJoin(EpisodeEntitlement, 'entitlement',
         'entitlement.episodeId = episode.id AND entitlement.userId = :userId',
         { userId })
       .leftJoin(UserWatchProgress, 'progress',
         'progress.episodeId = episode.id AND progress.userId = :userId',
+        { userId })
+      .leftJoin(UserSavedVideo, 'saved',
+        "saved.videoId = video.id AND saved.userId = :userId AND saved.contentType = 'EPISODE'",
         { userId })
       .select('episode.id', 'id')
       .addSelect('episode.uuid', 'uuid')
@@ -228,6 +265,8 @@ export class PublicCatalogService {
       .addSelect('episode.synopsis', 'synopsis')
       .addSelect('episode.durationMs', 'durationMs')
       .addSelect('episode.pricePoints', 'pricePoints')
+      .addSelect('video.uuid', 'videoUuid')
+      .addSelect('CASE WHEN saved.videoId IS NULL THEN 0 ELSE 1 END', 'isSaved')
       .addSelect(
         'CASE WHEN episode.pricePoints = 0 OR entitlement.id IS NOT NULL THEN 1 ELSE 0 END',
         'unlocked',
@@ -246,7 +285,7 @@ export class PublicCatalogService {
       this.dramaGenreRepository.findBy({ dramaId: drama.id }),
       this.genreRepository.find({ order: { displayOrder: 'ASC' } }),
       this.contentImageRepository.findBy({ contentType: 'DRAMA', contentId: drama.id }),
-      this.contentVideoRepository.findBy({ contentType: 'DRAMA', contentId: drama.id, kind: 'PREVIEW' }),
+      this.findPreviewVideos([drama.id], userUuid),
       episodeQuery.getRawMany<DetailEpisodeRow>(),
     ]);
 
@@ -275,7 +314,7 @@ export class PublicCatalogService {
       imageUrls: createDramaImageUrls(dramaImages),
       previewVideos: mapPreviewVideos(videos),
       episodes: episodes.map(
-        ({ id, uuid, episodeNumber, title, synopsis, durationMs, pricePoints, unlocked,
+        ({ id, uuid, episodeNumber, title, synopsis, durationMs, pricePoints, unlocked, videoUuid, isSaved,
           progressEpisodeId, positionMs, isCompleted, lastPlayedAt }) => ({
           uuid,
           episodeNumber,
@@ -285,6 +324,8 @@ export class PublicCatalogService {
           pricePoints,
           image: episodeImagesById.get(id) ?? null,
           isUnlocked: Number(unlocked) === 1,
+          videoUuid,
+          isSaved: Number(isSaved) === 1,
           watchProgress: progressEpisodeId === null ? null : {
             positionMs: Number(positionMs),
             isCompleted: Number(isCompleted) === 1,
@@ -295,7 +336,7 @@ export class PublicCatalogService {
     };
   }
 
-  private async getEpisodeVideo(episodeId: string, userUuid: string | undefined, now: Date): Promise<{ storageKey: string; title: string | null; episodeNumber: number; durationMs: number; userId: number | null; pricePoints: number | string; entitlementId: number | null }> {
+  private async getEpisodeVideo(episodeId: string, userUuid: string | undefined, now: Date): Promise<{ storageKey: string; videoUuid: string; isSaved: number | string; title: string | null; episodeNumber: number; durationMs: number; userId: number | null; pricePoints: number | string; entitlementId: number | null }> {
     const video = await this.episodeRepository
       .createQueryBuilder('episode')
       .innerJoin(Drama, 'drama', 'drama.id = episode.dramaId AND drama.status = :dramaStatus AND drama.publishedAt <= :now', {
@@ -309,7 +350,11 @@ export class PublicCatalogService {
       .leftJoin(User, 'playbackUser', 'playbackUser.uuid = :userUuid', { userUuid: userUuid ?? null })
       .leftJoin(EpisodeEntitlement, 'entitlement',
         'entitlement.userId = playbackUser.id AND entitlement.episodeId = episode.id')
+      .leftJoin(UserSavedVideo, 'saved',
+        "saved.videoId = video.id AND saved.userId = playbackUser.id AND saved.contentType = 'EPISODE'")
       .select('video.storageKey', 'storageKey')
+      .addSelect('video.uuid', 'videoUuid')
+      .addSelect('CASE WHEN saved.videoId IS NULL THEN 0 ELSE 1 END', 'isSaved')
       .addSelect('video.durationMs', 'durationMs')
       .addSelect('episode.title', 'title')
       .addSelect('episode.episodeNumber', 'episodeNumber')
@@ -323,6 +368,8 @@ export class PublicCatalogService {
       .limit(1)
       .getRawOne<{
         storageKey: string;
+        videoUuid: string;
+        isSaved: number | string;
         title: string | null;
         episodeNumber: number;
         durationMs: number;
@@ -342,28 +389,33 @@ export class PublicCatalogService {
     return video;
   }
 
-  async getEpisodePlaybackUrl(episodeId: string, userUuid?: string, now = new Date()): Promise<{ url: string; title: string | null; episodeNumber: number; durationMs: number }> {
+  async getEpisodePlaybackUrl(episodeId: string, userUuid?: string, now = new Date()): Promise<{ url: string; videoUuid: string; isSaved: boolean; title: string | null; episodeNumber: number; durationMs: number }> {
     if (process.env.NODE_ENV !== 'development') throw new NotFoundException(`Episode '${episodeId}' was not found`);
-    const { storageKey, title, episodeNumber, durationMs } = await this.getEpisodeVideo(episodeId, userUuid, now);
+    const { storageKey, videoUuid, isSaved, title, episodeNumber, durationMs } = await this.getEpisodeVideo(episodeId, userUuid, now);
     const url = await this.s3VideoUrlService.createSignedGetUrl(storageKey);
-    return { url, title, episodeNumber, durationMs };
+    return { url, videoUuid, isSaved: Number(isSaved) === 1, title, episodeNumber, durationMs };
   }
 
-  async getDramaPreviewPlaybackUrl(dramaId: string, videoId: string): Promise<{ url: string; durationMs: number }> {
+  async getDramaPreviewPlaybackUrl(dramaId: string, videoId: string, userUuid?: string): Promise<{ url: string; videoUuid: string; isSaved: boolean; durationMs: number }> {
     if (process.env.NODE_ENV !== 'development') throw new NotFoundException();
 
-    const drama = await this.dramaRepository.findOne({ where: { uuid: dramaId, status: PUBLIC_STATUS } });
-    if (!drama || drama.publishedAt === null || drama.publishedAt > new Date()) {
-      throw new NotFoundException();
-    }
-
-    const video = await this.contentVideoRepository.findOne({
-      where: { uuid: videoId, contentType: 'DRAMA', contentId: drama.id, kind: 'PREVIEW' },
-    });
+    const video = await this.contentVideoRepository.createQueryBuilder('video')
+      .innerJoin(Drama, 'drama',
+        "drama.id = video.contentId AND drama.uuid = :dramaUuid AND drama.status = 'PUBLISHED' AND drama.publishedAt <= :now",
+        { dramaUuid: dramaId, now: new Date() })
+      .leftJoin(User, 'viewer', 'viewer.uuid = :userUuid', { userUuid: userUuid ?? null })
+      .leftJoin(UserSavedVideo, 'saved',
+        "saved.videoId = video.id AND saved.userId = viewer.id AND saved.contentType = 'PREVIEW'")
+      .select('video.uuid', 'videoUuid')
+      .addSelect('video.storageKey', 'storageKey')
+      .addSelect('video.durationMs', 'durationMs')
+      .addSelect('CASE WHEN saved.videoId IS NULL THEN 0 ELSE 1 END', 'isSaved')
+      .where("video.uuid = :videoUuid AND video.contentType = 'DRAMA' AND video.kind = 'PREVIEW'", { videoUuid: videoId })
+      .getRawOne<{ videoUuid: string; storageKey: string; durationMs: number; isSaved: number | string }>();
     if (!video) throw new NotFoundException();
 
     const url = await this.s3VideoUrlService.createSignedGetUrl(video.storageKey);
-    return { url, durationMs: video.durationMs };
+    return { url, videoUuid: video.videoUuid, isSaved: Number(video.isSaved) === 1, durationMs: video.durationMs };
   }
 
   async listGenres(): Promise<GenreSummary[]> {

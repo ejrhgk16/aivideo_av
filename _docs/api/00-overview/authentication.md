@@ -88,9 +88,11 @@ DB의 `auth_sessions`는 로그인별 사용자와 폐기 시각을 관리한다
 
 ## 제품 API 인증
 
-공개 목록·홈·프리뷰는 인증 없이 사용할 수 있다. 작품 상세와 회차 재생은 선택 인증이다. `Authorization` 헤더가 없으면 익명으로 처리하고, 헤더가 있으면 `Bearer <accessToken>`을 검증한다. 빈 값·잘못된 스킴·만료·변조·Refresh 토큰은 `AUTH_INVALID_TOKEN`(401)이며 익명으로 재처리하지 않는다.
+드라마 목록, 컬렉션, 작품 상세, 회차 재생, 프리뷰 재생은 선택 인증이다. `Authorization` 헤더가 없으면 익명으로 처리하고, 헤더가 있으면 `Bearer <accessToken>`을 검증한다. 빈 값·잘못된 스킴·만료·변조·Refresh 토큰은 `AUTH_INVALID_TOKEN`(401)이며 익명으로 재처리하지 않는다.
 
 작품 상세는 검증된 Access의 사용자 entitlement와 시청기록만 보여준다. 익명 응답에서는 무료 회차만 `isUnlocked: true`이며 모든 시청기록은 `null`이다. 전달된 `userUuid` query는 사용자를 선택하지 않는다.
+
+드라마 목록·컬렉션·작품 상세의 영상 항목은 JWT 사용자 저장 여부 `isSaved`를 포함하며 익명 요청에서는 모두 `false`다. 회차 상세와 재생 응답은 대표 FULL 영상 UUID와 사용자 저장 여부를 제공한다. 프리뷰 재생 응답에도 해당 프리뷰 `videoUuid`와 `isSaved`를 제공한다.
 
 회차 재생은 공개 리소스를 확인한 뒤 무료 회차를 익명·인증 사용자 모두 허용한다. 유료 회차의 익명 요청은 `AUTH_INVALID_TOKEN`(401), 인증된 미구매 사용자는 `EPISODE_ACCESS_DENIED`(403), 구매 사용자는 200이다. 잔존 `userUuid` query는 사용자 선택에 사용하지 않는다.
 

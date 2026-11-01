@@ -18,7 +18,7 @@ test('episode playback encodes the id and resolves relative video URLs', async (
   const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   const originalFetch = globalThis.fetch;
   const urls: string[] = [];
-  const body = { url: '/media/video.mp4', title: '다시 만난 봄', episodeNumber: 1, durationMs: 420000 };
+  const body = { url: '/media/video.mp4', videoUuid: 'video-1', isSaved: false, title: '다시 만난 봄', episodeNumber: 1, durationMs: 420000 };
   process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000/api/';
   globalThis.fetch = (async (input) => {
     urls.push(String(input));
@@ -43,7 +43,7 @@ test('episode playback requests anonymously without adding an empty user query',
   const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   const originalFetch = globalThis.fetch;
   const urls: string[] = [];
-  const body = { url: '/media/video.mp4', title: null, episodeNumber: 1, durationMs: 420000 };
+  const body = { url: '/media/video.mp4', videoUuid: 'video-1', isSaved: false, title: null, episodeNumber: 1, durationMs: 420000 };
   process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000/api';
   globalThis.fetch = (async (input) => {
     urls.push(String(input));
@@ -66,7 +66,7 @@ test('episode playback cannot select a caller-provided user UUID', async () => {
   const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   const originalFetch = globalThis.fetch;
   const urls: string[] = [];
-  const body = { url: '/media/video.mp4', title: null, episodeNumber: 1, durationMs: 420000 };
+  const body = { url: '/media/video.mp4', videoUuid: 'video-1', isSaved: false, title: null, episodeNumber: 1, durationMs: 420000 };
   process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000/api';
   globalThis.fetch = (async (input) => {
     urls.push(String(input));
@@ -89,7 +89,7 @@ test('episode playback cannot select a caller-provided user UUID', async () => {
 test('episode playback preserves absolute URLs', async () => {
   const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   const originalFetch = globalThis.fetch;
-  const body = { url: 'https://cdn.example.com/video.mp4', title: null, episodeNumber: 2, durationMs: 520000 };
+  const body = { url: 'https://cdn.example.com/video.mp4', videoUuid: 'video-2', isSaved: true, title: null, episodeNumber: 2, durationMs: 520000 };
   process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
   globalThis.fetch = (async () => ({ ok: true, json: async () => body }) as Response) as typeof fetch;
 

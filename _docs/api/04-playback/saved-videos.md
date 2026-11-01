@@ -30,13 +30,22 @@
     {
       "videoUuid": "a1b2c3d4-0000-4000-8000-000000000001",
       "contentType": "PREVIEW",
-      "savedAt": "2026-11-01T00:00:00.000Z"
+      "savedAt": "2026-11-01T00:00:00.000Z",
+      "dramaUuid": "00000002-0000-4000-8000-000000000001",
+      "dramaTitle": "우리의 마지막 봄",
+      "imageUrl": "https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/...",
+      "durationMs": 30000,
+      "episodeUuid": null,
+      "episodeNumber": null,
+      "episodeTitle": null
     }
   ],
   "page": 1,
   "hasNext": false
 }
 ```
+
+`EPISODE` 항목은 `episodeUuid`, `episodeNumber`, `episodeTitle`에 회차 정보를 반환한다. `PREVIEW` 항목에서는 세 필드가 `null`이다. `imageUrl`은 영상 종류와 관계없이 작품의 `POSTER_LANDSCAPE`를 우선 사용하고, 없으면 `POSTER`를 사용한다. 두 이미지가 없거나 공개 URL 설정이 없으면 `null`이다. `durationMs`는 저장한 영상 자체의 재생 길이를 밀리초로 반환한다.
 
 빈 페이지의 `items`는 빈 배열이다. 내부 숫자 ID, 재생 URL, 다른 사용자의 저장 항목은 반환하지 않는다. 목록은 재생 권한을 평가하지 않는다. 다른 페이지를 읽는 사이 저장·공개 상태가 바뀌면 항목이 이동하거나 빠질 수 있다.
 

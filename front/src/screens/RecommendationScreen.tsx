@@ -8,12 +8,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlatList, Modal, PanResponder, Platform, Pressable, Share, StyleSheet, View, type GestureResponderEvent, type NativeScrollEvent, type NativeSyntheticEvent, type PanResponderGestureState } from 'react-native';
 import { AppText, Button, EmptyState, Icon, Page } from '@/components/ui';
 import { EpisodeUnlockDialog } from '@/components/EpisodeUnlockDialog';
+import { ApiError, SessionChangedError } from '@/common/http/api';
+import { getErrorMessage } from '@/common/http/errorMessages';
 import { resolveApiImageUrl } from '@/common/media';
 import { colors } from '@/common/theme/tokens';
 import { getDramaContent, type DramaContent } from '@/features/drama/dramaContent';
 import { getHomeCollection, type HomeCollection, type HomeCollectionDrama } from '@/features/home/homeContent';
 import { getPreviewPlayback } from '@/features/playback/previewPlayback';
 import { createRecommendationPreviewBuffer, recommendationPreviewKey, type RecommendationPreviewEntry } from '@/features/playback/recommendationPreviewBuffer';
+import { useSavedVideo, useSavedVideos } from '@/features/playback/SavedVideosProvider';
+import { useUser } from '@/features/user/UserProvider';
 
 type CollectionStatus = 'loading' | 'loaded' | 'error';
 const PAGE_SETTLE_TOLERANCE = 4;
@@ -34,9 +38,8 @@ function RecommendationPreviewPlayer({
   trackListener,
   drama,
   content,
-  saved,
+  initialSaved,
   onError,
-  onToggleSave,
   onOpenEpisodes,
   onShare,
   onSeekTouch,
@@ -46,14 +49,17 @@ function RecommendationPreviewPlayer({
   trackListener: (subscription: { remove(): void }) => { remove(): void };
   drama: HomeCollectionDrama;
   content: DramaContent | null;
-  saved: boolean;
+  initialSaved: boolean;
   onError: () => void;
-  onToggleSave: () => void;
   onOpenEpisodes: () => void;
   onShare: () => void;
   onSeekTouch: (active: boolean) => void;
 }) {
   const router = useRouter();
+  const { user, isRestoring, sessionExpired } = useUser();
+  const preview = drama.previewVideos[0];
+  const savedVideo = useSavedVideo(preview?.uuid ?? null, 'PREVIEW', initialSaved);
+  const [savedError, setSavedError] = useState<unknown>(null);
   const insets = useSafeAreaInsets();
   const [isPlaying, setIsPlaying] = useState(player.playing);
   const [position, setPosition] = useState(player.currentTime);
@@ -71,6 +77,15 @@ function RecommendationPreviewPlayer({
   const seeking = useRef(false);
   const seekTouchActive = useRef(false);
   onErrorRef.current = onError;
+  const toggleSaved = async () => {
+    if (!user) { router.push('/login'); return; }
+    setSavedError(null);
+    try { await savedVideo.toggle(); }
+    catch (error) {
+      if (error instanceof SessionChangedError || (error instanceof ApiError && error.status === 401 && sessionExpired)) return;
+      setSavedError(error);
+    }
+  };
   const episodes = [...(content?.episodes ?? [])].sort((first, second) => first.episodeNumber - second.episodeNumber);
   const firstEpisode = episodes[0] ?? null;
   const genres = drama.genres.map((genre) => genre.name).join(' · ') || '장르 정보 없음';
@@ -191,7 +206,8 @@ function RecommendationPreviewPlayer({
         </Pressable>)}
       </View>}
       <View style={styles.playerSideActions}>
-        <Pressable onPress={onToggleSave} accessibilityRole="button" accessibilityLabel={saved ? '저장 해제' : '작품 저장'} style={styles.playerSideAction}><Icon name="bookmark" color={saved ? colors.accent : '#fff'} /><AppText style={styles.playerActionLabel}>{saved ? '저장됨' : '저장'}</AppText></Pressable>
+        <Pressable disabled={!preview || isRestoring || savedVideo.pending} onPress={() => void toggleSaved()} accessibilityRole="button" accessibilityLabel={savedVideo.saved ? '저장 해제' : '작품 저장'} accessibilityState={{ disabled: !preview || isRestoring || savedVideo.pending, busy: savedVideo.pending }} style={styles.playerSideAction}><Icon name="bookmark" color={savedVideo.saved ? colors.accent : '#fff'} /><AppText style={styles.playerActionLabel}>{savedVideo.saved ? '저장됨' : '저장'}</AppText></Pressable>
+        {savedError ? <AppText accessibilityRole="alert" style={styles.playerActionLabel}>{getErrorMessage(savedError)}</AppText> : null}
         <Pressable onPress={onOpenEpisodes} accessibilityRole="button" accessibilityLabel="전체 회차" style={styles.playerSideAction}><Icon name="layers" color="#fff" /><AppText style={styles.playerActionLabel}>회차</AppText></Pressable>
         <Pressable onPress={onShare} accessibilityRole="button" accessibilityLabel="작품 공유" style={styles.playerSideAction}><Icon name="share-2" color="#fff" /><AppText style={styles.playerActionLabel}>공유</AppText></Pressable>
       </View>
@@ -234,8 +250,13 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
   const router = useRouter();
   const [collection, setCollection] = useState<HomeCollection | null>(null);
   const [status, setStatus] = useState<CollectionStatus>('loading');
+  const [collectionSessionVersion, setCollectionSessionVersion] = useState<number | null>(null);
+  const [collectionOwnerUuid, setCollectionOwnerUuid] = useState<string | null>(null);
+  const collectionSessionRef = useRef<number | null>(null);
+  const collectionOwnerRef = useRef<string | null>(null);
   const [cardHeight, setCardHeight] = useState(0);
-  const [savedIds, setSavedIds] = useState<string[]>([]);
+  const { isRestoring, sessionVersion, isCurrentSession, user } = useUser();
+  const savedVideos = useSavedVideos();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeDrama, setActiveDrama] = useState<DramaContent | null>(null);
   const [screenFocused, setScreenFocused] = useState(false);
@@ -270,6 +291,8 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
   focusedRef.current = screenFocused;
   bufferRef.current = buffer;
   cardHeightRef.current = cardHeight;
+  collectionSessionRef.current = collectionSessionVersion;
+  collectionOwnerRef.current = collectionOwnerUuid;
 
   const clearWheelTimer = () => {
     wheelGenerationRef.current += 1;
@@ -468,7 +491,7 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
       setScreenFocused(false);
       setBuffer(null);
     };
-  }, []));
+  }, [sessionVersion, user?.uuid]));
 
   useEffect(() => {
     if (Platform.OS !== 'web' || !screenFocused) return;
@@ -513,25 +536,39 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
     buffer?.releasePending();
   }, [buffer, bufferEntries]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     let active = true;
+    const sameSession = collectionSessionRef.current === sessionVersion && collectionOwnerRef.current === (user?.uuid ?? null);
+    if (isRestoring || !sameSession) {
+      setCollection(null);
+      setStatus('loading');
+    }
+    if (isRestoring || !sameSession) {
+      setActiveId(null);
+    }
+    if (isRestoring) return () => { active = false; };
+    const version = sessionVersion;
+    const startedRevision = savedVideos.state.getSnapshot().revision;
     void getHomeCollection('RECOMMENDATION_DAILY').then(
       (result) => {
-        if (active) {
+        if (active && isCurrentSession(version)) {
+          savedVideos.state.accept(result.dramas.flatMap((drama) => drama.previewVideos.map((preview) => ({ videoUuid: preview.uuid, isSaved: preview.isSaved }))), startedRevision);
           const ordered = [...result.dramas].sort((first, second) => {
             if (first.uuid === initialId) return -1;
             if (second.uuid === initialId) return 1;
             return first.displayOrder - second.displayOrder;
           });
           setCollection(result);
-          setActiveId(ordered[0]?.uuid ?? null);
+          setCollectionSessionVersion(version);
+          setCollectionOwnerUuid(user?.uuid ?? null);
+          setActiveId((current) => ordered.some((drama) => drama.uuid === current) ? current : ordered[0]?.uuid ?? null);
           setStatus('loaded');
         }
       },
-      () => { if (active) setStatus('error'); },
+      () => { if (active && isCurrentSession(version) && !sameSession) setStatus('error'); },
     );
     return () => { active = false; };
-  }, [initialId]);
+  }, [initialId, isRestoring, sessionVersion, user?.uuid, isCurrentSession, savedVideos.state]));
 
   const dramas = useMemo(() => [...(collection?.dramas ?? [])].sort((first, second) => {
     if (first.uuid === initialId) return -1;
@@ -545,8 +582,6 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
     pathname: '/drama/[id]',
     params: { id: drama.uuid, tab: 'episodes' },
   });
-  const toggleSave = (id: string) => setSavedIds((ids) =>
-    ids.includes(id) ? ids.filter((savedId) => savedId !== id) : [...ids, id]);
   const shareDrama = (drama: HomeCollectionDrama) => Share.share({
     title: drama.title,
     message: [drama.title, drama.shortDescription].filter(Boolean).join('\n'),
@@ -659,11 +694,10 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
     activeEntry,
     activePlayer,
     activeDrama,
-    savedIds,
     buffer,
     bufferEntries,
     preparedPlayers,
-  }), [screenFocused, scrolling, activeId, activeEntry, activePlayer, activeDrama, savedIds, buffer, bufferEntries, preparedPlayers]);
+  }), [screenFocused, scrolling, activeId, activeEntry, activePlayer, activeDrama, buffer, bufferEntries, preparedPlayers]);
 
   useEffect(() => {
     if (!buffer || !activePreviewTarget || !activePlayer || !screenFocused) return;
@@ -768,13 +802,12 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
                     trackListener={(subscription) => buffer!.trackSubscription(activePreviewTarget, activePlayer!, subscription)}
                     drama={drama}
                     content={activeDrama}
-                    saved={savedIds.includes(drama.uuid)}
+                    initialSaved={collectionSessionVersion === sessionVersion && collectionOwnerUuid === (user?.uuid ?? null) ? drama.previewVideos[0]?.isSaved ?? false : false}
                     onError={() => {
                       if (focusedRef.current && activeIdRef.current === drama.uuid && bufferRef.current === buffer) {
                         buffer?.setUnavailable(activePreviewTarget, activePlayer!);
                       }
                     }}
-                    onToggleSave={() => toggleSave(drama.uuid)}
                     onOpenEpisodes={() => openEpisodes(drama)}
                     onShare={() => { void shareDrama(drama); }}
                     onSeekTouch={(active) => { gestureBlockedRef.current = active; }}

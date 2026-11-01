@@ -5,7 +5,7 @@
     {
       "id": "task-1",
       "name": "백엔드 저장 목록·저장 여부 응답 확장",
-      "status": "pending",
+      "status": "completed",
       "depends_on": [],
       "files": [
         "back/src/playback/savedVideoService.ts",
@@ -28,12 +28,15 @@
         "npm --prefix back run lint",
         "npm --prefix back run test",
         "npm --prefix back run build"
-      ]
+      ],
+      "started_at": "2026-11-01T17:55:19.318Z",
+      "summary": "Added saved-state joins and response metadata across catalog, collection, playback, and saved-video APIs; updated API docs and HTTP coverage. Lint, unit and Postman tests, and build passed.",
+      "completed_at": "2026-11-01T18:05:51.346Z"
     },
     {
       "id": "task-2",
       "name": "프론트 공통 저장 API·상태 구성",
-      "status": "pending",
+      "status": "completed",
       "depends_on": [
         "task-1"
       ],
@@ -52,6 +55,7 @@
         "front/tests/unit/previewPlayback.test.ts",
         "front/tests/unit/dramaContent.test.ts",
         "front/tests/unit/homeContent.test.ts",
+        "front/tests/unit/sessionExpiredDialog.test.ts",
         "front/scripts/test-front.cjs",
         "_docs/ARCHITECTURE.md"
       ],
@@ -59,12 +63,15 @@
         "npm --prefix front run typecheck",
         "npm --prefix front run test",
         "npm --prefix front run export"
-      ]
+      ],
+      "started_at": "2026-11-01T18:06:00.312Z",
+      "summary": "Added shared saved-video APIs and per-session state/provider, propagated saved metadata and optional authentication through playback/catalog APIs, and updated architecture documentation. Anonymous observations are accepted while writes require a signed-in user. Typecheck, all 133 frontend tests, and Expo export passed.",
+      "completed_at": "2026-11-01T18:15:14.830Z"
     },
     {
       "id": "task-3",
       "name": "저장 페이지·전체 저장 버튼 연결",
-      "status": "pending",
+      "status": "completed",
       "depends_on": [
         "task-2"
       ],
@@ -84,7 +91,36 @@
         "npm --prefix front run typecheck",
         "npm --prefix front run test",
         "npm --prefix front run export"
-      ]
+      ],
+      "started_at": "2026-11-01T18:15:24.388Z",
+      "summary": "저장 목록·페이지 이동과 재생 화면 저장/해제 기능을 연결했습니다. 포커스 갱신 시 재생 위치와 추천 작품을 유지하고, 계정별 오래된 응답을 차단했습니다. typecheck, test(140/140), Expo export(Web/iOS/Android) 통과.",
+      "completed_at": "2026-11-01T18:41:33.106Z"
+    },
+    {
+      "id": "task-4",
+      "name": "보관함 이미지·문구·영상시간 수정",
+      "status": "completed",
+      "depends_on": [
+        "task-3"
+      ],
+      "files": [
+        "back/src/playback/savedVideoService.ts",
+        "_docs/api/04-playback/saved-videos.md",
+        "back/test/api/public.postman_collection.json",
+        "front/src/screens/LibraryScreen.tsx",
+        "front/tests/unit/libraryScreen.test.ts"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test",
+        "npm --prefix back run build",
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-11-01T19:21:30.182Z",
+      "summary": "보관함에 드라마 가로 포스터 우선 표시와 TOP3 크기(112×63), 드라마명·영상 종류·분/초 재생시간을 적용했습니다. API 문서와 Postman 포스터 비교 검증을 추가했습니다. 백엔드 lint/test(110 unit, Postman 301 requests·346 assertions)/build, 프론트 typecheck/test(141개)/export(Web·iOS·Android), scoped diff check가 모두 통과했습니다. 실제 데이터에 포스터 fallback이나 이미지 없음 조건이 없어 해당 분기는 쿼리 순서와 문서로 확인했습니다.",
+      "completed_at": "2026-11-01T19:26:53.783Z"
     }
   ]
 }

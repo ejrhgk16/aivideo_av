@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { PanResponder, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type ImageStyle, type StyleProp, type ViewStyle } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AppText, Button, EmptyState, Icon, Page, SectionTitle } from '@/components/ui';
@@ -9,6 +9,11 @@ import { getDramaList, type DramaSummary } from '@/features/drama/dramaContent';
 import { getHomeCollection, type HomeCollection, type HomeCollectionDrama } from '@/features/home/homeContent';
 import { resolveApiImageUrl } from '@/common/media';
 import { colors } from '@/common/theme/tokens';
+import { ApiError, SessionChangedError } from '@/common/http/api';
+import { getErrorMessage } from '@/common/http/errorMessages';
+import { useSavedVideo } from '@/features/playback/SavedVideosProvider';
+import { useSavedVideos } from '@/features/playback/SavedVideosProvider';
+import { useUser } from '@/features/user/UserProvider';
 
 const tabs = ['추천', '최신', '랭킹', '장르'] as const;
 
@@ -51,7 +56,7 @@ function ApiRankRows({ dramas: apiDramas, onPress }: { dramas: HomeCollectionDra
 function ApiPoster({ drama, width, onPress }: { drama: HomeCollectionDrama; width: number; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={drama.title + ' 작품 소개'} style={{ width, gap: 10 }}>
-      <View style={[styles.apiPoster, { height: width * 1.48 }]}>
+      <View style={[styles.apiPoster, { height: Math.round(width * 1.48) }]}>
         <ApiDramaImage imageUrl={drama.imageUrls.poster} title={drama.title} style={StyleSheet.absoluteFill} />
       </View>
       <AppText weight="semibold" numberOfLines={1}>{drama.title}</AppText>
@@ -62,6 +67,8 @@ function ApiPoster({ drama, width, onPress }: { drama: HomeCollectionDrama; widt
 
 export function HomeScreen() {
   const router = useRouter();
+  const { isRestoring, sessionVersion, isCurrentSession, user, sessionExpired } = useUser();
+  const savedVideos = useSavedVideos();
   const { width } = useWindowDimensions();
   const [tab, setTab] = useState<(typeof tabs)[number]>('추천');
   const [heroIndex, setHeroIndex] = useState(0);
@@ -75,37 +82,57 @@ export function HomeScreen() {
   const [topThreeStatus, setTopThreeStatus] = useState<CollectionStatus>('loading');
   const [catalog, setCatalog] = useState<DramaSummary[]>([]);
   const [catalogStatus, setCatalogStatus] = useState<CollectionStatus>('loading');
+  const [savedError, setSavedError] = useState<unknown>(null);
+  const [featuredOwner, setFeaturedOwner] = useState<{ uuid: string | null; version: number } | null>(null);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     let active = true;
+    const version = sessionVersion;
+    setFeatured(null); setDaily(null); setCampaign(null); setTopThree(null); setCatalog([]);
+    setFeaturedOwner(null);
+    setFeaturedStatus('loading'); setDailyStatus('loading'); setTopThreeStatus('loading'); setCatalogStatus('loading');
+    if (isRestoring) return () => { active = false; };
+    const startedRevision = savedVideos.state.getSnapshot().revision;
+    setHeroIndex(0);
     void getHomeCollection('HOME_FEATURED').then(
-      (collection) => { if (active) { setFeatured(collection); setFeaturedStatus('loaded'); } },
-      () => { if (active) setFeaturedStatus('error'); },
+      (collection) => { if (active && isCurrentSession(version)) { savedVideos.state.accept(collection.dramas.flatMap((drama) => drama.previewVideos.map((preview) => ({ videoUuid: preview.uuid, isSaved: preview.isSaved }))), startedRevision); setFeatured(collection); setFeaturedOwner({ uuid: user?.uuid ?? null, version }); setFeaturedStatus('loaded'); } },
+      () => { if (active && isCurrentSession(version)) setFeaturedStatus('error'); },
     );
     void getHomeCollection('RECOMMENDATION_DAILY').then(
-      (collection) => { if (active) { setDaily(collection); setDailyStatus('loaded'); } },
-      () => { if (active) setDailyStatus('error'); },
+      (collection) => { if (active && isCurrentSession(version)) { savedVideos.state.accept(collection.dramas.flatMap((drama) => drama.previewVideos.map((preview) => ({ videoUuid: preview.uuid, isSaved: preview.isSaved }))), startedRevision); setDaily(collection); setDailyStatus('loaded'); } },
+      () => { if (active && isCurrentSession(version)) setDailyStatus('error'); },
     );
     void getHomeCollection('EDITORIAL_TOP_3').then(
-      (collection) => { if (active) { setTopThree(collection); setTopThreeStatus('loaded'); } },
-      () => { if (active) setTopThreeStatus('error'); },
+      (collection) => { if (active && isCurrentSession(version)) { savedVideos.state.accept(collection.dramas.flatMap((drama) => drama.previewVideos.map((preview) => ({ videoUuid: preview.uuid, isSaved: preview.isSaved }))), startedRevision); setTopThree(collection); setTopThreeStatus('loaded'); } },
+      () => { if (active && isCurrentSession(version)) setTopThreeStatus('error'); },
     );
     void getHomeCollection('HOME_CAMPAIGN').then(
-      (collection) => { if (active) setCampaign(collection); },
+      (collection) => { if (active && isCurrentSession(version)) setCampaign(collection); },
       () => undefined,
     );
     void getDramaList().then(
-      (dramaList) => { if (active) { setCatalog(dramaList); setCatalogStatus('loaded'); } },
-      () => { if (active) setCatalogStatus('error'); },
+      (dramaList) => { if (active && isCurrentSession(version)) { setCatalog(dramaList); setCatalogStatus('loaded'); } },
+      () => { if (active && isCurrentSession(version)) setCatalogStatus('error'); },
     );
     return () => { active = false; };
-  }, []);
+  }, [isRestoring, sessionVersion, user?.uuid, isCurrentSession, savedVideos.state]));
 
   const featuredDramas = collectionDramas(featured);
   const dailyDramas = collectionDramas(daily);
   const topThreeDramas = collectionDramas(topThree);
   const campaignImage = collectionDramas(campaign)[0]?.imageUrls.campaigns[0] ?? null;
   const hero = featuredDramas[heroIndex];
+  const heroPreview = hero?.previewVideos[0];
+  const savedVideo = useSavedVideo(heroPreview?.uuid ?? null, 'PREVIEW', featuredOwner?.uuid === (user?.uuid ?? null) && featuredOwner.version === sessionVersion ? heroPreview?.isSaved ?? false : false);
+  const toggleHeroSaved = async () => {
+    if (!user) { router.push('/login'); return; }
+    setSavedError(null);
+    try { await savedVideo.toggle(); }
+    catch (error) {
+      if (error instanceof SessionChangedError || (error instanceof ApiError && error.status === 401 && sessionExpired)) return;
+      setSavedError(error);
+    }
+  };
   const heroResponder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: (_event, gestureState) => featuredDramas.length > 1 && Math.abs(gestureState.dx) > 12 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
     onPanResponderRelease: (_event, gestureState) => {
@@ -139,8 +166,9 @@ export function HomeScreen() {
               <AppText style={styles.heroMeta}>{genreLabel(hero)}  ·  {hero.publishedEpisodeCount}화 공개  ·  {hero.freeEpisodeCount}화 무료</AppText>
               <View style={styles.heroActions}>
                 <Button style={styles.heroButton} disabled label="재생 준비 중" icon={<Icon name="play" size={17} color={colors.background} />} onPress={() => undefined} />
-                <Pressable disabled style={styles.saveButton} accessibilityRole="button" accessibilityLabel="저장 기능 준비 중" accessibilityState={{ disabled: true }}><Icon name="plus" size={23} color={colors.text} /></Pressable>
+                <Pressable disabled={!heroPreview || isRestoring || savedVideo.pending} onPress={() => void toggleHeroSaved()} style={[styles.saveButton, savedVideo.saved && styles.savedButton]} accessibilityRole="button" accessibilityLabel={savedVideo.saved ? '저장 해제' : '작품 저장'} accessibilityState={{ disabled: !heroPreview || isRestoring || savedVideo.pending, busy: savedVideo.pending }}><Icon name={savedVideo.saved ? 'bookmark' : 'plus'} size={23} color={savedVideo.saved ? colors.accent : colors.text} /></Pressable>
               </View>
+              {savedError ? <AppText accessibilityRole="alert" style={styles.small}>{getErrorMessage(savedError)}</AppText> : null}
               <Pressable style={styles.detailLink} accessibilityRole="button" onPress={() => openDetail(hero)}><AppText style={styles.detailLinkText}>작품 소개</AppText><Icon name="arrow-up-right" size={14} color={colors.muted} /></Pressable>
             </> : <View style={styles.heroEmpty}>{collectionState(featuredStatus, '추천 작품', '추천 작품이 없습니다.')}</View>}
           </View>
@@ -152,7 +180,7 @@ export function HomeScreen() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.posterRail}>{dailyDramas.map((drama) => <ApiPoster key={drama.uuid} drama={drama} width={posterWidth} onPress={() => openDetail(drama)} />)}</ScrollView>
           </>
           : <View style={styles.section}><SectionTitle eyebrow="QUICK ESCAPE" title="1분이면, 빠져드는 이야기" />{collectionState(dailyStatus, '오늘의 추천', '추천 작품이 없습니다.')}</View>}
-        {campaignImage ? <Pressable accessibilityRole="button" accessibilityLabel="로맨스 만나기" onPress={() => openGenre('ROMANCE')} style={styles.campaignBanner}>
+        {campaignImage ? <Pressable accessibilityRole="button" accessibilityLabel="로맨스 만나기" onPress={() => openGenre('ROMANCE')} style={[styles.campaignBanner, { height: Math.round((Math.min(width, 960) - 44) / 2) }]}>
           <ApiDramaImage imageUrl={campaignImage} title="로맨스 캠페인" style={StyleSheet.absoluteFill} />
           <LinearGradient pointerEvents="none" colors={['#0B0C0F12', '#0B0C0FDD']} style={StyleSheet.absoluteFill} />
           <View style={styles.campaignCopy}>
@@ -185,7 +213,7 @@ const styles = StyleSheet.create({
   heroPagination: { flexDirection: 'row', gap: 7, alignSelf: 'center', paddingBottom: 10 }, heroPageButton: { minWidth: 34, minHeight: 35, alignItems: 'center', justifyContent: 'center', gap: 4 }, heroPageLine: { width: 20, height: 2, backgroundColor: colors.border }, activePageLine: { width: 28, backgroundColor: colors.accent }, heroPageNumber: { fontSize: 9, color: colors.muted },
   section: { paddingHorizontal: 22, paddingTop: 30 }, posterRail: { paddingHorizontal: 22, gap: 14, paddingTop: 17, paddingBottom: 6 }, posterGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, paddingTop: 20 },
   rankRow: { flexDirection: 'row', gap: 8, alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border }, rankNumber: { width: 18, fontSize: 22, color: colors.muted }, rankImage: { width: 112, height: 63, borderRadius: 7, borderCurve: 'continuous' }, rankCopy: { flex: 1, minWidth: 0, gap: 3 }, overline: { fontSize: 8, lineHeight: 12, letterSpacing: 1, color: colors.muted }, rankTitle: { fontSize: 14 }, small: { fontSize: 10, lineHeight: 14, color: colors.muted }, free: { fontSize: 10, lineHeight: 14, color: colors.accent }, accent: { color: colors.accent },
-  campaignBanner: { aspectRatio: 2, marginHorizontal: 22, marginTop: 30, borderRadius: 16, borderCurve: 'continuous', overflow: 'hidden', justifyContent: 'flex-end', backgroundColor: colors.surface }, campaignCopy: { paddingHorizontal: 18, paddingVertical: 15, gap: 5 }, campaignEyebrow: { fontSize: 11, color: '#E8EBE4' }, campaignTitle: { fontSize: 18, lineHeight: 24 }, campaignLink: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }, campaignLinkText: { fontSize: 11 },
+  campaignBanner: { marginHorizontal: 22, marginTop: 30, borderRadius: 16, borderCurve: 'continuous', overflow: 'hidden', justifyContent: 'flex-end', backgroundColor: colors.surface }, campaignCopy: { paddingHorizontal: 18, paddingVertical: 15, gap: 5 }, campaignEyebrow: { fontSize: 11, color: '#E8EBE4' }, campaignTitle: { fontSize: 18, lineHeight: 24 }, campaignLink: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }, campaignLinkText: { fontSize: 11 },
   previewLink: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: 14, borderCurve: 'continuous', padding: 17, marginTop: 30 }, previewIcon: { width: 37, height: 46, justifyContent: 'center', alignItems: 'center' }, previewTitle: { fontSize: 14, marginBottom: 5 }, intro: { color: colors.muted, fontSize: 13, marginTop: 10, marginBottom: 10 },
   genreList: { gap: 15, marginTop: 20 }, genreTile: { minHeight: 175, borderRadius: 15, borderCurve: 'continuous', overflow: 'hidden', justifyContent: 'flex-end' }, genreContent: { padding: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, genreTitle: { fontSize: 28 },
 });

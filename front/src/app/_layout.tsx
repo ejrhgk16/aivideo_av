@@ -7,6 +7,7 @@ import { colors } from '@/common/theme/tokens';
 import { UserProvider } from '@/features/user/UserProvider';
 import { useUser } from '@/features/user/UserProvider';
 import { SessionExpiredDialog } from '@/components/SessionExpiredDialog';
+import { SavedVideosProvider } from '@/features/playback/SavedVideosProvider';
 
 function AppNavigation() {
   const router = useRouter();
@@ -40,8 +41,10 @@ export default function RootLayout() {
   });
   return <SafeAreaProvider><StatusBar style="light" />
     <UserProvider>
-      {!fontsLoaded && !fontError ? <View style={styles.loading}><ActivityIndicator color={colors.accent} /></View>
-        : <AppNavigation />}
+      <SavedVideosProvider>
+        {!fontsLoaded && !fontError ? <View style={styles.loading}><ActivityIndicator color={colors.accent} /></View>
+          : <AppNavigation />}
+      </SavedVideosProvider>
     </UserProvider>
   </SafeAreaProvider>;
 }

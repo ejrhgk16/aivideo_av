@@ -12,9 +12,11 @@ import { CollectionDrama } from './entities/collectionDrama.entity.js';
 import { ContentCollection } from './entities/contentCollection.entity.js';
 import { PublicCollectionController } from './publicCollectionController.js';
 import { PublicCollectionService } from './publicCollectionService.js';
+import { IdentityModule } from '../identity/identity.module.js';
 
 @Module({
   imports: [
+    IdentityModule,
     TypeOrmModule.forFeature([
       ContentCollection,
       CollectionDrama,

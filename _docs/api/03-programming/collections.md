@@ -6,7 +6,7 @@
 
 ## 인증
 
-불필요
+선택적 JWT 인증이다. Authorization 헤더가 없으면 익명 요청으로 처리하고 프리뷰의 `isSaved`는 `false`다. 유효한 Access JWT가 있으면 `isSaved`는 해당 사용자의 저장 여부를 나타낸다. 헤더가 잘못되었으면 `AUTH_INVALID_TOKEN`(401)이다.
 
 ## Endpoint
 
@@ -53,7 +53,8 @@
         {
           "uuid": "00000002-0000-4000-8000-000000000201",
           "storageKey": "dramas/our-last-spring/videos/preview-1.mp4",
-          "durationMs": 30000
+          "durationMs": 30000,
+          "isSaved": false
         }
       ],
       "publishedEpisodeCount": 4,
@@ -81,6 +82,7 @@
 | `dramas[].previewVideos[].storageKey` | string | 프리뷰 영상 storage key |
 | `dramas[].previewVideos[].uuid` | string | 프리뷰 영상 공개 식별자. 프리뷰 재생 API의 `videoId`로 사용 |
 | `dramas[].previewVideos[].durationMs` | number | 프리뷰 영상 재생 시간(ms) |
+| `dramas[].previewVideos[].isSaved` | boolean | 인증된 사용자의 프리뷰 저장 여부. 익명은 `false` |
 | `dramas[].publishedEpisodeCount` | number | 공개된 회차 수 |
 | `dramas[].freeEpisodeCount` | number | 공개 회차 중 무료 회차 수 |
 

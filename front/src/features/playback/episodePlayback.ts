@@ -2,6 +2,8 @@ import { apiRequest } from '../user/sessionClient';
 
 export interface EpisodePlayback {
   url: string;
+  videoUuid: string;
+  isSaved: boolean;
   title: string | null;
   episodeNumber: number;
   durationMs: number;

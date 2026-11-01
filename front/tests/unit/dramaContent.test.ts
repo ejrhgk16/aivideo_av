@@ -86,13 +86,15 @@ test('drama detail requests use the configured API base URL and return the API c
       detailCover: null,
       campaigns: [],
     },
-    previewVideos: [{ uuid: '00000002-0000-4000-8000-000000000201', storageKey: 'dramas/our-last-spring/videos/preview-1.mp4', durationMs: 30000 }],
+    previewVideos: [{ uuid: '00000002-0000-4000-8000-000000000201', storageKey: 'dramas/our-last-spring/videos/preview-1.mp4', durationMs: 30000, isSaved: false }],
     episodes: [{
       uuid: '00000002-0000-4000-8000-000000000101',
       episodeNumber: 1,
       title: '다시 만난 봄',
       synopsis: '우연한 재회가 시작된다.',
       durationMs: 420000,
+      videoUuid: '00000004-0000-4000-8000-000000000101',
+      isSaved: true,
       pricePoints: 0,
       isUnlocked: true,
       image: null,
@@ -107,6 +109,8 @@ test('drama detail requests use the configured API base URL and return the API c
       title: null,
       synopsis: null,
       durationMs: 435000,
+      videoUuid: null,
+      isSaved: false,
       pricePoints: 30,
       isUnlocked: false,
       image: null,
@@ -169,6 +173,29 @@ test('optional drama detail sends the current Access token without a user UUID q
     await client.login({ loginId: 'test', password: 'test' });
     await getDramaContent('drama-1');
     assert.equal(requests[0].url, 'http://localhost:3000/dramas/drama-1');
+    assert.equal((requests[0].headers as Record<string, string>).Authorization, 'Bearer access-token');
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    else process.env.EXPO_PUBLIC_API_BASE_URL = originalBaseUrl;
+  }
+});
+
+test('drama list sends the optional Access token when signed in', async () => {
+  const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+  const originalFetch = globalThis.fetch;
+  const requests: Array<{ url: string; headers: HeadersInit | undefined }> = [];
+  process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
+  globalThis.fetch = (async (input, init) => {
+    requests.push({ url: String(input), headers: init?.headers });
+    return { ok: true, json: async () => [] } as Response;
+  }) as typeof fetch;
+
+  try {
+    const client = configureApiClient();
+    await client.login({ loginId: 'test', password: 'test' });
+    await getDramaList();
+    assert.equal(requests[0].url, 'http://localhost:3000/dramas?sort=latest');
     assert.equal((requests[0].headers as Record<string, string>).Authorization, 'Bearer access-token');
   } finally {
     globalThis.fetch = originalFetch;

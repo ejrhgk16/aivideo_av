@@ -4,6 +4,15 @@ import { PublicCollectionService } from '../../../src/programming/publicCollecti
 const repository = () => ({
   find: vi.fn().mockResolvedValue([]),
   findOne: vi.fn().mockResolvedValue(null),
+  createQueryBuilder: vi.fn(() => ({
+    leftJoin: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
+    addSelect: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    andWhere: vi.fn().mockReturnThis(),
+    orderBy: vi.fn().mockReturnThis(),
+    getRawMany: vi.fn().mockResolvedValue([]),
+  })),
 });
 
 describe('PublicCollectionService scheduling boundaries', () => {
@@ -43,15 +52,35 @@ describe('PublicCollectionService scheduling boundaries', () => {
       { dramaId: 1, status: 'PUBLISHED', publishedAt: future, pricePoints: 0 },
       { dramaId: 1, status: 'PUBLISHED', publishedAt: null, pricePoints: 0 },
     ]);
+    const previewQuery = {
+      leftJoin: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      addSelect: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      andWhere: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      getRawMany: vi.fn().mockResolvedValue([
+        { uuid: 'preview-uuid', contentId: 1, storageKey: 'preview.mp4', durationMs: 30000, displayOrder: 1, isSaved: '1' },
+      ]),
+    };
+    const previews = { ...repository(), createQueryBuilder: vi.fn().mockReturnValue(previewQuery) };
     const service = new PublicCollectionService(
       collections as never, items as never, dramas as never,
       repository() as never, repository() as never, repository() as never,
-      repository() as never, repository() as never, episodes as never,
+      repository() as never, previews as never, episodes as never,
     );
 
     const response = await service.getCollection('HOME_FEATURED');
 
     expect(response.dramas.map(drama => drama.uuid)).toEqual(['drama-1', 'drama-8']);
-    expect(response.dramas[0]).toMatchObject({ publishedEpisodeCount: 1, freeEpisodeCount: 1 });
+    expect(response.dramas[0]).toMatchObject({
+      publishedEpisodeCount: 1,
+      freeEpisodeCount: 1,
+      previewVideos: [{ uuid: 'preview-uuid', isSaved: true }],
+    });
+    expect(previewQuery.leftJoin).toHaveBeenCalledWith(
+      expect.any(Function), 'saved',
+      "saved.videoId = video.id AND saved.userId = viewer.id AND saved.contentType = 'PREVIEW'",
+    );
   });
 });

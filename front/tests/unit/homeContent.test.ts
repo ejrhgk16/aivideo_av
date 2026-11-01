@@ -6,10 +6,11 @@ import { getHomeCollection, type HomeCollection } from '../../src/features/home/
 import { configureSessionClient } from '../../src/features/user/sessionClient';
 
 function configureApiClient() {
-  configureSessionClient({
+  return configureSessionClient({
     baseUrl: process.env.EXPO_PUBLIC_API_BASE_URL ?? '',
     storage: { read: async () => null, write: async () => {}, remove: async () => {} },
     fetcher: ((input, init) => globalThis.fetch(input, init)) as typeof fetch,
+    loginRequest: async () => ({ uuid: 'user-1', displayName: null, accountType: 'MEMBER', availablePoints: 80, accessToken: 'access-token', refreshToken: 'refresh-token', expiresIn: 900 }),
   });
 }
 
@@ -39,7 +40,7 @@ test('home collection requests use the configured API base URL', async () => {
           campaigns: [],
         },
         previewVideos: [
-          { uuid: '00000002-0000-4000-8000-000000000201', storageKey: 'dramas/our-last-spring/videos/preview-1.mp4', durationMs: 30000 },
+          { uuid: '00000002-0000-4000-8000-000000000201', storageKey: 'dramas/our-last-spring/videos/preview-1.mp4', durationMs: 30000, isSaved: false },
         ],
         publishedEpisodeCount: 4,
         freeEpisodeCount: 1,
@@ -72,6 +73,28 @@ test('home collection requests use the configured API base URL', async () => {
     ]);
     assert.equal(requestedInit.every((init) => !(init?.headers as Record<string, string>).Authorization), true);
     assert.deepEqual(result, responseBody);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    else process.env.EXPO_PUBLIC_API_BASE_URL = originalBaseUrl;
+  }
+});
+
+test('home collection sends an optional Access token when signed in', async () => {
+  const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+  const originalFetch = globalThis.fetch;
+  const headers: HeadersInit[] = [];
+  process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
+  globalThis.fetch = (async (_input, init) => {
+    headers.push(init?.headers ?? {});
+    return { ok: true, json: async () => ({ code: 'HOME_FEATURED', title: 'Home', description: null, dramas: [] }) } as Response;
+  }) as typeof fetch;
+
+  try {
+    const client = configureApiClient();
+    await client.login({ loginId: 'test', password: 'test' });
+    await getHomeCollection('HOME_FEATURED');
+    assert.equal((headers[0] as Record<string, string>).Authorization, 'Bearer access-token');
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;

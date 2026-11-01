@@ -35,6 +35,8 @@
 ```json
 {
   "url": "https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/...?...",
+  "videoUuid": "00000004-0000-4000-8000-000000000101",
+  "isSaved": false,
   "title": "첫 번째 이야기",
   "episodeNumber": 1,
   "durationMs": 420000
@@ -44,6 +46,7 @@
 `url`은 선택된 FULL 영상 S3 객체의 절대 서명 URL이며 3600초 후 만료된다.
 `title`은 회차명이며, 회차명 데이터가 없으면 `null`이다. `episodeNumber`는 작품 내 회차 번호다.
 `durationMs`는 선택된 `FULL` 영상의 재생 시간(밀리초)이다.
+`videoUuid`는 선택된 FULL 영상의 공개 UUID다. `isSaved`는 선택적 JWT 사용자 저장 여부이며 익명 요청에서는 `false`다.
 `title`과 `episodeNumber`는 `episodes`에서, `durationMs`와 서명에 사용하는 `storage_key`는 조인된 `content_videos` 행에서 가져온다. 작품 공개 여부는 조인된 `dramas` 행에서 확인한다.
 
 #### 401 Response
@@ -78,4 +81,4 @@
 
 로컬 회차 영상 파일 API `GET /media/videos/episodes/:episodeId`는 제거했다. 프리뷰 영상은 [작품 API 정의](../02-content/dramas.md#프리뷰-재생-api)의 개발용 프리뷰 재생 API를 사용한다.
 
-프리뷰 재생 API는 별도 공개 endpoint이며 JWT를 요구하지 않는다. 전체 인증 규칙은 [전체 인증 방식](../00-overview/authentication.md#제품-api-인증)을 따른다.
+프리뷰 재생 API는 선택적 JWT 인증을 사용한다. Authorization 헤더가 없으면 익명으로 처리하고 저장 여부는 `false`이며, 유효하지 않은 헤더는 `AUTH_INVALID_TOKEN`(401)이다. 프리뷰 재생에 구매 entitlement는 필요하지 않다. 전체 인증 규칙은 [전체 인증 방식](../00-overview/authentication.md#제품-api-인증)을 따른다.

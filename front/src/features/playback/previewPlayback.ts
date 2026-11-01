@@ -2,6 +2,8 @@ import { apiRequest } from '../user/sessionClient';
 
 export interface PreviewPlayback {
   url: string;
+  videoUuid: string;
+  isSaved: boolean;
   durationMs: number;
 }
 
@@ -12,5 +14,5 @@ export async function getPreviewPlayback(dramaId: string, videoId: string): Prom
   }
 
   const path = `dramas/${encodeURIComponent(dramaId)}/previews/${encodeURIComponent(videoId)}/playback`;
-  return apiRequest<PreviewPlayback>(`/${path}`, { auth: 'public' });
+  return apiRequest<PreviewPlayback>(`/${path}`, { auth: 'optional' });
 }

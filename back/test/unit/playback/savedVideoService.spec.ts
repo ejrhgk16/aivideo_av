@@ -32,12 +32,33 @@ describe('SavedVideoService', () => {
   it('serializes database dates as ISO UTC and returns only the requested page fields', async () => {
     process.env.TZ = 'Asia/Seoul';
     const { dataSource, builder } = listDataSource([
-      { videoUuid: 'a1b2c3d4-0000-4000-8000-000000000001', contentType: 'PREVIEW', savedAt: new Date('2026-11-01T00:00:00.000Z') },
+      {
+        videoUuid: 'a1b2c3d4-0000-4000-8000-000000000001', contentType: 'PREVIEW',
+        savedAt: new Date('2026-11-01T00:00:00.000Z'), durationMs: 30000,
+        dramaUuid: 'drama-uuid', dramaTitle: 'Drama', episodeUuid: null,
+        episodeNumber: null, episodeTitle: null, imageKey: null,
+      },
+      {
+        videoUuid: 'a1b2c3d4-0000-4000-8000-000000000002', contentType: 'EPISODE',
+        savedAt: new Date('2026-11-01T00:01:00.000Z'), durationMs: 60000,
+        dramaUuid: 'drama-uuid', dramaTitle: 'Drama', episodeUuid: 'episode-uuid',
+        episodeNumber: 2, episodeTitle: 'Episode', imageKey: null,
+      },
     ]);
     const service = new SavedVideoService(dataSource);
 
     await expect(service.list('00000010-0000-4000-8000-000000000001', 1)).resolves.toEqual({
-      items: [{ videoUuid: 'a1b2c3d4-0000-4000-8000-000000000001', contentType: 'PREVIEW', savedAt: '2026-11-01T00:00:00.000Z' }],
+      items: [{
+        videoUuid: 'a1b2c3d4-0000-4000-8000-000000000001',
+        contentType: 'PREVIEW', savedAt: '2026-11-01T00:00:00.000Z', durationMs: 30000,
+        dramaUuid: 'drama-uuid', dramaTitle: 'Drama', imageUrl: null,
+        episodeUuid: null, episodeNumber: null, episodeTitle: null,
+      }, {
+        videoUuid: 'a1b2c3d4-0000-4000-8000-000000000002',
+        contentType: 'EPISODE', savedAt: '2026-11-01T00:01:00.000Z', durationMs: 60000,
+        dramaUuid: 'drama-uuid', dramaTitle: 'Drama', imageUrl: null,
+        episodeUuid: 'episode-uuid', episodeNumber: 2, episodeTitle: 'Episode',
+      }],
       page: 1,
       hasNext: false,
     });

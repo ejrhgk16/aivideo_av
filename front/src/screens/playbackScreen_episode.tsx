@@ -14,6 +14,7 @@ import { getDramaContent, type DramaContent } from '@/features/drama/dramaConten
 import { getEpisodePlayback, type EpisodePlayback } from '@/features/playback/episodePlayback';
 import { createWatchProgressTracker, saveWatchProgress } from '@/features/playback/watchProgress';
 import { useUser } from '@/features/user/UserProvider';
+import { useSavedVideo, useSavedVideos } from '@/features/playback/SavedVideosProvider';
 
 type LoadState = 'loading' | 'loaded' | 'not-found' | 'error';
 type Props = { id: string; dramaId?: string };
@@ -21,7 +22,9 @@ type Props = { id: string; dramaId?: string };
 export function PlaybackScreenEpisode({ id, dramaId }: Props) {
   const router = useRouter();
   const { isRestoring, sessionVersion, isCurrentSession, sessionExpired, user } = useUser();
+  const savedVideos = useSavedVideos();
   const [playback, setPlayback] = useState<EpisodePlayback | null>(null);
+  const [playbackOwner, setPlaybackOwner] = useState<{ uuid: string | null; version: number } | null>(null);
   const [loadState, setLoadState] = useState<LoadState>('loading');
   const [error, setError] = useState<unknown>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -35,23 +38,27 @@ export function PlaybackScreenEpisode({ id, dramaId }: Props) {
     }
     let active = true;
     const version = sessionVersion;
+    const startedRevision = savedVideos.state.getSnapshot().revision;
     setPlayback(null);
     setError(null);
     setLoadState('loading');
     getEpisodePlayback(id).then((result) => {
       if (!active || !isCurrentSession(version)) return;
+      savedVideos.state.accept([{ videoUuid: result.videoUuid, isSaved: result.isSaved }], startedRevision);
       setPlayback(result);
+      setPlaybackOwner({ uuid: user?.uuid ?? null, version });
       setLoadState('loaded');
     }).catch((error: unknown) => {
       if (!active || !isCurrentSession(version) || error instanceof SessionChangedError) return;
+      setPlaybackOwner({ uuid: user?.uuid ?? null, version });
       setError(error);
       setLoadState(error instanceof ApiError && error.status === 404 ? 'not-found' : 'error');
     });
     return () => { active = false; };
-  }, [id, isRestoring, sessionVersion, retryCount, isCurrentSession]);
+  }, [id, isRestoring, sessionVersion, user?.uuid, retryCount, isCurrentSession]);
 
   const back = () => router.canGoBack() ? router.back() : router.replace('/');
-  if (isRestoring || loadState === 'loading') {
+  if (isRestoring || loadState === 'loading' || playbackOwner?.version !== sessionVersion || playbackOwner.uuid !== (user?.uuid ?? null)) {
     return <Page><EmptyState title="영상을 불러오는 중이에요" description="잠시만 기다려 주세요." /></Page>;
   }
   if (loadState === 'not-found') {
@@ -75,7 +82,9 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
   id: string; playback: EpisodePlayback; dramaId?: string; onBack: () => void;
 }) {
   const router = useRouter();
-  const { isRestoring, sessionVersion, isCurrentSession, user } = useUser();
+  const { isRestoring, sessionVersion, isCurrentSession, user, sessionExpired } = useUser();
+  const savedVideo = useSavedVideo(playback.videoUuid, 'EPISODE', playback.isSaved);
+  const savedVideos = useSavedVideos();
   const [drama, setDrama] = useState<DramaContent | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [lockedEpisode, setLockedEpisode] = useState<DramaContent['episodes'][number] | null>(null);
@@ -88,7 +97,7 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
   const [isPlaying, setIsPlaying] = useState(player.playing);
   const [position, setPosition] = useState(player.currentTime);
   const [duration, setDuration] = useState(player.duration);
-  const [saved, setSaved] = useState(false);
+  const [savedError, setSavedError] = useState<unknown>(null);
   const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(player.playbackRate);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -96,25 +105,17 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
   const focused = useRef(true);
   const previousPlaybackTime = useRef<number | null>(null);
   const insets = useSafeAreaInsets();
-
-  useEffect(() => {
-    if (!dramaId) return;
-    if (isRestoring) {
-      setDrama(null);
-      setLockedEpisode(null);
-      return;
+  const toggleSaved = async () => {
+    if (!user) { router.push('/login'); return; }
+    setSavedError(null);
+    try { await savedVideo.toggle(); }
+    catch (error) {
+      if (error instanceof SessionChangedError || (error instanceof ApiError && error.status === 401 && sessionExpired)) return;
+      setSavedError(error);
     }
-    let active = true;
-    const version = sessionVersion;
-    setDrama(null);
-    setLockedEpisode(null);
-    void getDramaContent(dramaId).then((result) => {
-      if (active && isCurrentSession(version)) setDrama(result);
-    }).catch(() => {
-      if (active && isCurrentSession(version)) setDrama(null);
-    });
-    return () => { active = false; };
-  }, [dramaId, isRestoring, sessionVersion, isCurrentSession]);
+  };
+
+  useEffect(() => { setLockedEpisode(null); }, [dramaId]);
 
   const episodes = [...(drama?.episodes ?? [])].sort((first, second) => first.episodeNumber - second.episodeNumber);
   const currentIndex = episodes.findIndex((episode) => episode.uuid === id);
@@ -142,12 +143,23 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
 
   useFocusEffect(useCallback(() => {
     focused.current = true;
+    let active = true;
+    if (dramaId && !isRestoring) {
+      const version = sessionVersion;
+      const startedRevision = savedVideos.state.getSnapshot().revision;
+      void getDramaContent(dramaId).then((result) => {
+        if (!active || !isCurrentSession(version)) return;
+        savedVideos.state.accept(result.episodes.flatMap((episode) => episode.videoUuid ? [{ videoUuid: episode.videoUuid, isSaved: episode.isSaved }] : []), startedRevision);
+        setDrama(result);
+      }).catch(() => undefined);
+    }
     return () => {
+      active = false;
       focused.current = false;
       previousPlaybackTime.current = null;
       player.pause();
     };
-  }, [player]));
+  }, [player, dramaId, isRestoring, sessionVersion, isCurrentSession, savedVideos.state]));
   useEffect(() => {
     const subscription = player.addListener('statusChange', ({ status }) => {
       if (status === 'error') setVideoFailed(true);
@@ -275,10 +287,11 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
           </Pressable>)}
         </View>}
         <View style={styles.sideActions}>
-          <Pressable onPress={() => setSaved((value) => !value)} accessibilityRole="button" accessibilityLabel={saved ? '저장 해제' : '작품 저장'} style={styles.sideAction}>
-            <Icon name={saved ? 'bookmark' : 'bookmark'} color={saved ? colors.accent : '#fff'} />
-            <AppText style={styles.actionLabel}>{saved ? '저장됨' : '저장'}</AppText>
+          <Pressable disabled={isRestoring || savedVideo.pending} onPress={() => void toggleSaved()} accessibilityRole="button" accessibilityLabel={savedVideo.saved ? '저장 해제' : '작품 저장'} accessibilityState={{ disabled: isRestoring || savedVideo.pending, busy: savedVideo.pending }} style={styles.sideAction}>
+            <Icon name="bookmark" color={savedVideo.saved ? colors.accent : '#fff'} />
+            <AppText style={styles.actionLabel}>{savedVideo.saved ? '저장됨' : '저장'}</AppText>
           </Pressable>
+          {savedError ? <AppText accessibilityRole="alert" style={styles.actionLabel}>{getErrorMessage(savedError)}</AppText> : null}
           {dramaId ? <Pressable onPress={openEpisodes} accessibilityRole="button" accessibilityLabel="전체 회차" style={styles.sideAction}>
             <Icon name="layers" color="#fff" />
             <AppText style={styles.actionLabel}>회차</AppText>

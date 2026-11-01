@@ -15,7 +15,7 @@ export interface HomeCollectionDrama {
     detailCover: string | null;
     campaigns: string[];
   };
-  previewVideos: Array<{ uuid: string; storageKey: string; durationMs: number }>;
+  previewVideos: Array<{ uuid: string; storageKey: string; durationMs: number; isSaved: boolean }>;
   publishedEpisodeCount: number;
   freeEpisodeCount: number;
 }
@@ -28,5 +28,5 @@ export interface HomeCollection {
 }
 
 export async function getHomeCollection(code: string): Promise<HomeCollection> {
-  return apiRequest<HomeCollection>(`/collections/${encodeURIComponent(code.replace(/^\/+/, ''))}`, { auth: 'public' });
+  return apiRequest<HomeCollection>(`/collections/${encodeURIComponent(code.replace(/^\/+/, ''))}`, { auth: 'optional' });
 }

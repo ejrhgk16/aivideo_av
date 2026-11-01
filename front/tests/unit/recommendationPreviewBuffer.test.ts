@@ -206,6 +206,12 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay', 
     .transpileModule(source, { compilerOptions: { module: 1, target: 9, jsx: 4 } }).outputText as string;
   const hooks: any[] = [];
   const pending: Array<{ task: Deferred<any>; target: Target }> = [];
+  const savedHookCalls: unknown[][] = [];
+  const savedToggleCalls: unknown[][] = [];
+  const savedObservations: unknown[][] = [];
+  const savedState = { getSnapshot: () => ({ revision: 0 }), accept: (rows: unknown[]) => { savedObservations.push(rows); return true; } };
+  let saveHandler = () => {};
+  const isCurrentSession = (version: number) => version === 1;
   const players: FakePlayer[] = [];
   const timers: Array<{ callback: () => void; delay: number; cleared: boolean }> = [];
   const scrollOffsets: number[] = [];
@@ -232,8 +238,8 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay', 
   let hook = 0;
   const componentHookStarts = new Map<string, number>();
   let dirty = false;
-  let focusCallback: (() => void | (() => void)) | undefined;
-  let focusCleanup: (() => void) | undefined;
+  const focusCallbacks = new Map<number, () => void | (() => void)>();
+  const focusCleanups = new Map<number, () => void>();
   let blurred = false;
   class FakeElement {
     constructor(private readonly interactive: boolean) {}
@@ -282,11 +288,13 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay', 
   modules['expo-linear-gradient'] = { LinearGradient: 'LinearGradient' };
   modules['expo-router'] = {
     useFocusEffect(callback: () => void | (() => void)) {
+      const index = hook++;
+      if (callback === focusCallbacks.get(index)) return;
+      focusCleanups.get(index)?.();
+      focusCallbacks.set(index, callback);
       if (blurred) return;
-      if (callback === focusCallback) return;
-      focusCleanup?.();
-      focusCallback = callback;
-      focusCleanup = callback() ?? undefined;
+      const cleanup = callback();
+      if (cleanup) focusCleanups.set(index, cleanup); else focusCleanups.delete(index);
     },
     useRouter: () => ({ push() {}, canGoBack: () => true, back() {}, replace() {} }),
   };
@@ -318,6 +326,16 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay', 
     },
   };
   modules['@/features/playback/recommendationPreviewBuffer'] = require('../../src/features/playback/recommendationPreviewBuffer');
+  modules['@/features/playback/SavedVideosProvider'] = {
+    useSavedVideos: () => ({ state: savedState, snapshot: { videos: {}, revision: 0 } }),
+    useSavedVideo: (videoUuid: string | null, type: string, initialSaved: boolean) => {
+      savedHookCalls.push([videoUuid, type, initialSaved]);
+      return { saved: initialSaved, pending: false, toggle: async () => { savedToggleCalls.push([videoUuid, type, initialSaved]); saveHandler(); return true; } };
+    },
+  };
+  modules['@/features/user/UserProvider'] = { useUser: () => ({ isRestoring: false, sessionVersion: 1, isCurrentSession, sessionExpired: false, user: { uuid: 'user-1' } }) };
+  modules['@/common/http/api'] = { ApiError: class ApiError extends Error { status = 401; }, SessionChangedError: class SessionChangedError extends Error {} };
+  modules['@/common/http/errorMessages'] = { getErrorMessage: () => 'save failed' };
   const home = deferred<any>();
   const module = { exports: {} as Record<string, any> };
   vm.runInNewContext(compiled, { exports: module.exports, Element: FakeElement, performance: { now: () => frameTime },
@@ -388,7 +406,8 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay', 
     return rendered;
   };
   return {
-    commit, find, nodes, render, pending, players, timers, scrollOffsets, frames, wheelListeners,
+    commit, find, nodes, render, pending, players, timers, scrollOffsets, frames, wheelListeners, savedHookCalls, savedToggleCalls, savedObservations,
+    setSaveHandler(handler: () => void) { saveHandler = handler; },
     setScrollBounds(contentHeight: number, viewportHeight: number) {
       scrollBounds = { contentHeight, viewportHeight };
       boundedOffset = Math.max(0, Math.min(boundedOffset, contentHeight - viewportHeight));
@@ -413,8 +432,8 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay', 
     },
     element(interactive: boolean) { return new FakeElement(interactive); },
     home,
-    blur() { focusCleanup?.(); focusCleanup = undefined; focusCallback = undefined; blurred = true; },
-    focus() { blurred = false; commit(); },
+    blur() { for (const cleanup of focusCleanups.values()) cleanup(); focusCleanups.clear(); blurred = true; },
+    focus() { blurred = false; for (const [index, callback] of focusCallbacks) { const cleanup = callback(); if (cleanup) focusCleanups.set(index, cleanup); } commit(); },
   };
 }
 
@@ -474,12 +493,12 @@ test('recommendation mounts idle web players so canplay can make current and nei
 });
 
 
-async function loadScreen(screen: ReturnType<typeof createRecommendationScreenHarness>, count = 4, resolvePlayers = true) {
+async function loadScreen(screen: ReturnType<typeof createRecommendationScreenHarness>, count = 4, resolvePlayers = true, isSaved = false) {
   screen.commit();
   screen.home.resolve({ dramas: Array.from({ length: count }, (_, i) => ({
     uuid: `drama-${i + 1}`, displayOrder: i + 1, title: `Drama ${i + 1}`, shortDescription: '',
     genres: [], imageUrls: { poster: `poster-${i + 1}` },
-    previewVideos: [{ uuid: `preview-${i + 1}`, storageKey: '', durationMs: 1000 }],
+    previewVideos: [{ uuid: `preview-${i + 1}`, storageKey: '', durationMs: 1000, isSaved }],
   })) });
   await flush(); screen.commit();
   let feed = screen.nodes(screen.find('Page')).find((node) => node.type === 'View' && node.props.onLayout)!;
@@ -540,6 +559,24 @@ test('drag follows the pointer and switches playback only after actual target ar
   const reverse = drag(screen); reverse.move(-300); reverse.move(0); offset(screen, 500); reverse.release(0); frames(screen, true);
   assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-2');
   screen.blur(); screen.commit();
+  screen.focus(); await flush(); screen.commit();
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-2', 'same-session focus refresh preserves the current drama');
+});
+
+test('recommendation bookmark uses the first preview UUID and reconciles server saved state', async () => {
+  const screen = createRecommendationScreenHarness();
+  await loadScreen(screen, 1, true, true);
+  const list = screen.find('FlatList');
+  const card = list.props.renderItem({ item: list.props.data[0] });
+  const control = screen.nodes(card).find((node) => (node.type as any)?.name === 'RecommendationPreviewPlayer');
+  assert.ok(control);
+  const rendered = screen.nodes(screen.render(control));
+  assert.ok(screen.savedHookCalls.some((args) => JSON.stringify(args) === JSON.stringify(['preview-1', 'PREVIEW', true])));
+  const save = rendered.find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '저장 해제');
+  assert.ok(save);
+  await (save.props.onPress as () => Promise<void>)();
+  assert.deepEqual(JSON.parse(JSON.stringify(screen.savedToggleCalls)), [['preview-1', 'PREVIEW', true]]);
+  assert.ok(screen.savedObservations.some((rows) => JSON.stringify(rows).includes('preview-1')));
 });
 
 test('fast swipes use recent velocity, distance, freshness, and final direction only on release', async () => {
@@ -739,6 +776,7 @@ test('a vertical drag starting on a Pressable cancels its web click, while the n
   const list = screen.find('FlatList'), card = list.props.renderItem({ item: list.props.data[0] });
   const control = screen.nodes(card).find((node) => (node.type as any)?.name === 'RecommendationPreviewPlayer')!;
   let saves = 0;
+  screen.setSaveHandler(() => { saves += 1; });
   const button = screen.nodes(screen.render({ ...control, props: { ...control.props, onToggleSave: () => { saves += 1; } } }))
     .find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '작품 저장')!;
   const WebPressResponder = require(resolve(process.cwd(), 'node_modules/react-native-web/dist/cjs/modules/usePressEvents/PressResponder.js'));
@@ -807,6 +845,7 @@ test('a vertical drag starting on a Pressable cancels its web click, while the n
   const nativeList = native.find('FlatList'), nativeCard = nativeList.props.renderItem({ item: nativeList.props.data[0] });
   const nativeControl = native.nodes(nativeCard).find((node) => (node.type as any)?.name === 'RecommendationPreviewPlayer')!;
   let nativeSaves = 0;
+  native.setSaveHandler(() => { nativeSaves += 1; });
   const nativeButton = native.nodes(native.render({ ...nativeControl, props: { ...nativeControl.props, onToggleSave: () => { nativeSaves += 1; } } }))
     .find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '작품 저장')!;
   const nativeFeed = native.nodes(native.find('Page')).find((node) => node.type === 'View' && node.props.onLayout)!.props;

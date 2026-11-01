@@ -46,6 +46,7 @@ function createScreen(dramaId = 'drama-1') {
   class ApiErrorMock extends Error {
     constructor(public status: number, public errorCode: string | null = null) { super(errorCode ?? `HTTP_${status}`); }
   }
+  const savedState = { getSnapshot: () => ({ revision: 0 }), accept: () => true };
   const isCurrentSession = (version: number) => version === sessionVersion;
   const jsx = (type: unknown, props: Record<string, unknown>): Node => ({ type, props });
   const react = {
@@ -110,8 +111,17 @@ function createScreen(dramaId = 'drama-1') {
       };
     }, saveWatchProgress: (_id: string, input: unknown) => { progressRequests.push(input); return Promise.resolve(); } },
     '@/features/user/UserProvider': { useUser: () => ({ isRestoring, sessionVersion, isCurrentSession, sessionExpired: false, user: userUuid === null ? null : { uuid: userUuid } }) },
+    '@/features/playback/SavedVideosProvider': {
+      useSavedVideos: () => ({ state: savedState, snapshot: { videos: {}, revision: 0 } }),
+      useSavedVideo: (videoUuid: string, contentType: string, initialSaved: boolean) => {
+        savedHooks.push([videoUuid, contentType, initialSaved]);
+        return { saved: initialSaved, pending: false, toggle: async () => { savedToggles.push([videoUuid, contentType, initialSaved]); return true; } };
+      },
+    },
   };
   const progressRequests: unknown[] = [];
+  const savedHooks: unknown[][] = [];
+  const savedToggles: unknown[][] = [];
   const module = { exports: {} as Record<string, unknown> };
   vm.runInNewContext(compiled, { exports: module.exports, setTimeout, clearTimeout, require: (id: string) => {
     if (!(id in modules)) throw new Error(`Unexpected module: ${id}`);
@@ -153,9 +163,10 @@ function createScreen(dramaId = 'drama-1') {
     assert.ok(node, `missing ${type}`);
     return node;
   }
+  function all(type: string) { hook = 0; tree = Component({ id: 'episode-1', dramaId }); return nodes(tree).filter((entry) => entry.type === type); }
   async function settle() { await new Promise<void>((resolve) => setImmediate(resolve)); commit(); }
   return {
-    commit, find, requests, pushes, replaces, player, emit, progressRequests, makeApiError: (status: number, code?: string) => new ApiErrorMock(status, code), settle,
+    commit, find, all, requests, pushes, replaces, player, emit, progressRequests, savedHooks, savedToggles, makeApiError: (status: number, code?: string) => new ApiErrorMock(status, code), settle,
     set restoring(value: boolean) { isRestoring = value; commit(); },
     set user(value: string | null) { userUuid = value; commit(); },
     changeSession(value: string | null) { sessionVersion += 1; userUuid = value; commit(); },
@@ -211,7 +222,7 @@ test('playback keeps paid access denied separate from missing media and offers a
 test('logged in playback saves once after real progress and once after resumed forward seeking', async () => {
   const screen = createScreen();
   screen.user = 'user-1';
-  screen.requests[0].resolve({ url: 'https://cdn.example.com/video.mp4', title: null, episodeNumber: 1, durationMs: 90000 });
+  screen.requests[0].resolve({ url: 'https://cdn.example.com/video.mp4', videoUuid: 'episode-video-1', isSaved: false, title: null, episodeNumber: 1, durationMs: 90000 });
   await screen.settle();
   screen.emit('sourceLoad', { duration: 90 });
   screen.emit('timeUpdate', { currentTime: 1 });
@@ -248,10 +259,24 @@ test('logged in playback saves once after real progress and once after resumed f
   screen.unmount();
 });
 
+test('episode bookmark uses playback video UUID and server saved state', async () => {
+  const screen = createScreen();
+  screen.user = 'user-1';
+  screen.requests[0].resolve({ url: 'https://cdn.example.com/video.mp4', videoUuid: 'episode-video-1', isSaved: true, title: null, episodeNumber: 1, durationMs: 90000 });
+  await screen.settle();
+  assert.ok(screen.savedHooks.some((hook) => JSON.stringify(hook) === JSON.stringify(['episode-video-1', 'EPISODE', true])));
+  const toggle = screen.all('Pressable').find((node) => node.props.accessibilityLabel === '저장 해제');
+  assert.ok(toggle);
+  assert.equal((toggle.props.accessibilityState as { busy?: boolean }).busy, false);
+  await (toggle.props.onPress as () => Promise<void>)();
+  assert.deepEqual(JSON.parse(JSON.stringify(screen.savedToggles)), [['episode-video-1', 'EPISODE', true]]);
+  screen.unmount();
+});
+
 test('anonymous, buffered, blurred, and expired-session playback never creates progress writes', async () => {
   const anonymous = createScreen();
   anonymous.commit();
-  anonymous.requests[0].resolve({ url: 'https://cdn.example.com/video.mp4', title: null, episodeNumber: 1, durationMs: 90000 });
+  anonymous.requests[0].resolve({ url: 'https://cdn.example.com/video.mp4', videoUuid: 'episode-video-1', isSaved: false, title: null, episodeNumber: 1, durationMs: 90000 });
   await anonymous.settle();
   anonymous.emit('timeUpdate', { currentTime: 1 });
   anonymous.emit('timeUpdate', { currentTime: 1.5 });
@@ -260,7 +285,7 @@ test('anonymous, buffered, blurred, and expired-session playback never creates p
 
   const screen = createScreen();
   screen.user = 'user-1';
-  screen.requests[0].resolve({ url: 'https://cdn.example.com/video.mp4', title: null, episodeNumber: 1, durationMs: 90000 });
+  screen.requests[0].resolve({ url: 'https://cdn.example.com/video.mp4', videoUuid: 'episode-video-1', isSaved: false, title: null, episodeNumber: 1, durationMs: 90000 });
   await screen.settle();
   screen.emit('timeUpdate', { currentTime: 3 });
   screen.player.status = 'loading';

@@ -12,12 +12,17 @@ import { ProductionCompany } from '../content/entities/productionCompany.entity.
 import { CollectionDrama } from './entities/collectionDrama.entity.js';
 import { ContentCollection } from './entities/contentCollection.entity.js';
 import { createDramaImageUrls } from '../content/mediaUrl.js';
+import { User } from '../identity/entities/user.entity.js';
+import { UserSavedVideo } from '../playback/entities/userSavedVideo.entity.js';
 
 type PublicPreviewVideo = {
   uuid: string;
   storageKey: string;
   durationMs: number;
+  isSaved: boolean;
 };
+
+type CollectionPreviewVideo = PublicPreviewVideo & { contentId: number; displayOrder: number };
 
 export interface PublicDramaSummary {
   uuid: string;
@@ -66,7 +71,7 @@ export class PublicCollectionService {
     private readonly episodeRepository: Repository<Episode>,
   ) {}
 
-  async getCollection(code: string): Promise<PublicCollectionResponse> {
+  async getCollection(code: string, userUuid?: string): Promise<PublicCollectionResponse> {
     const collection = await this.collectionRepository.findOne({
       where: { code, isActive: true },
     });
@@ -107,10 +112,24 @@ export class PublicCollectionService {
           this.contentImageRepository.find({
             where: { contentType: 'DRAMA', contentId: In(publicDramaIds) },
           }),
-          this.contentVideoRepository.find({
-            where: { contentType: 'DRAMA', contentId: In(publicDramaIds), kind: 'PREVIEW' },
-            order: { displayOrder: 'ASC' },
-          }),
+          this.contentVideoRepository.createQueryBuilder('video')
+            .leftJoin(User, 'viewer', 'viewer.uuid = :userUuid', { userUuid: userUuid ?? null })
+            .leftJoin(UserSavedVideo, 'saved',
+              "saved.videoId = video.id AND saved.userId = viewer.id AND saved.contentType = 'PREVIEW'")
+            .select('video.uuid', 'uuid')
+            .addSelect('video.contentId', 'contentId')
+            .addSelect('video.storageKey', 'storageKey')
+            .addSelect('video.durationMs', 'durationMs')
+            .addSelect('video.displayOrder', 'displayOrder')
+            .addSelect('CASE WHEN saved.videoId IS NULL THEN 0 ELSE 1 END', 'isSaved')
+            .where("video.contentType = 'DRAMA' AND video.kind = 'PREVIEW'")
+            .andWhere('video.contentId IN (:...dramaIds)', { dramaIds: publicDramaIds })
+            .orderBy('video.displayOrder', 'ASC')
+            .getRawMany<{
+              uuid: string; contentId: number; storageKey: string; durationMs: number;
+              displayOrder: number; isSaved: number | string;
+            }>()
+            .then(rows => rows.map(row => ({ ...row, isSaved: Number(row.isSaved) === 1 }))),
           this.episodeRepository.find({ where: { dramaId: In(publicDramaIds) } }),
         ])
       : [[], [], [], [], [], []];
@@ -131,7 +150,7 @@ export class PublicCollectionService {
       imagesByDrama.set(image.contentId, dramaImages);
     }
 
-    const previewVideosByDrama = new Map<number, ContentVideo[]>();
+    const previewVideosByDrama = new Map<number, CollectionPreviewVideo[]>();
     for (const video of videos) {
       const dramaVideos = previewVideosByDrama.get(video.contentId) ?? [];
       dramaVideos.push(video);
@@ -194,7 +213,7 @@ export class PublicCollectionService {
             detailCover: imageByKind.get('DETAIL_COVER') ?? null,
             campaigns: campaignImages.map(({ storageKey }) => storageKey),
           }),
-          previewVideos: previewVideos.map(({ uuid, storageKey, durationMs }) => ({ uuid, storageKey, durationMs })),
+          previewVideos: previewVideos.map(({ uuid, storageKey, durationMs, isSaved }) => ({ uuid, storageKey, durationMs, isSaved })),
           publishedEpisodeCount: dramaEpisodes.length,
           freeEpisodeCount: dramaEpisodes.filter(({ pricePoints }) => pricePoints === 0).length,
         },

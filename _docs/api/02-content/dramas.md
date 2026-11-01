@@ -6,7 +6,7 @@
 
 ## 인증
 
-불필요
+선택적 JWT 인증이다. Authorization 헤더가 없으면 익명 요청으로 처리한다. 헤더가 있으면 Access JWT가 유효해야 하며 빈 값, 잘못된 형식, 만료·변조된 토큰 또는 Refresh token은 `AUTH_INVALID_TOKEN`(401)이다. `previewVideos[].isSaved`는 JWT 사용자의 저장 여부이며 익명 요청에서는 `false`다.
 
 ## Endpoint
 
@@ -46,7 +46,8 @@
     {
       "uuid": "00000002-0000-4000-8000-000000000201",
       "storageKey": "dramas/our-last-spring/videos/preview-1.mp4",
-      "durationMs": 30000
+      "durationMs": 30000,
+      "isSaved": false
     }
   ],
     "episodeCount": 4,
@@ -72,6 +73,7 @@
 | `previewVideos[].storageKey` | string | 프리뷰 영상 storage key |
 | `previewVideos[].uuid` | string | 프리뷰 영상 공개 식별자. 프리뷰 재생 API의 `videoId`로 사용 |
 | `previewVideos[].durationMs` | number | 프리뷰 영상 재생 시간(밀리초) |
+| `previewVideos[].isSaved` | boolean | 인증된 사용자가 이 프리뷰를 저장했는지 여부. 익명은 `false` |
 | `episodeCount` | number | 공개된 회차 수 |
 | `freeEpisodeCount` | number | 공개 회차 중 `pricePoints = 0`인 회차 수 |
 
@@ -135,7 +137,8 @@
       {
         "uuid": "00000002-0000-4000-8000-000000000201",
         "storageKey": "dramas/our-last-spring/videos/preview-1.mp4",
-        "durationMs": 30000
+        "durationMs": 30000,
+        "isSaved": false
       }
     ],
   "episodes": [
@@ -148,6 +151,8 @@
       "pricePoints": 0,
       "image": "dramas/our-last-spring/episodes/episode-1.webp",
       "isUnlocked": true,
+      "videoUuid": "00000004-0000-4000-8000-000000000101",
+      "isSaved": false,
       "watchProgress": null
     },
     {
@@ -159,6 +164,8 @@
       "pricePoints": 30,
       "image": null,
       "isUnlocked": false,
+      "videoUuid": "00000004-0000-4000-8000-000000000102",
+      "isSaved": false,
       "watchProgress": {
         "positionMs": 12000,
         "isCompleted": false,
@@ -192,6 +199,7 @@
 | `previewVideos[].storageKey` | string | 프리뷰 영상 storage key |
 | `previewVideos[].uuid` | string | 프리뷰 영상 공개 식별자. 프리뷰 재생 API의 `videoId`로 사용 |
 | `previewVideos[].durationMs` | number | 프리뷰 영상 재생 시간(밀리초) |
+| `previewVideos[].isSaved` | boolean | 인증된 사용자의 저장 여부. 익명은 `false` |
 | `episodes` | array | 공개된 회차 목록 |
 | `episodes[].uuid` | string | 회차 공개 식별자. 회차 재생 API 경로의 `episodeId`에 사용 |
 | `episodes[].episodeNumber` | number | 회차 번호 |
@@ -201,6 +209,8 @@
 | `episodes[].pricePoints` | number | 회차 해제에 필요한 포인트. `0`이면 무료이고, `0`보다 크면 해제에 포인트가 필요하다 |
 | `episodes[].image` | string \| null | 회차 커버 이미지 storage key |
 | `episodes[].isUnlocked` | boolean | 무료 회차이거나 인증된 사용자가 권한을 보유하면 `true`. 익명은 무료 회차만 `true` |
+| `episodes[].videoUuid` | string \| null | 대표 FULL 영상 UUID. 재생 응답·저장 API가 사용하는 영상 식별자. FULL 영상이 없으면 `null` |
+| `episodes[].isSaved` | boolean | 대표 FULL 영상의 인증 사용자 저장 여부. 익명은 `false` |
 | `episodes[].watchProgress` | object \| null | 인증된 사용자의 시청기록. 익명 요청 또는 기록이 없으면 `null` |
 | `episodes[].watchProgress.positionMs` | number | 마지막 재생 위치(밀리초) |
 | `episodes[].watchProgress.isCompleted` | boolean | 회차 완주 여부 |
@@ -250,9 +260,9 @@ Authorization 헤더가 있지만 Access JWT가 비어 있거나 잘못됐거나
 
 ### GET /dramas/:dramaId/previews/:videoId/playback
 
-개발 환경에서 공개 작품에 속한 `content_type = DRAMA`, `kind = PREVIEW` 영상의 S3 객체에 대해 3600초 유효한 서명 GET URL을 반환한다. 작품 또는 프리뷰가 없거나 공개 조건을 만족하지 않으면, 또는 개발 환경이 아니면 `404 Not Found`를 반환한다. 인증과 구매 여부는 확인하지 않는다.
+개발 환경에서 공개 작품에 속한 `content_type = DRAMA`, `kind = PREVIEW` 영상의 S3 객체에 대해 3600초 유효한 서명 GET URL을 반환한다. 인증은 선택 사항이며, 인증된 사용자는 자신의 저장 상태를 `isSaved`로 받는다. 프리뷰에는 구매 entitlement가 필요하지 않다. 작품 또는 프리뷰가 없거나 공개 조건을 만족하지 않으면, 또는 개발 환경이 아니면 `404 Not Found`를 반환한다.
 
-성공 응답은 `{ "url": "https://...", "durationMs": 30000 }`이며 URL은 S3의 절대 서명 URL이다. 경로의 `dramaId`는 작품 UUID, `videoId`는 작품 목록·상세 응답의 `previewVideos[].uuid`에서 전달한다.
+성공 응답은 `{ "url": "https://...", "videoUuid": "...", "isSaved": false, "durationMs": 30000 }`이며 URL은 S3의 절대 서명 URL이다. `isSaved`는 인증된 요청 사용자의 저장 상태이며 익명은 `false`다. 이 GET은 선택적 JWT 인증을 사용해 Authorization이 없으면 익명으로 처리하고, 유효하지 않은 Authorization은 401이다. 경로의 `dramaId`는 작품 UUID, `videoId`는 작품 목록·상세 응답의 `previewVideos[].uuid`에서 전달한다.
 
 ## 관련 데이터 모델
 

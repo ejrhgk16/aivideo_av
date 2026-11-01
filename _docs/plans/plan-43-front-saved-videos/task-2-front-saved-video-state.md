@@ -39,6 +39,7 @@
 - front/tests/unit/previewPlayback.test.ts
 - front/tests/unit/dramaContent.test.ts
 - front/tests/unit/homeContent.test.ts
+- front/tests/unit/sessionExpiredDialog.test.ts
 - front/scripts/test-front.cjs
 - _docs/ARCHITECTURE.md
 
@@ -171,6 +172,7 @@ return <SavedVideosContext.Provider value={value}>{children}</SavedVideosContext
 
 ### 테스트와 완료 조건
 
+- 실행 중 필수 보완: root layout에 SavedVideosProvider를 연결하면서 기존 sessionExpiredDialog.test.ts의 제한된 모듈 mock에 새 import가 없어 실패했다. 이 파일을 task-2 범위에 추가하고 modules의 '@/features/playback/SavedVideosProvider'에 children을 그대로 반환하는 SavedVideosProvider mock만 등록한다. 기존 단일 만료 모달·닫기·로그인 이동 assertion을 유지한다. 새 제품 동작이나 별도 테스트 로직은 추가하지 않는다.
 - savedVideos.test.ts: 두 종류의 PUT body·UUID 인코딩, body 없는 DELETE와 204, page 전달, 필수 인증, 두 재생 경로의 정확한 파라미터를 검사한다. API의 인증·갱신 로직 자체를 복제하지 않는다.
 - savedVideoState.test.ts: 저장/해제 성공, 실패 후 원상태·재시도, 연속 클릭 단일 호출, 다른 영상 동시 요청, 서버 초기값, stale 조회 거부, pending 항목 보호, 안정된 snapshot 참조와 구독 정리, 세션 종료 뒤 응답 무시·새 인스턴스 독립을 검사한다.
 - 기존 homeContent/dramaContent/previewPlayback/episodePlayback 테스트를 확장 계약과 선택 인증으로 수정한다. 로그인 요청에는 Access가 붙고 익명은 Authorization을 보내지 않는지 검사한다. 기존 URL 정규화·오류 처리 assertion은 유지한다.
