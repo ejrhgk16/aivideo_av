@@ -56,9 +56,6 @@ function loadRootLayout(sessionExpired: boolean) {
       UserProvider: (props: Record<string, unknown>) => props.children,
       useUser: () => ({ sessionExpired, dismissSessionExpired: () => dismisses.push(1) }),
     },
-    '@/features/playback/SavedVideosProvider': {
-      SavedVideosProvider: (props: Record<string, unknown>) => props.children,
-    },
     '@/components/SessionExpiredDialog': { SessionExpiredDialog: loadComponent() },
   };
   const module = { exports: {} as Record<string, unknown> };

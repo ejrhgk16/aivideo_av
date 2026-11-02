@@ -16,7 +16,7 @@ import { getDramaContent, type DramaContent } from '@/features/drama/dramaConten
 import { getHomeCollection, type HomeCollection, type HomeCollectionDrama } from '@/features/home/homeContent';
 import { getPreviewPlayback } from '@/features/playback/previewPlayback';
 import { createRecommendationPreviewBuffer, recommendationPreviewKey, type RecommendationPreviewEntry } from '@/features/playback/recommendationPreviewBuffer';
-import { useSavedVideo, useSavedVideos } from '@/features/playback/SavedVideosProvider';
+import { removeSavedVideo, saveVideo } from '@/features/playback/savedVideos';
 import { useUser } from '@/features/user/UserProvider';
 
 type CollectionStatus = 'loading' | 'loaded' | 'error';
@@ -39,6 +39,11 @@ function RecommendationPreviewPlayer({
   drama,
   content,
   initialSaved,
+  savedWriteState,
+  savedWritePending,
+  onSavedChange,
+  onSaveStarted,
+  onSaveFinished,
   onError,
   onOpenEpisodes,
   onShare,
@@ -50,17 +55,51 @@ function RecommendationPreviewPlayer({
   drama: HomeCollectionDrama;
   content: DramaContent | null;
   initialSaved: boolean;
+  savedWriteState: { ownerKey: string; revision: number; pending: boolean };
+  savedWritePending: boolean;
+  onSavedChange: (videoUuid: string, isSaved: boolean, version: number) => void;
+  onSaveStarted: (writeState: { ownerKey: string; revision: number; pending: boolean }) => void;
+  onSaveFinished: (writeState: { ownerKey: string; revision: number; pending: boolean }) => void;
   onError: () => void;
   onOpenEpisodes: () => void;
   onShare: () => void;
   onSeekTouch: (active: boolean) => void;
 }) {
   const router = useRouter();
-  const { user, isRestoring, sessionExpired } = useUser();
+  const { user, isRestoring, sessionExpired, sessionVersion, isCurrentSession } = useUser();
   const preview = drama.previewVideos[0];
-  const savedVideo = useSavedVideo(preview?.uuid ?? null, 'PREVIEW', initialSaved);
+  const [isSaved, setIsSaved] = useState(initialSaved);
+  const [saving, setSaving] = useState(false);
   const [savedError, setSavedError] = useState<unknown>(null);
+  const mounted = useRef(true);
   const insets = useSafeAreaInsets();
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => { setIsSaved(initialSaved); }, [initialSaved]);
+  const toggleSaved = async () => {
+    if (!preview || isRestoring || savedWriteState.pending) return;
+    if (!user) { router.push('/login'); return; }
+    const version = sessionVersion;
+    const nextSaved = !isSaved;
+    savedWriteState.pending = true;
+    savedWriteState.revision += 1;
+    onSaveStarted(savedWriteState);
+    setSaving(true);
+    setSavedError(null);
+    try {
+      if (nextSaved) await saveVideo(preview.uuid, 'PREVIEW');
+      else await removeSavedVideo(preview.uuid);
+      if (!isCurrentSession(version)) return;
+      if (mounted.current) setIsSaved(nextSaved);
+      onSavedChange(preview.uuid, nextSaved, version);
+    } catch (error) {
+      if (!mounted.current || !isCurrentSession(version)) return;
+      if (error instanceof SessionChangedError || (error instanceof ApiError && error.status === 401 && sessionExpired)) return;
+      setSavedError(error);
+    } finally {
+      onSaveFinished(savedWriteState);
+      if (mounted.current && isCurrentSession(version)) setSaving(false);
+    }
+  };
   const [isPlaying, setIsPlaying] = useState(player.playing);
   const [position, setPosition] = useState(player.currentTime);
   const [duration, setDuration] = useState(player.duration);
@@ -77,15 +116,6 @@ function RecommendationPreviewPlayer({
   const seeking = useRef(false);
   const seekTouchActive = useRef(false);
   onErrorRef.current = onError;
-  const toggleSaved = async () => {
-    if (!user) { router.push('/login'); return; }
-    setSavedError(null);
-    try { await savedVideo.toggle(); }
-    catch (error) {
-      if (error instanceof SessionChangedError || (error instanceof ApiError && error.status === 401 && sessionExpired)) return;
-      setSavedError(error);
-    }
-  };
   const episodes = [...(content?.episodes ?? [])].sort((first, second) => first.episodeNumber - second.episodeNumber);
   const firstEpisode = episodes[0] ?? null;
   const genres = drama.genres.map((genre) => genre.name).join(' · ') || '장르 정보 없음';
@@ -206,7 +236,7 @@ function RecommendationPreviewPlayer({
         </Pressable>)}
       </View>}
       <View style={styles.playerSideActions}>
-        <Pressable disabled={!preview || isRestoring || savedVideo.pending} onPress={() => void toggleSaved()} accessibilityRole="button" accessibilityLabel={savedVideo.saved ? '저장 해제' : '작품 저장'} accessibilityState={{ disabled: !preview || isRestoring || savedVideo.pending, busy: savedVideo.pending }} style={styles.playerSideAction}><Icon name="bookmark" color={savedVideo.saved ? colors.accent : '#fff'} /><AppText style={styles.playerActionLabel}>{savedVideo.saved ? '저장됨' : '저장'}</AppText></Pressable>
+        <Pressable disabled={!preview || isRestoring || saving || savedWritePending || savedWriteState.pending} onPress={() => void toggleSaved()} accessibilityRole="button" accessibilityLabel={isSaved ? '저장 해제' : '작품 저장'} accessibilityState={{ disabled: !preview || isRestoring || saving || savedWritePending || savedWriteState.pending, busy: saving || savedWritePending || savedWriteState.pending }} style={styles.playerSideAction}><Icon name="bookmark" color={isSaved ? colors.accent : '#fff'} /><AppText style={styles.playerActionLabel}>{isSaved ? '저장됨' : '저장'}</AppText></Pressable>
         {savedError ? <AppText accessibilityRole="alert" style={styles.playerActionLabel}>{getErrorMessage(savedError)}</AppText> : null}
         <Pressable onPress={onOpenEpisodes} accessibilityRole="button" accessibilityLabel="전체 회차" style={styles.playerSideAction}><Icon name="layers" color="#fff" /><AppText style={styles.playerActionLabel}>회차</AppText></Pressable>
         <Pressable onPress={onShare} accessibilityRole="button" accessibilityLabel="작품 공유" style={styles.playerSideAction}><Icon name="share-2" color="#fff" /><AppText style={styles.playerActionLabel}>공유</AppText></Pressable>
@@ -258,7 +288,12 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
   const collectionActiveIdRef = useRef<string | null>(null);
   const [cardHeight, setCardHeight] = useState(0);
   const { isRestoring, sessionVersion, isCurrentSession, user } = useUser();
-  const savedVideos = useSavedVideos();
+  const [savedWriteTransition, setSavedWritePending] = useState(false);
+  const writeOwnerKey = `${user?.uuid ?? 'anonymous'}:${sessionVersion}`;
+  const collectionWriteState = useRef({ ownerKey: writeOwnerKey, revision: 0, pending: false });
+  if (collectionWriteState.current.ownerKey !== writeOwnerKey) {
+    collectionWriteState.current = { ownerKey: writeOwnerKey, revision: 0, pending: false };
+  }
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeDrama, setActiveDrama] = useState<DramaContent | null>(null);
   const [screenFocused, setScreenFocused] = useState(false);
@@ -551,11 +586,11 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
     }
     if (isRestoring) return () => { active = false; };
     const version = sessionVersion;
-    const startedRevision = savedVideos.state.getSnapshot().revision;
+    const startedRevision = collectionWriteState.current.revision;
     void getHomeCollection('RECOMMENDATION_DAILY').then(
       (result) => {
         if (active && isCurrentSession(version)) {
-          savedVideos.state.accept(result.dramas.flatMap((drama) => drama.previewVideos.map((preview) => ({ videoUuid: preview.uuid, isSaved: preview.isSaved }))), startedRevision);
+          if (collectionWriteState.current.pending || collectionWriteState.current.revision !== startedRevision) return;
           const ordered = [...result.dramas].sort((first, second) => {
             if (first.uuid === initialId) return -1;
             if (second.uuid === initialId) return 1;
@@ -571,7 +606,27 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
       () => { if (active && isCurrentSession(version) && !sameSession) setStatus('error'); },
     );
     return () => { active = false; };
-  }, [initialId, isRestoring, sessionVersion, user?.uuid, isCurrentSession, savedVideos.state]));
+  }, [initialId, isRestoring, sessionVersion, user?.uuid, isCurrentSession]));
+
+  const updateSavedPreview = (videoUuid: string, isSaved: boolean, version: number) => {
+    if (!isCurrentSession(version)) return;
+    setCollection((current) => current === null ? current : {
+      ...current,
+      dramas: current.dramas.map((drama) => ({
+        ...drama,
+        previewVideos: drama.previewVideos.map((preview) => preview.uuid === videoUuid ? { ...preview, isSaved } : preview),
+      })),
+    });
+    collectionWriteState.current.revision += 1;
+  };
+  const finishSavedPreviewWrite = (writeState: typeof collectionWriteState.current) => {
+    writeState.revision += 1;
+    writeState.pending = false;
+    if (writeState === collectionWriteState.current) setSavedWritePending(false);
+  };
+  const startSavedPreviewWrite = (writeState: typeof collectionWriteState.current) => {
+    if (writeState === collectionWriteState.current) setSavedWritePending(true);
+  };
 
   const dramas = useMemo(() => [...(collection?.dramas ?? [])].sort((first, second) => {
     if (first.uuid === initialId) return -1;
@@ -721,9 +776,11 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
   }, [screenFocused, status, dramas.length, cardHeight]);
 
   const activeDramaForPreview = dramas.find((drama) => drama.uuid === activeId);
-  const activePreviewTarget = useMemo(() => activeDramaForPreview?.previewVideos[0]
-    ? { dramaId: activeDramaForPreview.uuid, videoId: activeDramaForPreview.previewVideos[0].uuid }
-    : null, [activeDramaForPreview]);
+  const activePreviewDramaId = activeDramaForPreview?.uuid;
+  const activePreviewVideoId = activeDramaForPreview?.previewVideos[0]?.uuid;
+  const activePreviewTarget = useMemo(() => activePreviewDramaId && activePreviewVideoId
+    ? { dramaId: activePreviewDramaId, videoId: activePreviewVideoId }
+    : null, [activePreviewDramaId, activePreviewVideoId]);
   const activeEntry = activePreviewTarget ? buffer?.get(activePreviewTarget) : undefined;
   const activePlayer = activeEntry?.kind === 'ready' ? activeEntry.player : undefined;
   const cardState = useMemo(() => ({
@@ -835,13 +892,18 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
                     ? <Image source={{ uri: posterUrl }} accessibilityLabel={`${drama.title} 표지`} contentFit="cover" style={StyleSheet.absoluteFill} />
                     : <View style={[StyleSheet.absoluteFill, styles.placeholder]} />)}
                   {mountControls && activeDramaForPreview && activePreviewTarget && <RecommendationPreviewPlayer
-                    key={`controls:${recommendationPreviewKey(activePreviewTarget)}`}
+                    key={`controls:${user?.uuid ?? 'anonymous'}:${sessionVersion}:${recommendationPreviewKey(activePreviewTarget)}`}
                     player={activePlayer!}
                     moving={scrolling}
                     trackListener={(subscription) => buffer!.trackSubscription(activePreviewTarget, activePlayer!, subscription)}
                     drama={drama}
                     content={activeDrama}
                     initialSaved={collectionSessionVersion === sessionVersion && collectionOwnerUuid === (user?.uuid ?? null) ? drama.previewVideos[0]?.isSaved ?? false : false}
+                    savedWriteState={collectionWriteState.current}
+                    savedWritePending={savedWriteTransition && collectionWriteState.current.pending}
+                    onSavedChange={updateSavedPreview}
+                    onSaveStarted={startSavedPreviewWrite}
+                    onSaveFinished={finishSavedPreviewWrite}
                     onError={() => {
                       if (focusedRef.current && activeIdRef.current === drama.uuid && bufferRef.current === buffer) {
                         buffer?.setUnavailable(activePreviewTarget, activePlayer!);

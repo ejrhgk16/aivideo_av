@@ -276,6 +276,12 @@
       "directory": "plan-46-api-response-contracts",
       "title": "기존 성공 응답 보존과 오류·응답 타입 공통화",
       "status": "completed"
+    },
+    {
+      "id": "plan-47-screen-local-saved-videos",
+      "directory": "plan-47-screen-local-saved-videos",
+      "title": "저장 상태 Provider 제거와 홈 분위기 미리보기 연결",
+      "status": "completed"
     }
   ]
 }

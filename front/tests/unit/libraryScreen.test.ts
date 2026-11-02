@@ -33,14 +33,7 @@ function setup() {
   let focusCallback: (() => void | (() => void)) | null = null;
   let focusCleanup: (() => void) | undefined;
   let focusDirty = false;
-  let snapshot = { videos: {}, revision: 0 };
   const isCurrentSession = (version: number) => version === sessionVersion;
-  const savedState = {
-    getSnapshot: () => snapshot,
-    accept: () => true,
-    toggle: async () => true,
-    subscribe: () => () => {},
-  };
   const jsx = (type: unknown, props: Record<string, any>): Tree => ({ type, props });
   const react = {
     useState<T>(initial: T | (() => T)) {
@@ -85,7 +78,6 @@ function setup() {
     '@/common/theme/tokens': { colors: { surface: '#111', elevated: '#222', muted: '#aaa', text: '#fff' } },
     '@/common/http/errorMessages': { getErrorMessage: (error: unknown) => error instanceof Error ? error.message : 'unknown' },
     '@/features/playback/savedVideos': { getSavedVideos: (page = 1) => { const request = deferred<any>(); requests.push(request); requestPages.push(page); return request.promise; }, savedVideoRoute: (item: any) => item.contentType === 'EPISODE' ? { pathname: '/episode/[id]', params: { id: item.episodeUuid, dramaId: item.dramaUuid } } : { pathname: '/preview/[dramaId]/[videoId]', params: { dramaId: item.dramaUuid, videoId: item.videoUuid } } },
-    '@/features/playback/SavedVideosProvider': { useSavedVideos: () => ({ state: savedState, snapshot }) },
     '@/features/user/UserProvider': { useUser: () => ({ isRestoring, user, sessionVersion, isCurrentSession }) },
     '@/common/media': { resolveApiImageUrl: (url: string) => url },
   };
@@ -111,6 +103,10 @@ function setup() {
     dirty = false;
     return tree;
   }
+  function refocus() {
+    focusCleanup?.();
+    focusCleanup = focusCallback?.() ?? undefined;
+  }
   async function settle() {
     await new Promise<void>((done) => setImmediate(done));
     if (dirty) render();
@@ -124,7 +120,7 @@ function setup() {
     return found.concat(Array.isArray(children) ? children.flatMap((child: any) => find(child, type)) : find(children, type));
   }
   return {
-    requests, requestPages, routes, render, settle, find, get tree() { return tree; },
+    requests, requestPages, routes, render, settle, find, refocus, get tree() { return tree; },
     setSession(nextUser: { uuid: string } | null, restoring: boolean, version: number) { user = nextUser; isRestoring = restoring; sessionVersion = version; },
   };
 }
@@ -260,4 +256,31 @@ test('saved library keeps history disconnected and retries the same next page wi
   screen.requests[2].resolve(page([preview, episode]));
   await screen.settle();
   assert.deepEqual(JSON.parse(JSON.stringify(screen.find(screen.tree, 'FlatList')[0].props.data.map((item: any) => item.videoUuid))), ['preview-1', 'episode-video-1']);
+});
+
+test('saved library focus refresh shows server additions and removals and ignores an older next-page response', async () => {
+  const screen = setup();
+  screen.setSession({ uuid: 'account-a' }, false, 1);
+  screen.render();
+  screen.requests[0].resolve(page([preview, episode], true));
+  await screen.settle();
+  const loadMore = () => screen.find(screen.find(screen.tree, 'FlatList')[0].props.ListFooterComponent, 'Button').find((node) => node.props.label === '더 보기');
+  const more = loadMore();
+  assert.ok(more);
+  (more.props.onPress as () => void)();
+  assert.deepEqual(screen.requestPages, [1, 2]);
+
+  screen.refocus();
+  screen.render();
+  assert.deepEqual(screen.requestPages, [1, 2, 1], 'returning to the saved tab always starts at page one');
+  screen.requests[1].resolve(page([{ ...episode, videoUuid: 'stale-page-video' }]));
+  await screen.settle();
+  assert.equal(screen.find(screen.tree, 'FlatList').length, 0,
+    'the earlier next-page response is ignored after focus starts a fresh generation');
+
+  const added = { ...preview, videoUuid: 'newly-saved-video', dramaTitle: '새로 저장한 작품' };
+  screen.requests[2].resolve(page([added]));
+  await screen.settle();
+  assert.deepEqual(JSON.parse(JSON.stringify(screen.find(screen.tree, 'FlatList')[0].props.data.map((item: any) => item.videoUuid))), ['newly-saved-video'],
+    'the next focus reads the server list, including additions and removals since the previous visit');
 });

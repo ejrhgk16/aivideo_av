@@ -16,7 +16,7 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve, reject };
 }
 
-function homeScreen(options: { user: { uuid: string } | null; hasPreview: boolean }) {
+function homeScreen(options: { user: { uuid: string } | null; hasPreview: boolean; isRestoring?: boolean; heroCount?: number }) {
   const source = readFileSync(resolve(process.cwd(), 'src/screens/HomeScreen.tsx'), 'utf8');
   const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const hooks: any[] = [];
@@ -24,23 +24,9 @@ function homeScreen(options: { user: { uuid: string } | null; hasPreview: boolea
   let focusCallback: (() => void | (() => void)) | null = null;
   let focusCleanup: (() => void) | undefined;
   let tree: Tree;
-  let writePending: Deferred<void> | null = null;
-  let writeError: unknown = null;
-  const writes: unknown[][] = [];
   const routes: unknown[] = [];
   const collections = new Map<string, Deferred<any>>();
   let catalog: Deferred<any>;
-  let snapshot: { videos: Record<string, { isSaved: boolean; pending: boolean }>; revision: number } = { videos: {}, revision: 0 };
-  const state = {
-    getSnapshot: () => snapshot,
-    accept(rows: Array<{ videoUuid: string; isSaved: boolean }>, revision: number) {
-      if (revision !== snapshot.revision) return false;
-      const videos = { ...snapshot.videos };
-      for (const row of rows) if (!videos[row.videoUuid]?.pending) videos[row.videoUuid] = { isSaved: row.isSaved, pending: false };
-      snapshot = { videos, revision: snapshot.revision };
-      return true;
-    },
-  };
   const jsx = (type: any, props: Record<string, any>): Tree => ({ type, props });
   const react = {
     useState<T>(initial: T | (() => T)) {
@@ -60,12 +46,15 @@ function homeScreen(options: { user: { uuid: string } | null; hasPreview: boolea
     },
   };
   const isCurrentSession = (version: number) => version === 1;
-  const drama = {
+  const drama: any = {
     uuid: 'drama-hero', displayOrder: 1, slug: 'hero', title: 'Hero drama', shortDescription: 'Description',
     productionCompany: null, genres: [], imageUrls: { poster: null, posterLandscape: null, homeHero: null, detailCover: null, campaigns: [] },
     previewVideos: options.hasPreview ? [{ uuid: 'hero-preview', storageKey: '', durationMs: 60000, isSaved: false }] : [],
     publishedEpisodeCount: 1, freeEpisodeCount: 1,
   };
+  const featured = options.heroCount === 2
+    ? [drama, { ...drama, uuid: 'drama-next', displayOrder: 2, title: 'Next drama', previewVideos: [{ uuid: 'next-preview', storageKey: '', durationMs: 60000, isSaved: false }] }]
+    : [drama];
   const modules: Record<string, any> = {
     react,
     'react/jsx-runtime': { jsx, jsxs: jsx },
@@ -77,33 +66,9 @@ function homeScreen(options: { user: { uuid: string } | null; hasPreview: boolea
     '@/common/media': { resolveApiImageUrl: (value: string | null) => value },
     '@/common/theme/tokens': { colors: { accent: '#0f0', background: '#000', border: '#333', elevated: '#222', muted: '#aaa', surface: '#111', text: '#fff' } },
     '@/common/http/api': { ApiError: class ApiError extends Error { status = 401; }, SessionChangedError: class SessionChangedError extends Error {} },
-    '@/common/http/errorMessages': { getErrorMessage: () => 'save failed' },
     '@/features/home/homeContent': { getHomeCollection: (code: string) => { const request = deferred<any>(); collections.set(code, request); return request.promise; } },
     '@/features/drama/dramaContent': { getDramaList: () => { catalog = deferred<any>(); return catalog.promise; } },
-    '@/features/user/UserProvider': { useUser: () => ({ isRestoring: false, sessionVersion: 1, isCurrentSession, sessionExpired: false, user: options.user }) },
-    '@/features/playback/SavedVideosProvider': {
-      useSavedVideos: () => ({ state, snapshot }),
-      useSavedVideo: (videoUuid: string | null, contentType: string, initialSaved: boolean) => {
-        const entry = videoUuid === null ? undefined : snapshot.videos[videoUuid];
-        return {
-          saved: entry?.isSaved ?? initialSaved,
-          pending: entry?.pending ?? false,
-          toggle: () => {
-            if (videoUuid === null) return Promise.resolve(false);
-            const current = snapshot.videos[videoUuid] ?? { isSaved: initialSaved, pending: false };
-            if (current.pending) return Promise.resolve(false);
-            const next = !current.isSaved;
-            snapshot = { ...snapshot, videos: { ...snapshot.videos, [videoUuid]: { ...current, pending: true } } };
-            writes.push([videoUuid, contentType, next]);
-            writePending = deferred<void>();
-            const task = writePending;
-            const fail = writeError;
-            writeError = null;
-            return task.promise.then(() => { if (fail) throw fail; snapshot = { ...snapshot, videos: { ...snapshot.videos, [videoUuid]: { isSaved: next, pending: false } }, revision: snapshot.revision + 1 }; }).catch((error) => { snapshot = { ...snapshot, videos: { ...snapshot.videos, [videoUuid]: { isSaved: current.isSaved, pending: false } } }; throw error; });
-          },
-        };
-      },
-    },
+    '@/features/user/UserProvider': { useUser: () => ({ isRestoring: options.isRestoring ?? false, sessionVersion: 1, isCurrentSession, user: options.user }) },
   };
   const module = { exports: {} as Record<string, any> };
   vm.runInNewContext(output, { require: (id: string) => modules[id], module, exports: module.exports });
@@ -111,10 +76,10 @@ function homeScreen(options: { user: { uuid: string } | null; hasPreview: boolea
   const render = () => { hook = 0; tree = Screen(); return tree; };
   const nodes = (node: any): Tree[] => !node || typeof node !== 'object' ? [] : [node as Tree, ...(Array.isArray(node.props?.children) ? node.props.children.flatMap(nodes) : nodes(node.props?.children))];
   return {
-    render, nodes, get tree() { return tree; }, writes, routes, collections, get writePending() { return writePending; },
+    render, nodes, get tree() { return tree; }, routes, collections,
     resolveCollection(code: string, value: any) { collections.get(code)!.resolve(value); },
     resolveCatalog() { catalog.resolve([]); },
-    failNextWrite(error: unknown) { writeError = error; },
+    featured,
   };
 }
 
@@ -135,15 +100,21 @@ function previewScreen() {
   const isCurrentSession = (version: number) => version === sessionVersion;
   const player = {
     currentTime: 0, duration: 60, playbackRate: 1, timeUpdateEventInterval: 0,
-    playing: true, status: 'readyToPlay',
-    play() { this.playing = true; }, pause() { this.playing = false; },
+    playing: true, status: 'readyToPlay', playCalls: 0,
+    play() { this.playCalls += 1; this.playing = true; }, pause() { this.playing = false; },
     addListener() { return { remove() {} }; },
   };
   const fetched: string[] = [];
-  const accepted: unknown[] = [];
-  const toggled: unknown[][] = [];
+  const savedWrites: unknown[][] = [];
+  const writeTasks: Deferred<void>[] = [];
+  const queuedDrama: Deferred<any>[] = [];
+  let deferWrites = false;
+  let currentVideoId = 'preview-exact';
+  let currentUserUuid: string | null = 'user-1';
+  let isRestoring = false;
+  const pushes: unknown[] = [];
   let dramaRequest = 0;
-  const savedState = { getSnapshot: () => ({ revision: 0 }), accept: (rows: unknown[]) => { accepted.push(rows); return true; } };
+  const effects = new Map<string, Array<{ deps?: unknown[]; cleanup?: () => void }>>();
   const jsx = (type: any, props: Record<string, any>): Tree => ({ type, props });
   const react = {
     useState<T>(initial: T | (() => T)) {
@@ -171,7 +142,17 @@ function previewScreen() {
       bucket[index] = { callback, deps };
       return callback;
     },
-    useEffect() { hook += 1; },
+    useEffect(effect: () => void | (() => void), deps?: unknown[]) {
+      const index = hook++;
+      const bucket = effects.get(component) ?? [];
+      effects.set(component, bucket);
+      const previous = bucket[index];
+      if (!previous || deps?.some((value, i) => !Object.is(value, previous.deps?.[i]))) {
+        previous?.cleanup?.();
+        const cleanup = effect();
+        bucket[index] = { deps, cleanup: typeof cleanup === 'function' ? cleanup : undefined };
+      }
+    },
   };
   const fakePlayer = { ...player };
   const modules: Record<string, any> = {
@@ -181,14 +162,14 @@ function previewScreen() {
     'expo-image': { Image: 'Image' },
     'expo-linear-gradient': { LinearGradient: 'LinearGradient' },
     'expo-router': {
-      useRouter: () => ({ canGoBack: () => true, back() {}, replace() {}, push() {} }),
+      useRouter: () => ({ canGoBack: () => true, back() {}, replace() {}, push(route: unknown) { pushes.push(route); } }),
       useFocusEffect(callback: () => void | (() => void)) {
-        if (component === 'screen') {
+        if (component.startsWith('screen')) {
           if (callback !== focusCallback) { focusCleanup?.(); focusCallback = callback; focusCleanup = callback() ?? undefined; }
         } else callback();
       },
     },
-    'expo-video': { VideoView: 'VideoView', useVideoPlayer: (url: string, initialize: (value: typeof player) => void) => { if (url !== activeSource) { activeSource = url; playerCount += 1; } initialize(fakePlayer); return fakePlayer; } },
+    'expo-video': { VideoView: 'VideoView', useVideoPlayer: (url: string, initialize: (value: typeof player) => void) => { if (url !== activeSource) { activeSource = url; playerCount += 1; initialize(fakePlayer); } return fakePlayer; } },
     '@react-native-community/slider': 'Slider',
     'expo-status-bar': { StatusBar: 'StatusBar' },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
@@ -200,19 +181,23 @@ function previewScreen() {
     '@/common/theme/tokens': { colors: { accent: '#0f0', background: '#000', muted: '#aaa', text: '#fff', surface: '#111', border: '#333' } },
     '@/features/drama/dramaContent': { getDramaContent: async () => {
       dramaRequest += 1;
+      const queued = queuedDrama.shift();
+      if (queued) return queued.promise;
       return { uuid: 'drama-1', title: 'Drama', imageUrls: { poster: null }, genres: [], episodes: [], previewVideos: [{ uuid: 'another-preview', isSaved: false }, { uuid: 'preview-exact', isSaved: dramaRequest > 1 }] };
     } },
-    '@/features/playback/previewPlayback': { getPreviewPlayback: async (_dramaId: string, videoId: string) => { fetched.push(videoId); return { url: 'signed-url', videoUuid: videoId, isSaved: true, durationMs: 60000 }; } },
-    '@/features/playback/SavedVideosProvider': {
-      useSavedVideo: (videoUuid: string, type: string, initialSaved: boolean) => ({ saved: initialSaved, pending: false, toggle: async () => { toggled.push([videoUuid, type, initialSaved]); return true; } }),
-      useSavedVideos: () => ({ state: savedState, snapshot: { videos: {}, revision: 0 } }),
+    '@/features/playback/previewPlayback': { getPreviewPlayback: async (_dramaId: string, videoId: string) => { fetched.push(videoId); return { url: `signed-${videoId}`, videoUuid: videoId, isSaved: videoId === 'preview-exact', durationMs: 60000 }; } },
+    '@/features/playback/savedVideos': {
+      saveVideo: (videoUuid: string, type: string) => { savedWrites.push([videoUuid, type, 'save']); if (!deferWrites) return Promise.resolve(); const task = deferred<void>(); writeTasks.push(task); return task.promise; },
+      removeSavedVideo: (videoUuid: string) => { savedWrites.push([videoUuid, 'remove']); if (!deferWrites) return Promise.resolve(); const task = deferred<void>(); writeTasks.push(task); return task.promise; },
     },
-    '@/features/user/UserProvider': { useUser: () => ({ isRestoring: false, sessionVersion, isCurrentSession, user: { uuid: 'user-1' }, sessionExpired: false }) },
+    '@/features/user/UserProvider': { useUser: () => ({ isRestoring, sessionVersion, isCurrentSession, user: currentUserUuid === null ? null : { uuid: currentUserUuid }, sessionExpired: false }) },
   };
   const module = { exports: {} as Record<string, any> };
   vm.runInNewContext(output, { require: (id: string) => modules[id], module, exports: module.exports, setTimeout: () => 1, clearTimeout() {} });
   const Screen = module.exports.PlaybackScreenPreview as (props: { dramaId: string; videoId: string }) => Tree;
+  let renderedComponents = new Set<string>();
   function renderComponent(name: string, fn: () => Tree) {
+    renderedComponents.add(name);
     const previousComponent = component;
     const previousHook = hook;
     component = name;
@@ -225,14 +210,31 @@ function previewScreen() {
   function resolveTree(node: any): any {
     if (Array.isArray(node)) return node.map(resolveTree);
     if (!node || typeof node !== 'object' || !('type' in node)) return node;
-    if (typeof node.type === 'function') return resolveTree(renderComponent(node.type.name, () => node.type(node.props)));
+    if (typeof node.type === 'function') return resolveTree(renderComponent(`${node.type.name}:${node.props.key ?? ''}`, () => node.type(node.props)));
     return { ...node, props: { ...node.props, children: resolveTree(node.props.children) } };
   }
-  const render = () => { tree = resolveTree(renderComponent('screen', () => Screen({ dramaId: 'drama-1', videoId: 'preview-exact' }))); return tree; };
+  const render = () => {
+    renderedComponents = new Set<string>();
+    tree = resolveTree(renderComponent('screen', () => Screen({ dramaId: 'drama-1', videoId: currentVideoId })));
+    for (const [name, bucket] of effects) {
+      if (renderedComponents.has(name)) continue;
+      bucket.forEach((entry) => entry?.cleanup?.());
+      effects.delete(name); values.delete(name); refs.delete(name); callbacks.delete(name);
+    }
+    return tree;
+  };
   const nodes = (node: any): Tree[] => !node || typeof node !== 'object' ? [] : [node as Tree, ...(Array.isArray(node.props?.children) ? node.props.children.flatMap(nodes) : nodes(node.props?.children))];
   return {
-    render, nodes, get tree() { return tree; }, get playerCount() { return playerCount; }, player: fakePlayer, fetched, accepted, toggled,
+    render, nodes, get tree() { return tree; }, get playerCount() { return playerCount; }, player: fakePlayer, fetched, savedWrites,
+    pushes,
     refocus() { focusCleanup?.(); focusCleanup = focusCallback?.() ?? undefined; },
+    writeTasks,
+    deferWrites() { deferWrites = true; },
+    changeSession(uuid: string | null) { sessionVersion += 1; currentUserUuid = uuid; render(); },
+    changeVideo(videoId: string) { currentVideoId = videoId; render(); },
+    restoring(value: boolean) { isRestoring = value; render(); },
+    queueDrama() { const task = deferred<any>(); queuedDrama.push(task); return task; },
+    async settle() { await new Promise<void>((done) => setImmediate(done)); render(); render(); },
   };
 }
 
@@ -247,69 +249,143 @@ test('preview save uses the exact selected route video and focus refresh keeps t
   assert.ok(save);
   assert.equal(save.props.accessibilityState.disabled, false);
   await (save.props.onPress as () => Promise<void>)();
-  assert.deepEqual(JSON.parse(JSON.stringify(screen.toggled)), [['preview-exact', 'PREVIEW', true]]);
+  await screen.settle();
+  assert.deepEqual(JSON.parse(JSON.stringify(screen.savedWrites)), [['preview-exact', 'remove']]);
+  assert.ok(screen.nodes(screen.tree).some((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '작품 저장'),
+    'a successful remove updates both the player and parent playback state');
 
   screen.player.currentTime = 23;
   screen.refocus();
   await new Promise<void>((done) => setImmediate(done));
   screen.render();
+  screen.render();
   assert.equal(screen.fetched.length, 1, 'focus refresh reads saved metadata without fetching another signed playback URL');
   assert.equal(screen.playerCount, 1, 'metadata refresh preserves the VideoPlayer instance');
   assert.equal(screen.player.currentTime, 23, 'metadata refresh preserves playback position');
-  assert.ok(screen.accepted.some((rows: any) => rows.some((row: any) => row.videoUuid === 'preview-exact' && row.isSaved)));
+  assert.ok(screen.nodes(screen.tree).some((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '저장 해제'),
+    'fresh server metadata changes the button back to saved without remounting playback');
 });
 
-test('home hero saves and unsaves its first preview, shows pending and error states, and handles anonymous or missing previews', async () => {
+test('preview bookmark save and removal keep a user-paused player paused', async () => {
+  const screen = previewScreen(); screen.deferWrites(); screen.render(); await screen.settle();
+  const paused = screen.nodes(screen.tree).find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '일시정지');
+  assert.ok(paused);
+  (paused.props.onPress as () => void)();
+  assert.equal(screen.player.playing, false);
+  const playCount = screen.player.playCalls;
+  const playerCount = screen.playerCount;
+  screen.player.currentTime = 19;
+
+  const remove = screen.nodes(screen.tree).find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '저장 해제')!;
+  const removeTask = (remove.props.onPress as () => Promise<void>)(); screen.render();
+  assert.equal(screen.nodes(screen.tree).find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '저장 해제')?.props.accessibilityState.busy, true);
+  assert.equal(screen.player.playing, false);
+  screen.writeTasks[0].resolve(); await removeTask; await screen.settle();
+  assert.equal(screen.player.playing, false);
+  assert.equal(screen.player.playCalls, playCount);
+  assert.equal(screen.playerCount, playerCount);
+  assert.equal(screen.player.currentTime, 19);
+
+  const save = screen.nodes(screen.tree).find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '작품 저장')!;
+  const saveTask = (save.props.onPress as () => Promise<void>)(); screen.render();
+  assert.equal(screen.player.playing, false);
+  screen.writeTasks[1].resolve(); await saveTask; await screen.settle();
+  assert.equal(screen.player.playing, false);
+  assert.equal(screen.player.playCalls, playCount);
+  assert.equal(screen.playerCount, playerCount);
+  assert.equal(screen.player.currentTime, 19);
+});
+
+test('preview save locks duplicate taps, preserves state on failure, and permits retry', async () => {
+  const screen = previewScreen(); screen.deferWrites(); screen.render(); await screen.settle();
+  const remove = () => screen.nodes(screen.tree).find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '저장 해제')!;
+  const first = remove();
+  (first.props.onPress as () => void)(); (first.props.onPress as () => void)();
+  assert.equal(screen.savedWrites.length, 1, 'same-frame taps issue one API write');
+  screen.render();
+  assert.equal(remove().props.accessibilityState.busy, true);
+  screen.writeTasks[0].reject(new Error('offline')); await screen.settle();
+  assert.equal(remove().props.accessibilityLabel, '저장 해제', 'failed writes preserve the saved state');
+  assert.ok(screen.nodes(screen.tree).some((node) => node.props.accessibilityRole === 'alert'));
+  (remove().props.onPress as () => void)();
+  assert.equal(screen.savedWrites.length, 2, 'failure releases the lock for retry');
+  screen.writeTasks[1].resolve(); await screen.settle();
+  assert.ok(screen.nodes(screen.tree).some((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '작품 저장'));
+});
+
+test('preview requires login for anonymous writes, disables during restoration, and ignores late writes after route or account change', async () => {
+  const anonymous = previewScreen(); anonymous.changeSession(null); await anonymous.settle();
+  (anonymous.nodes(anonymous.tree).find((node) => node.props.accessibilityLabel === '저장 해제')!.props.onPress as () => void)();
+  assert.deepEqual(anonymous.savedWrites, []);
+  assert.deepEqual(anonymous.pushes, ['/login']);
+  anonymous.restoring(true);
+  assert.equal(anonymous.nodes(anonymous.tree).some((node) => node.props.accessibilityLabel === '저장 해제'), false,
+    'restoring keeps playback controls unavailable until the session is known');
+
+  const routeChange = previewScreen(); routeChange.deferWrites(); routeChange.render(); await routeChange.settle();
+  (routeChange.nodes(routeChange.tree).find((node) => node.props.accessibilityLabel === '저장 해제')!.props.onPress as () => void)();
+  routeChange.changeVideo('preview-next'); await routeChange.settle();
+  routeChange.writeTasks[0].resolve(); await routeChange.settle();
+  assert.ok(routeChange.nodes(routeChange.tree).some((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '작품 저장'),
+    'the old preview write cannot change the new route button');
+
+  const accountChange = previewScreen(); accountChange.deferWrites(); accountChange.render(); await accountChange.settle();
+  (accountChange.nodes(accountChange.tree).find((node) => node.props.accessibilityLabel === '저장 해제')!.props.onPress as () => void)();
+  accountChange.changeSession('user-2'); await accountChange.settle();
+  accountChange.writeTasks[0].resolve(); await accountChange.settle();
+  assert.ok(accountChange.nodes(accountChange.tree).some((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '저장 해제'),
+    'the old account write cannot replace the new account server flag');
+});
+
+test('home hero opens the current first preview directly without saved-video writes', async () => {
   const member = homeScreen({ user: { uuid: 'user-1' }, hasPreview: true });
   member.render();
   const hero = { uuid: 'drama-hero', displayOrder: 1, slug: 'hero', title: 'Hero drama', shortDescription: 'Description', productionCompany: null, genres: [], imageUrls: { poster: null, posterLandscape: null, homeHero: null, detailCover: null, campaigns: [] }, previewVideos: [{ uuid: 'hero-preview', storageKey: '', durationMs: 60000, isSaved: false }], publishedEpisodeCount: 1, freeEpisodeCount: 1 };
   member.resolveCollection('HOME_FEATURED', { dramas: [hero] });
   await new Promise<void>((done) => setImmediate(done));
   member.render();
-  const save = () => member.nodes(member.tree).find((node) => node.type === 'Pressable' && node.props.accessibilityRole === 'button' && ['작품 저장', '저장 해제'].includes(node.props.accessibilityLabel));
-  const firstSave = save();
-  assert.ok(firstSave);
-  assert.equal(firstSave.props.accessibilityLabel, '작품 저장');
-  assert.equal(firstSave.props.accessibilityState.disabled, false);
-  (firstSave.props.onPress as () => void)();
-  member.render();
-  assert.equal(save()?.props.accessibilityState.busy, true, 'the hero action disables while the shared write is pending');
-  member.writePending!.resolve();
-  await new Promise<void>((done) => setImmediate(done));
-  member.render();
-  assert.equal(save()?.props.accessibilityLabel, '저장 해제');
-  (save()!.props.onPress as () => void)();
-  member.writePending!.resolve();
-  await new Promise<void>((done) => setImmediate(done));
-  member.render();
-  assert.deepEqual(JSON.parse(JSON.stringify(member.writes)), [['hero-preview', 'PREVIEW', true], ['hero-preview', 'PREVIEW', false]]);
-  assert.equal(save()?.props.accessibilityLabel, '작품 저장');
-
-  member.failNextWrite(new Error('offline'));
-  (save()!.props.onPress as () => void)();
-  member.writePending!.resolve();
-  await new Promise<void>((done) => setImmediate(done));
-  member.render();
-  assert.ok(member.nodes(member.tree).some((node) => node.type === 'AppText' && node.props.accessibilityRole === 'alert'));
+  const previewButton = () => member.nodes(member.tree).find((node) => node.type === 'Button' && node.props.label === '분위기 미리보기');
+  assert.ok(previewButton());
+  assert.equal(previewButton()?.props.disabled, false);
+  (previewButton()?.props.onPress as () => void)();
+  assert.deepEqual(JSON.parse(JSON.stringify(member.routes)), [{ pathname: '/preview/[dramaId]/[videoId]', params: { dramaId: 'drama-hero', videoId: 'hero-preview' } }]);
 
   const anonymous = homeScreen({ user: null, hasPreview: true });
   anonymous.render();
   anonymous.resolveCollection('HOME_FEATURED', { dramas: [hero] });
   await new Promise<void>((done) => setImmediate(done));
   anonymous.render();
-  const anonymousSave = anonymous.nodes(anonymous.tree).find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '작품 저장');
-  assert.ok(anonymousSave);
-  (anonymousSave.props.onPress as () => void)();
-  assert.deepEqual(anonymous.routes, ['/login']);
-  assert.equal(anonymous.writes.length, 0, 'anonymous save never reaches the write API');
+  const anonymousPreview = anonymous.nodes(anonymous.tree).find((node) => node.type === 'Button' && node.props.label === '분위기 미리보기');
+  assert.ok(anonymousPreview);
+  (anonymousPreview.props.onPress as () => void)();
+  assert.deepEqual(JSON.parse(JSON.stringify(anonymous.routes)), [{ pathname: '/preview/[dramaId]/[videoId]', params: { dramaId: 'drama-hero', videoId: 'hero-preview' } }]);
 
   const withoutPreview = homeScreen({ user: { uuid: 'user-1' }, hasPreview: false });
   withoutPreview.render();
   withoutPreview.resolveCollection('HOME_FEATURED', { dramas: [{ ...hero, previewVideos: [] }] });
   await new Promise<void>((done) => setImmediate(done));
   withoutPreview.render();
-  const disabledSave = withoutPreview.nodes(withoutPreview.tree).find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '작품 저장');
-  assert.ok(disabledSave);
-  assert.equal(disabledSave.props.accessibilityState.disabled, true, 'a hero without a preview cannot be saved');
-  assert.equal(withoutPreview.writes.length, 0);
+  const disabledPreview = withoutPreview.nodes(withoutPreview.tree).find((node) => node.type === 'Button' && node.props.label === '분위기 미리보기');
+  assert.ok(disabledPreview);
+  assert.equal(disabledPreview.props.disabled, true, 'a hero without a preview cannot open playback');
+  (disabledPreview.props.onPress as () => void)();
+  assert.deepEqual(withoutPreview.routes, []);
+
+  const changingHero = homeScreen({ user: { uuid: 'user-1' }, hasPreview: true, heroCount: 2 });
+  changingHero.render();
+  changingHero.resolveCollection('HOME_FEATURED', { dramas: changingHero.featured });
+  await new Promise<void>((done) => setImmediate(done));
+  changingHero.render();
+  const nextHero = changingHero.nodes(changingHero.tree).find((node) => node.props.accessibilityLabel === 'Next drama 추천 보기');
+  assert.ok(nextHero);
+  (nextHero.props.onPress as () => void)();
+  changingHero.render();
+  const nextPreviewButton = changingHero.nodes(changingHero.tree).find((node) => node.type === 'Button' && node.props.label === '분위기 미리보기');
+  (nextPreviewButton?.props.onPress as () => void)();
+  assert.deepEqual(JSON.parse(JSON.stringify(changingHero.routes)), [{ pathname: '/preview/[dramaId]/[videoId]', params: { dramaId: 'drama-next', videoId: 'next-preview' } }]);
+
+  const restoring = homeScreen({ user: { uuid: 'user-1' }, hasPreview: true, isRestoring: true });
+  restoring.render();
+  assert.equal(restoring.collections.size, 0, 'a restoring session does not load a per-user featured collection');
+  assert.equal(restoring.nodes(restoring.tree).some((node) => node.type === 'Button' && node.props.label === '분위기 미리보기'), false);
 });

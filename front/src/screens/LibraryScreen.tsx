@@ -7,7 +7,6 @@ import { AppTopBar } from '@/components/AppTopBar';
 import { colors } from '@/common/theme/tokens';
 import { getErrorMessage } from '@/common/http/errorMessages';
 import { getSavedVideos, savedVideoRoute, type SavedVideoItem } from '@/features/playback/savedVideos';
-import { useSavedVideos } from '@/features/playback/SavedVideosProvider';
 import { useUser } from '@/features/user/UserProvider';
 import { resolveApiImageUrl } from '@/common/media';
 
@@ -25,7 +24,6 @@ export function LibraryScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ tab?: string }>();
   const { isRestoring, user, sessionVersion, isCurrentSession } = useUser();
-  const savedVideos = useSavedVideos();
   const [selectedTab, setSelectedTab] = useState<LibraryTab | null>(null);
   useEffect(() => setSelectedTab(null), [params.tab]);
   const tab = selectedTab ?? (params.tab === 'history' || params.tab === '시청 기록' ? '시청 기록' : '저장한 작품');
@@ -54,13 +52,9 @@ export function LibraryScreen() {
       setNextLoading(true);
       setNextError(null);
     }
-    const startedRevision = savedVideos.state.getSnapshot().revision;
     try {
       const result = await getSavedVideos(page);
       if (generation.current !== requestGeneration || !isCurrentSession(version) || user?.uuid !== userUuid) return;
-      if (!savedVideos.state.accept(result.items.map((item) => ({ videoUuid: item.videoUuid, isSaved: true })), startedRevision)) {
-        return;
-      }
       setItems((current) => {
         const merged = replace ? [] : current;
         const seen = new Set(merged.map((item) => item.videoUuid));
@@ -82,7 +76,7 @@ export function LibraryScreen() {
         setNextLoading(false);
       }
     }
-  }, [isCurrentSession, savedVideos.state, user]);
+  }, [isCurrentSession, user]);
 
   useFocusEffect(useCallback(() => {
     const requestGeneration = ++generation.current;
@@ -98,7 +92,7 @@ export function LibraryScreen() {
     }
     void loadPage(1, true, requestGeneration, sessionVersion, owner);
     return () => { generation.current += 1; inFlight.current = false; };
-  }, [tab, isRestoring, owner, sessionVersion, savedVideos.snapshot.revision, loadPage]));
+  }, [tab, isRestoring, owner, sessionVersion, loadPage]));
 
   const loadNextPage = () => {
     if (!hasNext || nextLoading || status !== 'loaded' || !owner) return;

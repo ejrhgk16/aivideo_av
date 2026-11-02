@@ -23,11 +23,12 @@ function createScreen(dramaId = 'drama-1') {
   let sessionVersion = 0;
   let userUuid: string | null = null;
   let focusCleanup: (() => void) | undefined;
+  let playerInitialized = false;
   const listeners = new Map<string, Set<(payload: any) => void>>();
   const player = {
-    currentTime: 0, duration: 90, playbackRate: 1, timeUpdateEventInterval: 0,
+    currentTime: 0, duration: 90, playbackRate: 1, timeUpdateEventInterval: 0, playCalls: 0,
     status: 'readyToPlay', playing: false,
-    play() { this.playing = true; },
+    play() { this.playCalls += 1; this.playing = true; emit('playingChange', { isPlaying: true }); },
     pause() { this.playing = false; emit('playingChange', { isPlaying: false }); },
     addListener(name: string, listener: (payload: any) => void) {
       const entries = listeners.get(name) ?? new Set();
@@ -41,12 +42,15 @@ function createScreen(dramaId = 'drama-1') {
     for (const listener of listeners.get(name) ?? []) listener(payload);
   }
   const requests: { resolve: (value: unknown) => void; reject: (error: unknown) => void }[] = [];
+  const savedWriteTasks: { resolve: (value: void) => void; reject: (error: unknown) => void }[] = [];
+  const dramaReads: { resolve: (value: unknown) => void; reject: (error: unknown) => void }[] = [];
+  let deferSavedWrites = false;
   const pushes: unknown[] = [];
   const replaces: unknown[] = [];
   class ApiErrorMock extends Error {
     constructor(public status: number, public errorCode: string | null = null) { super(errorCode ?? `HTTP_${status}`); }
   }
-  const savedState = { getSnapshot: () => ({ revision: 0 }), accept: () => true };
+  const savedWrites: unknown[][] = [];
   const isCurrentSession = (version: number) => version === sessionVersion;
   const jsx = (type: unknown, props: Record<string, unknown>): Node => ({ type, props });
   const react = {
@@ -82,7 +86,7 @@ function createScreen(dramaId = 'drama-1') {
     'react/jsx-runtime': { jsx, jsxs: jsx },
     'react-native': { Modal: 'Modal', Pressable: 'Pressable', Share: { share() {} }, StyleSheet: { create: (value: unknown) => value, absoluteFill: {} }, View: 'View' },
     'expo-router': { useFocusEffect(callback: () => void | (() => void)) { if (!focusCleanup) focusCleanup = callback() ?? undefined; }, useRouter: () => ({ canGoBack: () => true, back() {}, replace: (route: unknown) => replaces.push(route), push: (route: unknown) => pushes.push(route) }) },
-    'expo-video': { VideoView: 'VideoView', useVideoPlayer: (_source: string, initialize: (value: typeof player) => void) => { initialize(player); return player; } },
+    'expo-video': { VideoView: 'VideoView', useVideoPlayer: (_source: string, initialize: (value: typeof player) => void) => { if (!playerInitialized) { playerInitialized = true; initialize(player); } return player; } },
     '@react-native-community/slider': 'Slider',
     'expo-status-bar': { StatusBar: 'StatusBar' },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
@@ -91,7 +95,10 @@ function createScreen(dramaId = 'drama-1') {
     '@/common/http/api': { ApiError: ApiErrorMock, SessionChangedError: class SessionChangedError extends Error {} },
     '@/common/http/errorMessages': { getErrorMessage: () => '연결을 확인한 뒤 다시 시도해 주세요.' },
     '@/common/theme/tokens': { colors: { muted: '#aaa', accent: '#0f0', text: '#fff', surface: '#111', border: '#333' } },
-    '@/features/drama/dramaContent': { getDramaContent: async () => ({ episodes: [], genres: [] }) },
+    '@/features/drama/dramaContent': { getDramaContent: () => {
+      const task = dramaReads.shift();
+      return task ? new Promise((resolve, reject) => { task.resolve = resolve; task.reject = reject; }) : Promise.resolve({ episodes: [], genres: [] });
+    } },
     '@/features/playback/episodePlayback': { getEpisodePlayback: () => new Promise((resolve, reject) => requests.push({ resolve, reject })) },
     '@/features/playback/watchProgress': { createWatchProgressTracker: (send: (input: unknown) => Promise<void>, currentSession: () => boolean) => {
       let started = false;
@@ -111,17 +118,20 @@ function createScreen(dramaId = 'drama-1') {
       };
     }, saveWatchProgress: (_id: string, input: unknown) => { progressRequests.push(input); return Promise.resolve(); } },
     '@/features/user/UserProvider': { useUser: () => ({ isRestoring, sessionVersion, isCurrentSession, sessionExpired: false, user: userUuid === null ? null : { uuid: userUuid } }) },
-    '@/features/playback/SavedVideosProvider': {
-      useSavedVideos: () => ({ state: savedState, snapshot: { videos: {}, revision: 0 } }),
-      useSavedVideo: (videoUuid: string, contentType: string, initialSaved: boolean) => {
-        savedHooks.push([videoUuid, contentType, initialSaved]);
-        return { saved: initialSaved, pending: false, toggle: async () => { savedToggles.push([videoUuid, contentType, initialSaved]); return true; } };
+    '@/features/playback/savedVideos': {
+      saveVideo: (videoUuid: string, contentType: string) => {
+        savedWrites.push([videoUuid, contentType, 'save']);
+        if (!deferSavedWrites) return Promise.resolve();
+        return new Promise<void>((resolve, reject) => savedWriteTasks.push({ resolve, reject }));
+      },
+      removeSavedVideo: (videoUuid: string) => {
+        savedWrites.push([videoUuid, 'remove']);
+        if (!deferSavedWrites) return Promise.resolve();
+        return new Promise<void>((resolve, reject) => savedWriteTasks.push({ resolve, reject }));
       },
     },
   };
   const progressRequests: unknown[] = [];
-  const savedHooks: unknown[][] = [];
-  const savedToggles: unknown[][] = [];
   const module = { exports: {} as Record<string, unknown> };
   vm.runInNewContext(compiled, { exports: module.exports, setTimeout, clearTimeout, require: (id: string) => {
     if (!(id in modules)) throw new Error(`Unexpected module: ${id}`);
@@ -166,11 +176,14 @@ function createScreen(dramaId = 'drama-1') {
   function all(type: string) { hook = 0; tree = Component({ id: 'episode-1', dramaId }); return nodes(tree).filter((entry) => entry.type === type); }
   async function settle() { await new Promise<void>((resolve) => setImmediate(resolve)); commit(); }
   return {
-    commit, find, all, requests, pushes, replaces, player, emit, progressRequests, savedHooks, savedToggles, makeApiError: (status: number, code?: string) => new ApiErrorMock(status, code), settle,
+    commit, find, all, requests, pushes, replaces, player, emit, progressRequests, savedWrites, savedWriteTasks, makeApiError: (status: number, code?: string) => new ApiErrorMock(status, code), settle,
+    deferWrites() { deferSavedWrites = true; },
+    queueDramaRead() { const task = { resolve: (_value: unknown) => {}, reject: (_error: unknown) => {} }; dramaReads.push(task); return task; },
     set restoring(value: boolean) { isRestoring = value; commit(); },
     set user(value: string | null) { userUuid = value; commit(); },
     changeSession(value: string | null) { sessionVersion += 1; userUuid = value; commit(); },
     blur() { focusCleanup?.(); focusCleanup = undefined; },
+    focus() { commit(); },
     unmount() { focusCleanup?.(); for (const effect of effects) effect?.cleanup?.(); },
   };
 }
@@ -259,17 +272,116 @@ test('logged in playback saves once after real progress and once after resumed f
   screen.unmount();
 });
 
-test('episode bookmark uses playback video UUID and server saved state', async () => {
+test('episode bookmark calls save API with playback video UUID and server saved state', async () => {
   const screen = createScreen();
   screen.user = 'user-1';
   screen.requests[0].resolve({ url: 'https://cdn.example.com/video.mp4', videoUuid: 'episode-video-1', isSaved: true, title: null, episodeNumber: 1, durationMs: 90000 });
   await screen.settle();
-  assert.ok(screen.savedHooks.some((hook) => JSON.stringify(hook) === JSON.stringify(['episode-video-1', 'EPISODE', true])));
   const toggle = screen.all('Pressable').find((node) => node.props.accessibilityLabel === '저장 해제');
   assert.ok(toggle);
   assert.equal((toggle.props.accessibilityState as { busy?: boolean }).busy, false);
   await (toggle.props.onPress as () => Promise<void>)();
-  assert.deepEqual(JSON.parse(JSON.stringify(screen.savedToggles)), [['episode-video-1', 'EPISODE', true]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(screen.savedWrites)), [['episode-video-1', 'remove']]);
+  screen.unmount();
+});
+
+test('episode bookmark save and removal keep a user-paused player paused', async () => {
+  const screen = createScreen(); screen.deferWrites(); screen.user = 'user-1';
+  screen.requests[0].resolve({ url: 'url', videoUuid: 'episode-video-1', isSaved: false, title: null, episodeNumber: 1, durationMs: 90000 });
+  await screen.settle();
+  const pause = screen.all('Pressable').find((node) => node.props.accessibilityLabel === '일시정지')!;
+  (pause.props.onPress as () => void)();
+  await screen.settle();
+  assert.equal(screen.player.playing, false);
+  const playCount = screen.player.playCalls;
+  screen.player.currentTime = 31;
+
+  const save = screen.all('Pressable').find((node) => node.props.accessibilityLabel === '작품 저장')!;
+  const saveTask = (save.props.onPress as () => Promise<void>)(); screen.commit();
+  assert.equal((screen.all('Pressable').find((node) => node.props.accessibilityLabel === '작품 저장')?.props.accessibilityState as { busy: boolean }).busy, true);
+  assert.equal(screen.player.playing, false);
+  screen.savedWriteTasks[0].resolve(); await saveTask; await screen.settle();
+  assert.equal(screen.player.playing, false);
+  assert.equal(screen.player.playCalls, playCount);
+  assert.equal(screen.player.currentTime, 31);
+
+  const remove = screen.all('Pressable').find((node) => node.props.accessibilityLabel === '저장 해제')!;
+  const removeTask = (remove.props.onPress as () => Promise<void>)(); screen.commit();
+  assert.equal(screen.player.playing, false);
+  screen.savedWriteTasks[1].resolve(); await removeTask; await screen.settle();
+  assert.equal(screen.player.playing, false);
+  assert.equal(screen.player.playCalls, playCount);
+  assert.equal(screen.player.currentTime, 31);
+  screen.unmount();
+});
+
+test('episode save locks duplicate taps, preserves saved state on failure, and can retry', async () => {
+  const screen = createScreen(); screen.deferWrites();
+  screen.user = 'user-1';
+  screen.requests[0].resolve({ url: 'url', videoUuid: 'episode-video-1', isSaved: true, title: null, episodeNumber: 1, durationMs: 90000 });
+  await screen.settle();
+  const remove = () => screen.all('Pressable').find((node) => node.props.accessibilityLabel === '저장 해제')!;
+  const first = remove();
+  (first.props.onPress as () => void)(); (first.props.onPress as () => void)();
+  assert.deepEqual(JSON.parse(JSON.stringify(screen.savedWrites)), [['episode-video-1', 'remove']]);
+  assert.equal((remove().props.accessibilityState as { busy: boolean }).busy, true);
+  screen.savedWriteTasks[0].reject(new Error('offline')); await screen.settle();
+  assert.equal(remove().props.accessibilityLabel, '저장 해제', 'failed remove keeps the existing saved flag');
+  assert.ok(screen.all('AppText').some((node) => node.props.accessibilityRole === 'alert'));
+  (remove().props.onPress as () => void)();
+  assert.equal(screen.savedWrites.length, 2, 'failure permits a retry');
+  screen.savedWriteTasks[1].resolve(); await screen.settle();
+  assert.equal(screen.all('Pressable').find((node) => node.props.accessibilityLabel === '작품 저장')?.props.accessibilityLabel, '작품 저장');
+  screen.unmount();
+});
+
+test('episode focus metadata cannot overwrite pending or completed saves and must match both episode and video UUID', async () => {
+  const screen = createScreen(); screen.deferWrites();
+  screen.user = 'user-1';
+  screen.requests[0].resolve({ url: 'url', videoUuid: 'episode-video-1', isSaved: false, title: null, episodeNumber: 1, durationMs: 90000 });
+  await screen.settle();
+  screen.blur();
+  const staleRead = screen.queueDramaRead();
+  screen.focus();
+  const save = screen.all('Pressable').find((node) => node.props.accessibilityLabel === '작품 저장')!;
+  (save.props.onPress as () => void)();
+  staleRead.resolve({ episodes: [
+    { uuid: 'episode-1', videoUuid: 'different-video', isSaved: true },
+    { uuid: 'different-episode', videoUuid: 'episode-video-1', isSaved: true },
+    { uuid: 'episode-1', videoUuid: 'episode-video-1', isSaved: false },
+  ], genres: [] });
+  await screen.settle();
+  screen.blur();
+  const readFinishingAfterWrite = screen.queueDramaRead();
+  screen.focus();
+  screen.savedWriteTasks[0].resolve(); await screen.settle();
+  readFinishingAfterWrite.resolve({ episodes: [{ uuid: 'episode-1', videoUuid: 'episode-video-1', isSaved: false }], genres: [] });
+  await screen.settle();
+  assert.equal(screen.all('Pressable').find((node) => node.props.accessibilityLabel === '저장 해제')?.props.accessibilityLabel, '저장 해제',
+    'only the exact episode/video pair is considered, and the stale read cannot undo the successful save');
+  screen.unmount();
+});
+
+test('anonymous episode save routes to login without reaching the API', async () => {
+  const anonymous = createScreen();
+  anonymous.commit();
+  anonymous.requests[0].resolve({ url: 'url', videoUuid: 'episode-video-1', isSaved: false, title: null, episodeNumber: 1, durationMs: 90000 });
+  await anonymous.settle();
+  (anonymous.all('Pressable').find((node) => node.props.accessibilityLabel === '작품 저장')!.props.onPress as () => void)();
+  assert.deepEqual(anonymous.pushes, ['/login']);
+  assert.deepEqual(anonymous.savedWrites, []);
+  anonymous.unmount();
+
+  const screen = createScreen(); screen.deferWrites(); screen.user = 'user-1';
+  screen.requests[0].resolve({ url: 'url', videoUuid: 'episode-video-1', isSaved: false, title: null, episodeNumber: 1, durationMs: 90000 });
+  await screen.settle();
+  (screen.all('Pressable').find((node) => node.props.accessibilityLabel === '작품 저장')!.props.onPress as () => void)();
+  const lateWrite = screen.savedWriteTasks[0];
+  assert.ok(lateWrite, 'the authenticated write is pending');
+  screen.changeSession('user-2');
+  lateWrite.resolve(); await screen.settle();
+  assert.equal(screen.find('EmptyState').props.title, '영상을 불러오는 중이에요',
+    'the old account write cannot restore the previous account playback');
   screen.unmount();
 });
 

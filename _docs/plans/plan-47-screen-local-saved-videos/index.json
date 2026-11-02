@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "plan_id": "plan-47-screen-local-saved-videos",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "추천·미리보기·에피소드의 저장 동작을 화면 내부로 전환",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/src/screens/RecommendationScreen.tsx",
+        "front/src/screens/playbackScreen_preview.tsx",
+        "front/src/screens/playbackScreen_episode.tsx",
+        "front/tests/unit/savedVideoScreens.test.ts",
+        "front/tests/unit/recommendationPreviewBuffer.test.ts",
+        "front/tests/unit/playbackScreenEpisode.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run test -- tests/unit/savedVideoScreens.test.ts tests/unit/recommendationPreviewBuffer.test.ts tests/unit/playbackScreenEpisode.test.ts tests/unit/savedVideos.test.ts tests/unit/watchProgress.test.ts"
+      ],
+      "started_at": "2026-11-02T00:02:51.956Z",
+      "summary": "Implemented screen-local saved-video actions and race guards across recommendation, preview, and episode screens. Added lifecycle, retry, duplicate-press, session, and stale-response coverage. Declared focused test command passed: 48 tests, 0 failures.",
+      "completed_at": "2026-11-02T00:14:18.297Z"
+    },
+    {
+      "id": "task-2",
+      "name": "홈 미리보기·보관함 전환과 저장 Provider·store 제거",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/src/screens/HomeScreen.tsx",
+        "front/src/screens/LibraryScreen.tsx",
+        "front/src/app/_layout.tsx",
+        "front/src/features/playback/SavedVideosProvider.tsx",
+        "front/src/features/playback/savedVideoState.ts",
+        "front/tests/unit/savedVideoState.test.ts",
+        "front/tests/unit/savedVideoScreens.test.ts",
+        "front/tests/unit/libraryScreen.test.ts",
+        "front/tests/unit/sessionExpiredDialog.test.ts",
+        "_docs/ARCHITECTURE.md"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test -- tests/unit/savedVideoScreens.test.ts tests/unit/libraryScreen.test.ts tests/unit/sessionExpiredDialog.test.ts tests/unit/session.test.ts tests/unit/login.test.ts tests/unit/episodeUnlockDialog.test.ts"
+      ],
+      "started_at": "2026-11-02T00:14:28.546Z",
+      "summary": "홈 버튼을 ‘분위기 미리보기’로 바꾸고 현재 추천작의 첫 프리뷰로 연결했습니다. 보관함에서 저장 목록을 포커스 시 서버에서 다시 읽도록 유지하면서 Provider 연동을 제거했고, 오래된 페이지 응답과 계정 전환을 기존 세대 검사로 차단합니다. 저장 Provider·store·내부 테스트를 삭제하고 루트 Provider와 아키텍처 설명을 갱신했습니다. UserProvider의 재생 설정과 SafeAreaProvider는 유지했습니다. 확인: Provider/store 참조 검색 결과 없음; `npm --prefix front run typecheck` 통과; 선언된 화면 테스트 통과(62개).",
+      "completed_at": "2026-11-02T00:18:36.161Z"
+    },
+    {
+      "id": "task-3",
+      "name": "저장 메타데이터 변경 후 일시정지 유지와 세 재생 화면 회귀 검증",
+      "status": "completed",
+      "depends_on": [
+        "task-1",
+        "task-2"
+      ],
+      "files": [
+        "front/src/screens/RecommendationScreen.tsx",
+        "front/tests/unit/recommendationPreviewBuffer.test.ts",
+        "front/tests/unit/savedVideoScreens.test.ts",
+        "front/tests/unit/playbackScreenEpisode.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test -- tests/unit/recommendationPreviewBuffer.test.ts tests/unit/savedVideoScreens.test.ts tests/unit/playbackScreenEpisode.test.ts"
+      ],
+      "started_at": "2026-11-02T00:31:47.327Z",
+      "summary": "추천 화면에서 영상 객체 대신 드라마·프리뷰 UUID를 기준으로 autoplay target을 유지해 저장·해제 후 일시정지가 풀리지 않도록 수정했습니다. 새 재현 테스트는 수정 전 저장 성공 직후 player.play() 재호출로 실패했고 수정 후 통과했습니다. 추천·별도 미리보기·에피소드 화면에서 pending 및 저장·해제 완료 후 일시정지와 재생 위치 유지, 플레이어 재사용을 확인했습니다. 기존 추천 영상 전환 autoplay 테스트도 유지했습니다. 선언된 typecheck 통과, 세 화면 선택 테스트 44/44 통과, git diff --check 통과(LF/CRLF 경고만).",
+      "completed_at": "2026-11-02T00:34:45.314Z"
+    }
+  ]
+}

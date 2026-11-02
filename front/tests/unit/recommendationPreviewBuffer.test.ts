@@ -207,10 +207,9 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay', 
   const hooks: any[] = [];
   const pending: Array<{ task: Deferred<any>; target: Target }> = [];
   const homeRequests: Array<Deferred<any>> = [];
-  const savedHookCalls: unknown[][] = [];
-  const savedToggleCalls: unknown[][] = [];
-  const savedObservations: unknown[][] = [];
-  const savedState = { getSnapshot: () => ({ revision: 0 }), accept: (rows: unknown[]) => { savedObservations.push(rows); return true; } };
+  const savedWrites: unknown[][] = [];
+  const savedWriteTasks: Deferred<void>[] = [];
+  let deferSavedWrites = false;
   let saveHandler = () => {};
   const isCurrentSession = (version: number) => version === 1;
   const players: FakePlayer[] = [];
@@ -331,11 +330,16 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay', 
     },
   };
   modules['@/features/playback/recommendationPreviewBuffer'] = require('../../src/features/playback/recommendationPreviewBuffer');
-  modules['@/features/playback/SavedVideosProvider'] = {
-    useSavedVideos: () => ({ state: savedState, snapshot: { videos: {}, revision: 0 } }),
-    useSavedVideo: (videoUuid: string | null, type: string, initialSaved: boolean) => {
-      savedHookCalls.push([videoUuid, type, initialSaved]);
-      return { saved: initialSaved, pending: false, toggle: async () => { savedToggleCalls.push([videoUuid, type, initialSaved]); saveHandler(); return true; } };
+  modules['@/features/playback/savedVideos'] = {
+    saveVideo: (videoUuid: string, type: string) => {
+      savedWrites.push([videoUuid, type, 'save']); saveHandler();
+      if (!deferSavedWrites) return Promise.resolve();
+      const task = deferred<void>(); savedWriteTasks.push(task); return task.promise;
+    },
+    removeSavedVideo: (videoUuid: string) => {
+      savedWrites.push([videoUuid, 'remove']); saveHandler();
+      if (!deferSavedWrites) return Promise.resolve();
+      const task = deferred<void>(); savedWriteTasks.push(task); return task.promise;
     },
   };
   modules['@/features/user/UserProvider'] = { useUser: () => ({ isRestoring: false, sessionVersion: 1, isCurrentSession, sessionExpired: false, user: { uuid: 'user-1' } }) };
@@ -410,7 +414,8 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay', 
     return rendered;
   };
   return {
-    commit, find, nodes, render, pending, players, timers, scrollOffsets, frames, wheelListeners, savedHookCalls, savedToggleCalls, savedObservations,
+    commit, find, nodes, render, pending, players, timers, scrollOffsets, frames, wheelListeners, savedWrites, savedWriteTasks,
+    deferSavedWrites() { deferSavedWrites = true; },
     setSaveHandler(handler: () => void) { saveHandler = handler; },
     setScrollBounds(contentHeight: number, viewportHeight: number) {
       scrollBounds = { contentHeight, viewportHeight };
@@ -691,20 +696,129 @@ test('drag follows the pointer and switches playback only after actual target ar
   assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-2', 'same-session focus refresh preserves the current drama');
 });
 
-test('recommendation bookmark uses the first preview UUID and reconciles server saved state', async () => {
+test('recommendation bookmark saves the first preview and the collection retains it after control remount', async () => {
   const screen = createRecommendationScreenHarness();
-  await loadScreen(screen, 1, true, true);
+  await loadScreen(screen, 1, true, false);
   const list = screen.find('FlatList');
   const card = list.props.renderItem({ item: list.props.data[0] });
   const control = screen.nodes(card).find((node) => (node.type as any)?.name === 'RecommendationPreviewPlayer');
   assert.ok(control);
-  const rendered = screen.nodes(screen.render(control));
-  assert.ok(screen.savedHookCalls.some((args) => JSON.stringify(args) === JSON.stringify(['preview-1', 'PREVIEW', true])));
-  const save = rendered.find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '저장 해제');
+  const savedChanges: unknown[][] = [];
+  const renderControl = { ...control, props: { ...control.props, onSavedChange: (...args: unknown[]) => { savedChanges.push(args); control.props.onSavedChange(...args); } } };
+  const rendered = screen.nodes(screen.render(renderControl));
+  const save = rendered.find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '작품 저장');
   assert.ok(save);
   await (save.props.onPress as () => Promise<void>)();
-  assert.deepEqual(JSON.parse(JSON.stringify(screen.savedToggleCalls)), [['preview-1', 'PREVIEW', true]]);
-  assert.ok(screen.savedObservations.some((rows) => JSON.stringify(rows).includes('preview-1')));
+  await flush(); screen.commit();
+  assert.deepEqual(JSON.parse(JSON.stringify(screen.savedWrites)), [['preview-1', 'PREVIEW', 'save']]);
+  assert.deepEqual(JSON.parse(JSON.stringify(savedChanges)), [['preview-1', true, 1]], 'the API success result reaches the collection callback');
+  screen.commit();
+  assert.equal(screen.find('FlatList').props.data[0].previewVideos[0].isSaved, true,
+    'the parent collection keeps the saved flag when the active card controls are recreated');
+});
+
+test('saving and removing the paused recommendation preview never resumes it', async () => {
+  const screen = createRecommendationScreenHarness();
+  await loadScreen(screen, 1, true, false);
+  const player = screen.players[0];
+  player.currentTime = 17;
+  const activeControl = () => {
+    const list = screen.find('FlatList');
+    const card = list.props.renderItem({ item: list.props.data[0] });
+    const control = screen.nodes(card).find((node) => (node.type as any)?.name === 'RecommendationPreviewPlayer')!;
+    return screen.nodes(screen.render(control));
+  };
+  const pause = activeControl().find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '일시정지')!;
+  (pause.props.onPress as () => void)();
+  screen.commit();
+  assert.equal(player.playing, false);
+  const initialPlayCount = player.events.filter((event) => event === 'play').length;
+
+  screen.deferSavedWrites();
+  const save = activeControl().find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '작품 저장')!;
+  (save.props.onPress as () => void)();
+  screen.commit();
+  assert.equal(player.playing, false, 'pending save preserves pause');
+  assert.equal(player.events.filter((event) => event === 'play').length, initialPlayCount);
+  screen.savedWriteTasks[0].reject(new Error('offline'));
+  await flush(); screen.commit();
+  assert.equal(player.playing, false, 'failed save preserves pause and releases the retry lock');
+  assert.equal(player.events.filter((event) => event === 'play').length, initialPlayCount);
+  const retry = activeControl().find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '작품 저장')!;
+  (retry.props.onPress as () => void)();
+  screen.commit();
+  screen.savedWriteTasks[1].resolve();
+  await flush(); screen.commit();
+  assert.equal(player.playing, false, 'successful save preserves pause');
+  assert.equal(player.events.filter((event) => event === 'play').length, initialPlayCount);
+  assert.equal(player.currentTime, 17);
+  assert.equal(screen.find('FlatList').props.data[0].previewVideos[0].isSaved, true);
+
+  const remove = activeControl().find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '저장 해제')!;
+  (remove.props.onPress as () => void)();
+  screen.commit();
+  assert.equal(player.playing, false, 'pending removal preserves pause');
+  screen.savedWriteTasks[2].resolve();
+  await flush(); screen.commit();
+  assert.equal(player.playing, false, 'successful removal preserves pause');
+  assert.equal(player.events.filter((event) => event === 'play').length, initialPlayCount);
+  assert.equal(player.currentTime, 17);
+  assert.equal(screen.find('FlatList').props.data[0].previewVideos[0].isSaved, false);
+});
+
+test('recommendation serializes A to B to A saves and ignores a focus read that overlaps the pending write', async () => {
+  const screen = createRecommendationScreenHarness();
+  await loadScreen(screen, 2, true, false);
+  screen.deferSavedWrites();
+  const cardA = screen.find('FlatList').props.renderItem({ item: screen.find('FlatList').props.data[0] });
+  const controlA = screen.nodes(cardA).find((node) => (node.type as any)?.name === 'RecommendationPreviewPlayer')!;
+  const saveA = screen.nodes(screen.render(controlA)).find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '작품 저장')!;
+  (saveA.props.onPress as () => void)();
+  (saveA.props.onPress as () => void)();
+  assert.deepEqual(JSON.parse(JSON.stringify(screen.savedWrites)), [['preview-1', 'PREVIEW', 'save']]);
+
+  const gesture = drag(screen); gesture.move(-300); gesture.release(-300); frames(screen, true);
+  const cardB = screen.find('FlatList').props.renderItem({ item: screen.find('FlatList').props.data[1] });
+  const controlB = screen.nodes(cardB).find((node) => (node.type as any)?.name === 'RecommendationPreviewPlayer')!;
+  const saveB = screen.nodes(screen.render(controlB)).find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '작품 저장')!;
+  assert.equal(saveB.props.accessibilityState.disabled, true, 'the screen-level pending write disables another card');
+  (saveB.props.onPress as () => void)();
+  const back = drag(screen); back.move(300); back.release(300); frames(screen, true);
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-1');
+  assert.equal(screen.savedWrites.length, 1, 'returning to A cannot issue a second write while A is pending');
+
+  screen.blur(); screen.commit(); screen.focus();
+  const staleCollection = screen.homeRequests.at(-1)!;
+  screen.savedWriteTasks[0].resolve(); await flush(); screen.commit();
+  assert.equal(screen.find('FlatList').props.data[0].previewVideos[0].isSaved, true, 'the late A result updates A in the collection');
+  staleCollection.resolve({ dramas: [{
+    uuid: 'drama-new', displayOrder: 1, title: 'New', shortDescription: '', genres: [],
+    imageUrls: { poster: 'poster-new' }, previewVideos: [{ uuid: 'preview-new', storageKey: '', durationMs: 1000, isSaved: false }],
+  }] });
+  await flush(); screen.commit();
+  assert.equal(screen.find('FlatList').props.data[0].uuid, 'drama-1', 'a stale response is ignored atomically instead of selecting an item absent from the retained collection');
+  assert.equal(screen.find('FlatList').props.extraData.activeId, 'drama-1');
+});
+
+test('a failed recommendation save releases the screen lock after its card unmounts', async () => {
+  const screen = createRecommendationScreenHarness();
+  await loadScreen(screen, 2, true, false);
+  screen.deferSavedWrites();
+  const list = screen.find('FlatList');
+  const controlA = screen.nodes(list.props.renderItem({ item: list.props.data[0] })).find((node) => (node.type as any)?.name === 'RecommendationPreviewPlayer')!;
+  const buttonA = screen.nodes(screen.render(controlA)).find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '작품 저장')!;
+  (buttonA.props.onPress as () => void)();
+  const gesture = drag(screen); gesture.move(-300); gesture.release(-300); frames(screen, true);
+  screen.savedWriteTasks[0].reject(new Error('offline')); await flush(); screen.commit();
+  const listB = screen.find('FlatList');
+  const controlB = screen.nodes(listB.props.renderItem({ item: listB.props.data[1] })).find((node) => (node.type as any)?.name === 'RecommendationPreviewPlayer')!;
+  const buttonB = screen.nodes(screen.render(controlB)).find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '작품 저장')!;
+  assert.equal(buttonB.props.accessibilityState.disabled, false, 'failure on an unmounted card re-enables the current card');
+  (buttonB.props.onPress as () => void)();
+  assert.deepEqual(JSON.parse(JSON.stringify(screen.savedWrites)), [
+    ['preview-1', 'PREVIEW', 'save'],
+    ['preview-2', 'PREVIEW', 'save'],
+  ], 'a different card can retry after the failed request releases the lock');
 });
 
 test('fast swipes use recent velocity, distance, freshness, and final direction only on release', async () => {
@@ -905,7 +1019,7 @@ test('a vertical drag starting on a Pressable cancels its web click, while the n
   const control = screen.nodes(card).find((node) => (node.type as any)?.name === 'RecommendationPreviewPlayer')!;
   let saves = 0;
   screen.setSaveHandler(() => { saves += 1; });
-  const button = screen.nodes(screen.render({ ...control, props: { ...control.props, onToggleSave: () => { saves += 1; } } }))
+  const button = screen.nodes(screen.render(control))
     .find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '작품 저장')!;
   const WebPressResponder = require(resolve(process.cwd(), 'node_modules/react-native-web/dist/cjs/modules/usePressEvents/PressResponder.js'));
   const webPress = new WebPressResponder({ onPress: button.props.onPress, cancelable: true, delayPressStart: 0, delayLongPress: 60000 });
@@ -924,7 +1038,7 @@ test('a vertical drag starting on a Pressable cancels its web click, while the n
     .find((node) => (node.type as any)?.name === 'RecommendationPreviewPlayer');
   assert.ok(attachedControl, 'the button-start gesture keeps its keyed preview attached');
   assert.equal(attachedControl.props.key, control.props.key);
-  const attachedButton = screen.nodes(screen.render({ ...attachedControl, props: { ...attachedControl.props, onToggleSave: () => { saves += 1; } } }))
+  const attachedButton = screen.nodes(screen.render(attachedControl))
     .find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '작품 저장');
   assert.ok(attachedButton, 'the current rendered tree still contains the button that began the touch');
   if (attachedButton) feed.onPanResponderMove({}, { dx: 0, dy: -40 });
@@ -949,6 +1063,7 @@ test('a vertical drag starting on a Pressable cancels its web click, while the n
   if (!tapClick.stopped) pressHandlers.onClick({ ...tapClick, altKey: false });
   assert.equal(tapClick.prevented, false, 'a new independent press clears any unused drag suppression');
   assert.equal(saves, 1, 'the next real tap invokes the Pressable action exactly once');
+  await flush(); screen.commit();
   feed.onMoveShouldSetPanResponderCapture({}, { dx: 0, dy: -12 });
   feed.onPanResponderGrant({}, { dx: 0, dy: -12 });
   feed.onPanResponderRelease({}, { dx: 0, dy: -40 });
@@ -958,6 +1073,7 @@ test('a vertical drag starting on a Pressable cancels its web click, while the n
   pressHandlers.onResponderGrant(pressEvent());
   pressHandlers.onResponderRelease(pressEvent());
   if (!touchTap.prevented) pressHandlers.onClick({ ...touchTap, altKey: false });
+  await flush(); screen.commit();
   assert.equal(saves, 2, 'a new touch clears stale suppression if the previous drag produced no compatibility click');
   feed.onMoveShouldSetPanResponderCapture({}, { dx: 0, dy: -12 });
   feed.onPanResponderGrant({}, { dx: 0, dy: -12 });
@@ -966,6 +1082,7 @@ test('a vertical drag starting on a Pressable cancels its web click, while the n
   const keyboardClick: any = { detail: 0, prevented: false, altKey: false, stopPropagation() {}, preventDefault() { this.prevented = true; } };
   screen.dispatchDOMEvent('click', keyboardClick);
   pressHandlers.onClick(keyboardClick);
+  await flush(); screen.commit();
   assert.equal(saves, 3, 'keyboard and assistive activation bypasses stale pointer suppression');
   webPress.reset();
 
@@ -974,7 +1091,7 @@ test('a vertical drag starting on a Pressable cancels its web click, while the n
   const nativeControl = native.nodes(nativeCard).find((node) => (node.type as any)?.name === 'RecommendationPreviewPlayer')!;
   let nativeSaves = 0;
   native.setSaveHandler(() => { nativeSaves += 1; });
-  const nativeButton = native.nodes(native.render({ ...nativeControl, props: { ...nativeControl.props, onToggleSave: () => { nativeSaves += 1; } } }))
+  const nativeButton = native.nodes(native.render(nativeControl))
     .find((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '작품 저장')!;
   const nativeFeed = native.nodes(native.find('Page')).find((node) => node.type === 'View' && node.props.onLayout)!.props;
   let nativeChildOwnsPress = false;

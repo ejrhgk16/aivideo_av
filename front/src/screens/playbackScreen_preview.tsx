@@ -15,7 +15,7 @@ import { getErrorMessage } from '@/common/http/errorMessages';
 import { colors } from '@/common/theme/tokens';
 import { getDramaContent, type DramaContent } from '@/features/drama/dramaContent';
 import { getPreviewPlayback, type PreviewPlayback } from '@/features/playback/previewPlayback';
-import { useSavedVideo, useSavedVideos } from '@/features/playback/SavedVideosProvider';
+import { removeSavedVideo, saveVideo } from '@/features/playback/savedVideos';
 import { useUser } from '@/features/user/UserProvider';
 
 type PreviewState =
@@ -26,13 +26,16 @@ type PreviewState =
 export function PlaybackScreenPreview({ dramaId, videoId }: { dramaId: string; videoId: string }) {
   const router = useRouter();
   const { isRestoring, sessionVersion, isCurrentSession, user } = useUser();
-  const savedVideos = useSavedVideos();
   const [state, setState] = useState<PreviewState>({ kind: 'loading' });
   const [stateSessionVersion, setStateSessionVersion] = useState<number | null>(null);
   const [stateOwnerUuid, setStateOwnerUuid] = useState<string | null>(null);
   const loadedRoute = useRef<string | null>(null);
   const loadedSession = useRef<number | null>(null);
   const loadedOwnerUuid = useRef<string | null>(null);
+  const ownerKey = `${user?.uuid ?? 'anonymous'}:${sessionVersion}`;
+  const routeKey = `${ownerKey}:${dramaId}:${videoId}`;
+  const savedWrites = useRef({ ownerKey: routeKey, revision: 0, pending: false });
+  if (savedWrites.current.ownerKey !== routeKey) savedWrites.current = { ownerKey: routeKey, revision: 0, pending: false };
   const back = () => router.canGoBack() ? router.back() : router.replace('/');
 
   useFocusEffect(useCallback(() => {
@@ -50,12 +53,11 @@ export function PlaybackScreenPreview({ dramaId, videoId }: { dramaId: string; v
     const version = sessionVersion;
     const userUuid = user?.uuid ?? null;
     if (loadedRoute.current === routeKey && loadedSession.current === version && loadedOwnerUuid.current === userUuid) {
-      const startedRevision = savedVideos.state.getSnapshot().revision;
+      const startedRevision = savedWrites.current.revision;
       void getDramaContent(dramaId).then((drama) => {
         if (!active || !isCurrentSession(version)) return;
         const preview = drama.previewVideos.find((item) => item.uuid === videoId);
-        if (preview) savedVideos.state.accept([{ videoUuid: videoId, isSaved: preview.isSaved }], startedRevision);
-        setState((current) => current.kind === 'ready' ? { ...current, drama } : current);
+        if (preview) setState((current) => current.kind === 'ready' ? { ...current, drama, playback: !savedWrites.current.pending && savedWrites.current.revision === startedRevision ? { ...current.playback, isSaved: preview.isSaved } : current.playback } : current);
       }).catch(() => undefined);
       return () => { active = false; };
     }
@@ -65,13 +67,12 @@ export function PlaybackScreenPreview({ dramaId, videoId }: { dramaId: string; v
     setState({ kind: 'loading' });
     setStateSessionVersion(null);
     setStateOwnerUuid(null);
-    const startedRevision = savedVideos.state.getSnapshot().revision;
     Promise.all([getDramaContent(dramaId), getPreviewPlayback(dramaId, videoId)]).then(
-      ([drama, playback]) => { if (active && isCurrentSession(version)) { const preview = drama.previewVideos.find((item) => item.uuid === videoId); savedVideos.state.accept([{ videoUuid: videoId, isSaved: playback.isSaved }, ...(preview ? [{ videoUuid: videoId, isSaved: preview.isSaved }] : [])], startedRevision); setState({ kind: 'ready', drama, playback }); setStateSessionVersion(version); setStateOwnerUuid(userUuid); loadedRoute.current = routeKey; loadedSession.current = version; loadedOwnerUuid.current = userUuid; } },
+      ([drama, playback]) => { if (active && isCurrentSession(version)) { setState({ kind: 'ready', drama, playback }); setStateSessionVersion(version); setStateOwnerUuid(userUuid); loadedRoute.current = routeKey; loadedSession.current = version; loadedOwnerUuid.current = userUuid; } },
       () => { if (active && isCurrentSession(version)) { setState({ kind: 'error' }); setStateSessionVersion(version); setStateOwnerUuid(userUuid); } },
     );
     return () => { active = false; };
-  }, [dramaId, videoId, isRestoring, sessionVersion, user?.uuid, isCurrentSession, savedVideos.state]));
+  }, [dramaId, videoId, isRestoring, sessionVersion, user?.uuid, isCurrentSession]));
 
   if (isRestoring || state.kind === 'loading' || stateSessionVersion !== sessionVersion || stateOwnerUuid !== (user?.uuid ?? null)) {
     return <Page><EmptyState title="영상을 불러오는 중이에요" description="잠시만 기다려 주세요." /></Page>;
@@ -79,18 +80,28 @@ export function PlaybackScreenPreview({ dramaId, videoId }: { dramaId: string; v
   if (state.kind === 'error') {
     return <Page><EmptyState title="영상을 재생할 수 없어요" description="잠시 후 다시 확인해 주세요." action="뒤로 가기" onAction={back} /></Page>;
   }
-  return <PreviewVideo drama={state.drama} url={state.playback.url} videoId={videoId} initialSaved={state.playback.isSaved} onClose={back} />;
+  const updateSaved = (nextSaved: boolean, version: number) => {
+    if (!isCurrentSession(version)) return;
+    setState((current) => current.kind === 'ready' && current.playback.videoUuid === videoId
+      ? { ...current, playback: { ...current.playback, isSaved: nextSaved } }
+      : current);
+  };
+  return <PreviewVideo key={`${user?.uuid ?? 'anonymous'}:${sessionVersion}:${videoId}`} drama={state.drama} url={state.playback.url} videoId={videoId} initialSaved={state.playback.isSaved} savedWrites={savedWrites.current} onSavedChange={updateSaved} onClose={back} />;
 }
 
-function PreviewVideo({ drama, url, videoId, initialSaved, onClose }: { drama: DramaContent; url: string; videoId: string; initialSaved: boolean; onClose: () => void }) {
+function PreviewVideo({ drama, url, videoId, initialSaved, savedWrites, onSavedChange, onClose }: { drama: DramaContent; url: string; videoId: string; initialSaved: boolean; savedWrites: { ownerKey: string; revision: number; pending: boolean }; onSavedChange: (isSaved: boolean, version: number) => void; onClose: () => void }) {
   const router = useRouter();
-  const { user, isRestoring, sessionExpired } = useUser();
-  const savedVideo = useSavedVideo(videoId, 'PREVIEW', initialSaved);
+  const { user, isRestoring, sessionExpired, sessionVersion, isCurrentSession } = useUser();
+  const [isSaved, setIsSaved] = useState(initialSaved);
+  const [saving, setSaving] = useState(false);
   const player = useVideoPlayer(url, (videoPlayer) => videoPlayer.play());
   const [isPlaying, setIsPlaying] = useState(player.playing);
   const [position, setPosition] = useState(player.currentTime);
   const [duration, setDuration] = useState(player.duration);
   const [savedError, setSavedError] = useState<unknown>(null);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => { setIsSaved(initialSaved); }, [initialSaved]);
   const [videoFailed, setVideoFailed] = useState(player.status === 'error');
   const [firstFrameReady, setFirstFrameReady] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -104,12 +115,30 @@ function PreviewVideo({ drama, url, videoId, initialSaved, onClose }: { drama: D
   const posterUrl = resolveApiImageUrl(drama.imageUrls.poster);
   const genres = drama.genres.map((genre) => genre.name).join(' · ') || '장르 정보 없음';
   const toggleSaved = async () => {
+    if (isRestoring || savedWrites.pending) return;
     if (!user) { router.push('/login'); return; }
+    const version = sessionVersion;
+    savedWrites.pending = true;
+    savedWrites.revision += 1;
+    setSaving(true);
     setSavedError(null);
-    try { await savedVideo.toggle(); }
+    const nextSaved = !isSaved;
+    try {
+      if (nextSaved) await saveVideo(videoId, 'PREVIEW');
+      else await removeSavedVideo(videoId);
+      if (mounted.current && isCurrentSession(version)) {
+        setIsSaved(nextSaved);
+        onSavedChange(nextSaved, version);
+      }
+    }
     catch (error) {
+      if (!mounted.current || !isCurrentSession(version)) return;
       if (error instanceof SessionChangedError || (error instanceof ApiError && error.status === 401 && sessionExpired)) return;
       setSavedError(error);
+    } finally {
+      savedWrites.revision += 1;
+      savedWrites.pending = false;
+      if (mounted.current && isCurrentSession(version)) setSaving(false);
     }
   };
   const episodes = [...drama.episodes].sort((first, second) => first.episodeNumber - second.episodeNumber);
@@ -229,9 +258,9 @@ function PreviewVideo({ drama, url, videoId, initialSaved, onClose }: { drama: D
         </Pressable>)}
       </View>}
       <View style={styles.sideActions}>
-        <Pressable disabled={isRestoring || savedVideo.pending} onPress={() => void toggleSaved()} accessibilityRole="button" accessibilityLabel={savedVideo.saved ? '저장 해제' : '작품 저장'} accessibilityState={{ disabled: isRestoring || savedVideo.pending, busy: savedVideo.pending }} style={styles.sideAction}>
-          <Icon name="bookmark" color={savedVideo.saved ? colors.accent : '#fff'} />
-          <AppText style={styles.actionLabel}>{savedVideo.saved ? '저장됨' : '저장'}</AppText>
+        <Pressable disabled={isRestoring || saving} onPress={() => void toggleSaved()} accessibilityRole="button" accessibilityLabel={isSaved ? '저장 해제' : '작품 저장'} accessibilityState={{ disabled: isRestoring || saving, busy: saving }} style={styles.sideAction}>
+          <Icon name="bookmark" color={isSaved ? colors.accent : '#fff'} />
+          <AppText style={styles.actionLabel}>{isSaved ? '저장됨' : '저장'}</AppText>
         </Pressable>
         {savedError ? <AppText accessibilityRole="alert" style={styles.actionLabel}>{getErrorMessage(savedError)}</AppText> : null}
         <Pressable onPress={openEpisodes} accessibilityRole="button" accessibilityLabel="전체 회차" style={styles.sideAction}>

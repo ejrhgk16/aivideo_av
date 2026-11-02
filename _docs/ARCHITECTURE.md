@@ -69,7 +69,9 @@ The app HTTP client in `src/features/user/sessionClient.ts` uses `src/common/htt
 
 Read [frontend API error handling](api/00-overview/error-code.md) before changing frontend error parsing, guidance, or session recovery.
 
-The root layout nests `SavedVideosProvider` inside `UserProvider`. The playback feature owns the saved-video API and in-memory per-session state; the provider creates a fresh store for each user UUID and session version. Saved flags from API observations are reconciled by revision so an older read cannot overwrite a completed save/remove, while pending writes are protected. Saved-video pages use the same store to keep playback buttons and the library in sync; save writes use the actual video UUID and never grant episode entitlement.
+Saved-video screens use the playback feature's API directly. Recommendation, preview, and episode screens hold only their current video's saved flag and pending request in local component state, and refresh saved metadata from their existing server responses. The library loads its paged saved-video list when focused; the home hero opens the first preview directly. Writes use the actual video UUID and never grant episode entitlement. No saved-video state accumulates across screens.
+
+The root also provides `SafeAreaProvider` once for the common `Page` safe-area view and the inset-aware playback controls. `UserProvider` continues to own the shared user, points, authentication, session state, and the `subtitlesEnabled` and `autoplayNext` settings reserved for future playback controls. The provider audit found no other app-owned global context to remove; the small `useLogin` wrapper remains outside the saved-video change.
 
 The root navigation renders one session-expiration modal. Closing it only dismisses the notice. It navigates to `/login` only after the user presses the login button. The temporary `/login` route calls `useLogin`, which sends `POST /auth/login`; omitted `loginId` and `password` query parameters still default to `admin` for explicit development access. Login failures use the shared error guidance.
 
