@@ -119,9 +119,72 @@ function preFileWrite(input) {
   return {};
 }
 
+function shellStatements(command) {
+  const statements = [];
+  let quote = '';
+  let start = 0;
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index];
+    if (character === '`' || character === '^') { index += 1; continue; }
+    if (quote) {
+      if (character === quote) {
+        if (command[index + 1] === quote) index += 1;
+        else quote = '';
+      }
+    } else if (character === '"' || character === "'") quote = character;
+    else if (/[;&|\r\n]/.test(character)) {
+      statements.push(command.slice(start, index));
+      start = index + 1;
+    }
+  }
+  statements.push(command.slice(start));
+  return statements;
+}
+
+function startsDevelopmentServer(command, cwd, depth = 0) {
+  const serverScript = /^(?:start(?::[\w-]+)?|dev|serve|web|android|ios)$/i;
+  for (const statement of shellStatements(command)) {
+    const words = (statement.replace(/^\s*\$\w+\s*=\s*/, '').match(/"[^"]*"|'[^']*'|[^\s]+/g) ?? [])
+      .map((word) => word.replace(/^(['"])(.*)\1$/, '$2'));
+    const executable = (words.shift() ?? '').split(/[\\/]/).pop().replace(/\.(?:exe|cmd)$/i, '').toLowerCase();
+    if (['npm', 'pnpm', 'yarn'].includes(executable)) {
+      const run = words.findIndex((word) => /^(?:run|run-script)$/i.test(word));
+      const script = run >= 0 ? words[run + 1] : words[0] === '--prefix' ? words[2] : words[0];
+      if (serverScript.test(script ?? '')) return true;
+    }
+    if (['nest', 'expo'].includes(executable) && /^start$/i.test(words[0] ?? '')) return true;
+    if (executable === 'npx' && /\b(?:nest|expo)\s+start\b/i.test(words.join(' '))) return true;
+    if (executable === 'node' && words.some((word) => /(?:^|[\\/])(?:dist[\\/]main(?:\.js)?|src[\\/]main\.[cm]?[jt]s)$/i.test(word))) return true;
+    if (executable === 'start-process') {
+      const argumentsText = words.join(' ').replace(/['",()]/g, ' ');
+      if (/\b(?:npm|pnpm|yarn|nest|expo|node)(?:\.(?:cmd|exe))?\b/i.test(argumentsText)
+        && /\b(?:start(?::[\w-]+)?|dev|serve|web|android|ios)\b/i.test(argumentsText)) return true;
+      if (/\bnode(?:\.exe)?\b/i.test(argumentsText) && /dist[\\/]main/i.test(argumentsText)) return true;
+    }
+    if (['powershell', 'pwsh', 'cmd', 'bash', 'sh'].includes(executable) && depth < 3) {
+      const inline = words.findIndex((word) => /^(?:-command|-c|\/c)$/i.test(word));
+      if (inline >= 0 && startsDevelopmentServer(words.slice(inline + 1).join(' '), cwd, depth + 1)) return true;
+      const file = words.findIndex((word) => /^-file$/i.test(word));
+      if (file >= 0 && words[file + 1]?.toLowerCase().endsWith('.ps1')) {
+        const script = readFileSync(resolve(cwd, words[file + 1]), 'utf8');
+        if (startsDevelopmentServer(script, cwd, depth + 1)) return true;
+      }
+    }
+  }
+  return false;
+}
+
 function preBash(input) {
   const repoRoot = repositoryRoot(input);
-  const command = input.tool_input?.command ?? input.command ?? '';
+  const toolInput = input.tool_input ?? input.toolInput ?? {};
+  const command = toolInput.command ?? toolInput.cmd ?? input.command ?? input.cmd ?? '';
+  try {
+    if (startsDevelopmentServer(command, toolInput.workdir ?? repoRoot)) {
+      return deny('Development servers must be started by the user. Use the existing API on 3000 and frontend on 8081; do not start an additional server.');
+    }
+  } catch (cause) {
+    return deny(`Cannot inspect shell script before execution: ${cause.message}`);
+  }
   let active;
   try {
     active = activeScope(repoRoot).active.length > 0;

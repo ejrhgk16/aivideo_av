@@ -79,6 +79,45 @@ test('bash hook blocks direct Git during an active task but permits the official
   assert.deepEqual(invoke('pre-bash', { cwd: repo, tool_input: { command: 'node tools/harness/cli.mjs finish --plan plan-1-hook' } }), {});
 });
 
+test('shell hook blocks development server launches with and without an active task', () => {
+  const repo = fixture();
+  const commands = [
+    'npm --prefix back run start:dev', 'npm --prefix back run start:prod',
+    'npm --prefix front run start -- --port 8081', 'npm start',
+    'pnpm run dev', 'yarn start', 'npx nest start --watch', 'npx expo start',
+    'node --enable-source-maps C:\\dh\\aivideo_av\\back\\dist\\main',
+    'Get-Date; npm --prefix back run start:dev',
+    'powershell -Command "npm --prefix back run start:dev"',
+    'Start-Process -FilePath npm.cmd -ArgumentList @(\'--prefix\', \'back\', \'run\', \'start:dev\')',
+  ];
+  for (const active of [false, true]) {
+    if (active) startTask(repo, 'plan-1-hook', 'task-1');
+    for (const command of commands) {
+      const response = invoke('pre-bash', { cwd: repo, tool_input: { command } });
+      assert.equal(response.hookSpecificOutput?.permissionDecision, 'deny', command);
+      assert.match(response.hookSpecificOutput.permissionDecisionReason, /started by the user/);
+    }
+  }
+  assert.equal(invoke('pre-bash', { cwd: repo, tool_input: { cmd: 'nest start' } }).hookSpecificOutput.permissionDecision, 'deny');
+});
+
+test('shell hook inspects PowerShell helpers without executing them and permits checks and diagnostic text', () => {
+  const repo = fixture();
+  const launcher = join(repo, 'launch.ps1');
+  writeFileSync(launcher, 'npm --prefix back run start:dev\n');
+  assert.equal(invoke('pre-bash', { cwd: repo, tool_input: { command: `powershell -ExecutionPolicy Bypass -File "${launcher}"` } }).hookSpecificOutput.permissionDecision, 'deny');
+  const safeScript = join(repo, 'inspect.ps1');
+  writeFileSync(safeScript, 'Get-Process node\n');
+  for (const command of [
+    'npm --prefix back run test:api -- --suite watch-history',
+    'npm --prefix front run test -- tests/unit/watchHistory.test.ts',
+    'npm --prefix back run build', 'npm --prefix front run export',
+    'curl.exe http://localhost:3000', 'Get-Process node',
+    'Write-Output "npm start; nest start"',
+    `Get-Content "${launcher}"`, `powershell -File "${safeScript}"`,
+  ]) assert.deepEqual(invoke('pre-bash', { cwd: repo, tool_input: { command } }), {}, command);
+});
+
 test('worker hook records structured completion and failure, and holds malformed first stops', () => {
   const repo = fixture();
   startTask(repo, 'plan-1-hook', 'task-1');

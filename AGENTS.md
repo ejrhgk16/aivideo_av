@@ -62,69 +62,43 @@
 지침 작동 확인: Diff 내 불필요한 변경 감소, 복잡성으로 인한 재작성 빈도 감소, 구현 전 질문을 통한 명확한 의사결정 증대.
 
 ## Windows Shell Policy
-- DO NOT attempt inline multi-line PowerShell strings or complex nested quotes.
-- ALWAYS write complex scripts into a temporary .ps1 file (using UTF-8 encoding) and execute via `powershell -ExecutionPolicy Bypass -File <script.ps1>`.
-- `rg`에 `폴더/*.확장자`를 경로로 전달하지 않는다. `rg ... 폴더 -g '*.확장자'`를 사용한다.
-- `rg` 종료 코드 1은 검색 결과 없음으로 해석하고, 경로 오류 등 실제 실패와 구분한다.
-- 결과가 없을 수 있는 검색은 예상된 빈 결과로 보고한다.
+
+- 복잡한 PowerShell은 인라인 문자열·중첩 인용 대신 UTF-8 임시 .ps1 파일로 작성하고 `powershell -ExecutionPolicy Bypass -File <script.ps1>`로 실행한다.
+- `rg ... 폴더 -g '*.확장자'`를 사용한다. `폴더/*.확장자`를 경로로 넘기지 않는다.
+- `rg` 종료 코드 1은 정상적인 검색 결과 없음으로 보고하며 실제 오류와 구분한다.
 
 ## 프로젝트 환경
 
-- 개발 서버 포트는 프론트엔드 `8081` (`http://localhost:8081`), 백엔드 `3000` (`http://localhost:3000`)을 사용한다. 실행 중인 해당 서버를 우선 사용한다.
-- 서버가 필요한 작업에서 해당 서버가 실행 중이지 않으면 오류로 보고하고 검증을 실패 처리한다. 에이전트가 서버를 자동 실행하거나 다른 포트로 우회하지 않는다. 사용자에게 서버를 실행한 뒤 다시 시도하라고 안내하며, 프론트는 `npm --prefix front run start -- --port 8081`, 백엔드는 `npm --prefix back run start:dev` 실행 명령을 출력한다.
-- Node.js: 24.7.0
-- npm: 11.5.1
-- `front/`: Expo Router가 적용된 Expo 57 기반 React Native 0.86.3, React 19, TypeScript 6
-- `back/`: NestJS 12, TypeScript 6, Vitest 4
-- 프론트엔드와 백엔드는 각각 독립된 `package.json`과 lockfile을 관리한다.
-- 비밀 값은 `.env`에 두며 저장소에 커밋하지 않는다.
+- 개발 서버는 기존 프론트 `http://localhost:8081`, 백엔드 `http://localhost:3000`을 사용한다. 서버가 없으면 검증 실패로 보고하며 자동 실행하거나 다른 포트로 우회하지 않는다.
+- 서버 실행은 사용자에게 안내한다: 프론트 `npm --prefix front run start -- --port 8081`, 백엔드 `npm --prefix back run start:dev`.
+- Node.js 24.7.0, npm 11.5.1. `front/`는 Expo 57·React Native 0.86.3·React 19·TypeScript 6, `back/`는 NestJS 12·TypeScript 6·Vitest 4다.
+- 비밀 값은 .env에서 관리하고 커밋하지 않는다.
 
-## _docs 폴더 구조
+## 문서와 DB
 
-- `_docs/ARCHITECTURE.md` -- 시스템 아키텍처와 레이어 구조
-- `_docs/plans/` -- plan 정의, task 지시, 실행 상태
-- `_docs/AI_DRAMA_data_model/` -- 테이블,도메인 구조 및 정의
-- `_docs/api/` -- 도메인별 REST API 계약과 공통 규칙
+- 구조·파일 책임을 변경하기 전 [ARCHITECTURE.md](_docs/ARCHITECTURE.md)의 관련 부분을 확인하고 변경 시 함께 갱신한다.
+- REST endpoint 변경 시 같은 작업에서 [API 문서](_docs/api/README.md)의 경로·요청·응답·인증·노출 규칙을 맞춘다. 공통 규칙 변경은 [conventions.md](_docs/api/00-overview/conventions.md)에 반영한다.
+- 테이블·도메인 정의는 [_docs/AI_DRAMA_data_model/](_docs/AI_DRAMA_data_model/)을 따른다.
+- 애플리케이션 DB 작업은 TypeORM QueryBuilder를 기본으로 한다. 표현하기 어려워 raw SQL을 쓸 때는 코드에 이유를 짧게 명시한다.
 
-## API 문서
+## 테스트
 
-- 백엔드 REST endpoint를 추가·변경·삭제할 때는 같은 작업에서 해당 `_docs/api/<도메인>/` API 정의서를 갱신한다.
-- endpoint의 경로, 요청 값, 성공·오류 응답, 인증, 노출 규칙을 문서의 실제 구현과 일치시킨다.
-- 공통 API 규칙이 바뀌면 `_docs/api/00-overview/conventions.md`도 함께 갱신한다.
+- 테스트는 아래 위치에만 작성하며 제품 src/나 최상위 tests/에 새로 만들지 않는다.
 
-## Architecture
+| 대상 | 위치 |
+| --- | --- |
+| 프론트 | `front/tests/**/*.test.ts(x)` |
+| 백엔드 HTTP API | `back/test/api/**/*.postman_collection.json` |
+| 백엔드 내부 규칙·HTTP로 재현하기 어려운 경계 조건 | `back/test/unit/**/*.spec.ts` |
+| Harness | `tools/harness/**/*.test.mjs` |
 
-프로젝트 디렉터리 책임, 프론트-백엔드 경계, 테스트 구조의 단일 기준은 `_docs/ARCHITECTURE.md`다. 구조나 파일 책임을 변경하기 전 이 문서를 읽고, 변경했다면 같은 작업에서 함께 갱신한다.
-
-## DB 접근 방식
-
-- 백엔드 애플리케이션의 DB 조회·삽입·수정·삭제는 TypeORM QueryBuilder를 기본으로 사용한다.
-- QueryBuilder로 표현하기 어려운 구문에만 raw SQL(`DataSource.query`, `EntityManager.query` 등)을 사용하며, 해당 코드에 사용 이유를 짧게 명시한다.
-
-## Test placement
-
-- 프론트 제품 테스트는 `front/tests/**/*.test.ts(x)`에 둔다. `front/src/`에는 새 테스트를 만들지 않는다. 검증은 `npm --prefix front run typecheck`, `npm --prefix front run test`, `npm --prefix front run export`를 사용한다.
-- 백엔드 HTTP API 동작은 `back/test/api/**/*.postman_collection.json`에 Postman CLI 테스트로 작성한다. DB 설정·시드·저장 키 등 내부 규칙과 기존 데이터 변경 없이 재현하기 어려운 공개 시점·환경 경계 조건은 `back/test/unit/**/*.spec.ts`에 최소한의 단위 테스트로 유지한다. `back/src/`에는 새 테스트를 만들지 않는다.
-- 테스트 추가·수정이 필요한 기능은 `테스트 작성 task → 소스 구현 및 테스트 실행 task`로 분리한다. 테스트 task는 승인된 계약을 기준으로 테스트·fixture·필요한 실행기 변경만 맡고, 소스 task는 제품 코드와 관련 문서를 맡으며 테스트 task를 `depends_on`으로 선언한다. 구현 전 동작 테스트나 예상 실패 확인을 요구하지 않는다. 기존 테스트로 충분한 변경이나 문서 전용 작업에는 불필요한 테스트 작성 task를 만들지 않는다.
-- 테스트 작성 task의 `checks`는 구현 없이 가능한 문법·구조 검사만 선언한다. 적절한 정적 검사 명령이 없으면 `checks: []`로 두고, task 문서와 완료 요약에 계약·시나리오 검토를 명시한다. 작성 완료를 기능 검증 통과로 보고하지 않는다. 소스 task의 `checks`에는 구현 후 새 테스트와 영향받는 기존 테스트를 실행하는 정확한 명령을 선언하고, 모두 통과해야 완료한다. 소스 담당은 테스트를 임의 수정하거나 assertion을 약화하지 않으며, 테스트 결함은 근거와 함께 별도 수정 범위로 보고한다.
-- 필수 읽기 목록은 역할별 계약·담당 파일·직접 의존 코드의 필요한 구간으로 제한한다. 소스 task의 테스트·fixture 내부는 실패 시 참고 목록으로 구분하며, 실행만을 위해 전체 읽기를 요구하지 않는다.
-- 일반 제품 task에서 전체 테스트·build·export를 반복하지 않는다. 공통 모듈·계약 변경은 실제 소비 기능도 검사하고, 영향 범위를 좁힐 근거가 없으면 전체 검증을 선택해 이유를 기록한다. 프론트 테스트는 `npm --prefix front run test -- tests/unit/<feature>.test.ts`처럼 파일을 선택할 수 있으며, 인자가 없으면 `front/tests/`의 모든 `.test.ts`와 `.test.tsx`를 실행한다. 백엔드 API는 `npm --prefix back run test:api -- --suite <suite>`로 선택하고, 여러 suite를 함께 지정할 수 있다. `$finish-plan`은 변경된 프론트의 `typecheck`·`test`·`export`와 변경된 백엔드의 `lint`·`test`·`build`를 전체 검증한다. 테스트 실행기 자체 변경의 선택 실행과 무인자 전체 실행 회귀 검증은 대응 소스 task의 `checks`에 포함한다.
-- Harness 자체 테스트만 `tools/harness/**/*.test.mjs`에 colocate하며 `node --test tools/harness/*.test.mjs`로 실행한다. 제품 테스트용 최상위 `tests/` 폴더는 만들지 않는다.
-
-## API 테스트
-
-- Postman CLI는 실행 중인 개발 API를 HTTP로 호출하며, API가 사용하는 실제 MySQL DB까지 연결해 검증한다. 기본 주소는 `http://localhost:3000`이며 실행 방법과 데이터 조건은 `back/test/api/README.md`를 따른다.
-- API 검증 전 기존 개발 서버에 HTTP 요청으로 연결되는지 먼저 확인한다. 서버가 이미 실행 중이면 현재 변경 코드가 반영됐는지 확인한 뒤 반드시 해당 서버에서 테스트한다. 포트·프로세스 조회 결과가 비어 있다는 이유만으로 서버가 없다고 판단하지 않는다.
-- 테스트용 서버를 추가로 띄우거나 임의로 다른 포트에서 실행하지 않는다. 코드 반영 여부를 확인할 수 없으면 사용자에게 확인한다. 백엔드 서버가 실행 중이지 않으면 오류와 `npm --prefix back run start:dev` 실행 안내를 출력하고 검증을 실패 처리한다. 연결 실패·필수 데이터 부족을 검증 통과로 처리하지 않는다.
-- REST endpoint의 경로·요청·응답·인증·노출 규칙을 변경하면 같은 plan 안에서 관련 API 문서와 Postman 컬렉션을 함께 갱신한다. 컬렉션·fixture·필요한 실행기 변경은 테스트 작성 task의 `files`에, 제품 코드·API 문서는 소스 task의 `files`에 선언한다. 실제 API suite와 필요한 내부 테스트 실행은 소스 구현 후 수행하도록 소스 task의 `checks`에 선언한다. `files`에 읽기 전용으로 실행하는 기존 테스트 파일을 추가하지 않는다.
-- API 테스트는 GET·OPTIONS뿐 아니라 POST·PUT·PATCH·DELETE 등 해당 endpoint의 실제 HTTP 메서드를 사용해 동작을 검증한다. 관리형 suite는 실행별 fixture만 생성하고 소유한 키로 정리하며, 기존 개발 데이터의 reset·seed·수정에 의존하지 않는다. 외부 환경은 사전에 준비된 fixture를 사용하고 자동 정리하지 않는다. 비밀 값은 환경 파일에서 관리하고 컬렉션에 넣지 않는다.
+- 프론트 실행 규칙은 [front/AGENTS.md](front/AGENTS.md), task 분리·선택 checks·최종 전체 검증은 [플랜 규칙](_docs/plans/README.md)을 따른다.
+- 백엔드 API는 실제 HTTP 메서드로 기존 개발 서버와 그 서버의 MySQL을 검증한다. 먼저 HTTP 연결과 변경 코드 반영을 확인하고, 반영 여부가 불명확하면 사용자에게 확인한다.
+- API 실행·데이터·fixture/lock 규칙은 [back/test/api/README.md](back/test/api/README.md)를 따른다. 기존 데이터 reset/seed·수정에 의존하지 않고 실행별 소유 fixture만 정리한다. 연결·필수 데이터·assertion·정리 실패를 통과로 처리하지 않는다.
 
 ## Codex Harness
 
-- `$harness-plan`, `$harness`, `$finish-plan`은 명시적으로 호출할 때만 사용한다. 작업은 `dev`에서만 수행하며 branch나 worktree를 만들지 않는다.
-- `_docs/plans/index.json`은 플랜 목록과 메타데이터만 관리하고, 각 `_docs/plans/<plan>/index.json`에 정확한 `files`, `depends_on`, `checks`, `status`를 선언한다. `web-prototype/`은 계획·수정·검증 대상이 아니다.
-- Harness의 하위 위임은 같은 수정 패턴을 별도 설계 판단 없이 독립된 파일에 적용하는 반복 작업에만 허용한다. 메인은 0뎁스, `harness_worker`는 1뎁스, 반복 구현용 `harness_repeater`는 2뎁스이며 추가 위임은 금지한다. 허용 여부·이유·수정 패턴·정확한 파일 분담은 `plan.md`와 `task-*.md`에 기록하고, 별도 task나 JSON 필드는 추가하지 않는다.
-- 부모 worker는 반복 패턴을 확정한 뒤 자신의 task `files` 안에서 겹치지 않는 파일을 하위 에이전트에 배정한다. 공통 파일은 부모가 맡으며, 모든 참여자는 다른 작업자의 수정을 되돌리지 않는다. 하위 에이전트는 구현 결과를 부모에게만 보고하고 task 상태를 변경하지 않는다. 부모가 결과 통합·선언된 checks 실행·최종 완료 및 실패 보고를 책임진다.
-- 동시 실행 한도 5개는 메인을 제외한 부모 worker와 하위 에이전트 전체에 적용한다. 메인은 하위 호출 슬롯을 예약·배정하며, 슬롯이 없으면 worker가 직접 수행한다.
-- 실행 중에는 `apply_patch`로만 파일을 수정해 hook의 task 범위와 테스트 위치 검사를 받는다. shell을 통한 파일 수정으로 hook을 우회하지 않는다.
-- 실행 중 task가 있으면 직접 `git commit`, `git push`, branch 조작을 하지 않는다. `$harness`는 commit/push하지 않으며, 완료된 plan은 `$finish-plan`의 `node tools/harness/cli.mjs finish`만 commit/push한다.
+- `$harness-plan`, `$harness`, `$finish-plan`은 명시적으로 호출할 때만 사용한다. 작업은 dev에서만 하며 branch/worktree를 만들지 않는다.
+- 계획 구조·테스트/소스 task 분리·읽기 범위·병렬 및 하위 위임 규칙은 [플랜 규칙](_docs/plans/README.md)과 해당 스킬을 따른다.
+- 실행 중에는 task의 files 범위에서 apply_patch로만 수정하며 shell 수정으로 hook을 우회하지 않는다. web-prototype/은 계획·수정·검증에서 제외한다.
+- 실행 중 task가 있으면 직접 commit/push·branch 조작을 하지 않는다. 완료 plan의 검증·commit/push는 `$finish-plan`의 `node tools/harness/cli.mjs finish`만 수행한다.
