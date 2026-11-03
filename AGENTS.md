@@ -120,5 +120,8 @@
 
 - `$harness-plan`, `$harness`, `$finish-plan`은 명시적으로 호출할 때만 사용한다. 작업은 `dev`에서만 수행하며 branch나 worktree를 만들지 않는다.
 - `_docs/plans/index.json`은 플랜 목록과 메타데이터만 관리하고, 각 `_docs/plans/<plan>/index.json`에 정확한 `files`, `depends_on`, `checks`, `status`를 선언한다. `web-prototype/`은 계획·수정·검증 대상이 아니다.
+- Harness의 하위 위임은 같은 수정 패턴을 별도 설계 판단 없이 독립된 파일에 적용하는 반복 작업에만 허용한다. 메인은 0뎁스, `harness_worker`는 1뎁스, 반복 구현용 `harness_repeater`는 2뎁스이며 추가 위임은 금지한다. 허용 여부·이유·수정 패턴·정확한 파일 분담은 `plan.md`와 `task-*.md`에 기록하고, 별도 task나 JSON 필드는 추가하지 않는다.
+- 부모 worker는 반복 패턴을 확정한 뒤 자신의 task `files` 안에서 겹치지 않는 파일을 하위 에이전트에 배정한다. 공통 파일은 부모가 맡으며, 모든 참여자는 다른 작업자의 수정을 되돌리지 않는다. 하위 에이전트는 구현 결과를 부모에게만 보고하고 task 상태를 변경하지 않는다. 부모가 결과 통합·선언된 checks 실행·최종 완료 및 실패 보고를 책임진다.
+- 동시 실행 한도 3개는 메인을 제외한 부모 worker와 하위 에이전트 전체에 적용한다. 메인은 하위 호출 슬롯을 예약·배정하며, 슬롯이 없으면 worker가 직접 수행한다.
 - 실행 중에는 `apply_patch`로만 파일을 수정해 hook의 task 범위와 테스트 위치 검사를 받는다. shell을 통한 파일 수정으로 hook을 우회하지 않는다.
 - 실행 중 task가 있으면 직접 `git commit`, `git push`, branch 조작을 하지 않는다. `$harness`는 commit/push하지 않으며, 완료된 plan은 `$finish-plan`의 `node tools/harness/cli.mjs finish`만 commit/push한다.
