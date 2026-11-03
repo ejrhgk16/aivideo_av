@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, HttpCode, Param, Put, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, HttpCode, Param, ParseUUIDPipe, Put, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../identity/jwtAuthGuard.js';
 import { WatchProgressService } from './watchProgressService.js';
@@ -11,14 +11,14 @@ type WatchProgressInput = { event: 'STARTED' | 'COMPLETED'; positionMs: number }
 export class WatchProgressController {
   constructor(private readonly watchProgressService: WatchProgressService) {}
 
-  @Put('episodes/:episodeUuid/watch-progress')
+  @Put('videos/:videoUuid/watch-progress')
   @HttpCode(204)
   async save(
     @Req() request: AuthenticatedRequest,
-    @Param('episodeUuid') episodeUuid: string,
+    @Param('videoUuid', new ParseUUIDPipe()) videoUuid: string,
     @Body() body: unknown,
   ): Promise<void> {
-    await this.watchProgressService.save(request.user.uuid, episodeUuid, this.parseInput(body));
+    await this.watchProgressService.save(request.user.uuid, videoUuid, this.parseInput(body));
   }
 
   private parseInput(body: unknown): WatchProgressInput {

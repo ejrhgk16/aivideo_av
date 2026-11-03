@@ -211,8 +211,9 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
   useEffect(() => {
     if (isRestoring || user === null || playback.durationMs <= 0) return;
     const version = sessionVersion;
+    const videoUuid = playback.videoUuid;
     const tracker = createWatchProgressTracker(
-      (input) => saveWatchProgress(id, input),
+      (input) => saveWatchProgress(videoUuid, input),
       () => isCurrentSession(version),
     );
     previousPlaybackTime.current = null;
@@ -238,7 +239,7 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
       previousPlaybackTime.current = null;
       tracker.dispose();
     };
-  }, [id, isCurrentSession, isRestoring, playback.durationMs, player, sessionVersion, user?.uuid]);
+  }, [id, isCurrentSession, isRestoring, playback.durationMs, playback.videoUuid, player, sessionVersion, user?.uuid]);
   useEffect(() => {
     showControls();
     return clearHideTimer;

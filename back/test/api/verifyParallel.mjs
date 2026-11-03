@@ -87,8 +87,8 @@ async function coordinateProgressRuns(db) {
     first.send('start');
     second.send('start');
     const [firstVerified, secondVerified] = await Promise.all([first.next('verified'), second.next('verified')]);
-    for (const [userId, episodeId] of secondVerified.progressPairs) {
-      const [rows] = await db.execute('SELECT user_id FROM user_watch_progress WHERE user_id = ? AND episode_id = ?', [userId, episodeId]);
+    for (const [userId, videoId] of secondVerified.progressPairs) {
+      const [rows] = await db.execute('SELECT user_id FROM user_watch_progress WHERE user_id = ? AND video_id = ?', [userId, videoId]);
       if (rows.length !== 1) throw new Error('The second watch-progress fixture row was not present before cleanup.');
     }
 
@@ -99,15 +99,15 @@ async function coordinateProgressRuns(db) {
       secondVerified.userUuids,
     );
     if (secondUsers.length !== secondVerified.userUuids.length) throw new Error('The second run users were removed during the first cleanup.');
-    for (const [userId, episodeId] of secondVerified.progressPairs) {
-      const [rows] = await db.execute('SELECT user_id FROM user_watch_progress WHERE user_id = ? AND episode_id = ?', [userId, episodeId]);
+    for (const [userId, videoId] of secondVerified.progressPairs) {
+      const [rows] = await db.execute('SELECT user_id FROM user_watch_progress WHERE user_id = ? AND video_id = ?', [userId, videoId]);
       if (rows.length !== 1) throw new Error('The first cleanup removed the second run progress row.');
     }
     second.send('cleanup');
     await second.next('cleaned');
     for (const run of [firstVerified, secondVerified]) {
-      for (const [userId, episodeId] of run.progressPairs) {
-        const [rows] = await db.execute('SELECT user_id FROM user_watch_progress WHERE user_id = ? AND episode_id = ?', [userId, episodeId]);
+      for (const [userId, videoId] of run.progressPairs) {
+        const [rows] = await db.execute('SELECT user_id FROM user_watch_progress WHERE user_id = ? AND video_id = ?', [userId, videoId]);
         if (rows.length) throw new Error('A watch-progress fixture row remained after its owning run cleanup.');
       }
       const [rows] = await db.execute(

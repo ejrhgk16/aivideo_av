@@ -21,7 +21,7 @@ function loadModule(apiCalls: unknown[]) {
     throw new Error(`Unexpected module: ${id}`);
   } });
   return module.exports as {
-    saveWatchProgress: (episodeId: string, input: Input) => Promise<void>;
+    saveWatchProgress: (videoUuid: string, input: Input) => Promise<void>;
     createWatchProgressTracker: (send: (input: Input) => Promise<void>, isCurrent: () => boolean, timer?: {
       set(callback: () => void, delay: number): unknown;
       clear(handle: unknown): void;
@@ -54,12 +54,12 @@ function createTimer() {
 const flush = async () => { await new Promise<void>((resolve) => setImmediate(resolve)); };
 const plain = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
-test('saveWatchProgress uses a required-auth PUT and encodes the episode id', async () => {
+test('saveWatchProgress uses a required-auth PUT and encodes the video UUID', async () => {
   const calls: unknown[] = [];
   const { saveWatchProgress } = loadModule(calls);
-  await saveWatchProgress('episode/1', { event: 'STARTED', positionMs: 0 });
+  await saveWatchProgress('video/1', { event: 'STARTED', positionMs: 0 });
   assert.deepEqual(plain(calls), [[
-    '/me/episodes/episode%2F1/watch-progress',
+    '/me/videos/video%2F1/watch-progress',
     { auth: 'required', method: 'PUT', json: { event: 'STARTED', positionMs: 0 } },
   ]]);
 });

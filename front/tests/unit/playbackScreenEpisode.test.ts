@@ -51,6 +51,7 @@ function createScreen(dramaId = 'drama-1') {
     constructor(public status: number, public errorCode: string | null = null) { super(errorCode ?? `HTTP_${status}`); }
   }
   const savedWrites: unknown[][] = [];
+  const progressVideoUuids: string[] = [];
   const isCurrentSession = (version: number) => version === sessionVersion;
   const jsx = (type: unknown, props: Record<string, unknown>): Node => ({ type, props });
   const react = {
@@ -116,7 +117,7 @@ function createScreen(dramaId = 'drama-1') {
         },
         dispose() { disposed = true; },
       };
-    }, saveWatchProgress: (_id: string, input: unknown) => { progressRequests.push(input); return Promise.resolve(); } },
+    }, saveWatchProgress: (videoUuid: string, input: unknown) => { progressVideoUuids.push(videoUuid); progressRequests.push(input); return Promise.resolve(); } },
     '@/features/user/UserProvider': { useUser: () => ({ isRestoring, sessionVersion, isCurrentSession, sessionExpired: false, user: userUuid === null ? null : { uuid: userUuid } }) },
     '@/features/playback/savedVideos': {
       saveVideo: (videoUuid: string, contentType: string) => {
@@ -176,7 +177,7 @@ function createScreen(dramaId = 'drama-1') {
   function all(type: string) { hook = 0; tree = Component({ id: 'episode-1', dramaId }); return nodes(tree).filter((entry) => entry.type === type); }
   async function settle() { await new Promise<void>((resolve) => setImmediate(resolve)); commit(); }
   return {
-    commit, find, all, requests, pushes, replaces, player, emit, progressRequests, savedWrites, savedWriteTasks, makeApiError: (status: number, code?: string) => new ApiErrorMock(status, code), settle,
+    commit, find, all, requests, pushes, replaces, player, emit, progressRequests, progressVideoUuids, savedWrites, savedWriteTasks, makeApiError: (status: number, code?: string) => new ApiErrorMock(status, code), settle,
     deferWrites() { deferSavedWrites = true; },
     queueDramaRead() { const task = { resolve: (_value: unknown) => {}, reject: (_error: unknown) => {} }; dramaReads.push(task); return task; },
     set restoring(value: boolean) { isRestoring = value; commit(); },
@@ -265,6 +266,8 @@ test('logged in playback saves once after real progress and once after resumed f
     { event: 'STARTED', positionMs: 0 },
     { event: 'COMPLETED', positionMs: 71000 },
   ]);
+  assert.deepEqual(screen.progressVideoUuids, ['episode-video-1', 'episode-video-1']);
+  assert.ok(screen.progressVideoUuids.every((videoUuid) => videoUuid !== 'episode-1'), 'progress uses the playback video UUID instead of the episode UUID');
   screen.emit('timeUpdate', { currentTime: 20 });
   screen.emit('timeUpdate', { currentTime: 20.5 });
   await screen.settle();

@@ -255,7 +255,7 @@ Authorization 헤더가 있지만 Access JWT가 비어 있거나 잘못됐거나
 - 회차의 공개 조건과 `episodeNumber` 오름차순은 DB 조회에서 처리한다.
 - 회차 권한은 검증된 Access 사용자와 `episode_entitlements`를 회차 조회에 `LEFT JOIN`해서 표시한다. 사용자 조건은 JOIN에 있어 미보유 회차도 목록에 남는다. 권한 취득 종류에 따른 구분은 없다.
 - 익명 요청은 사용자 권한 행을 조회하지 않으며 무료 회차만 `isUnlocked: true`다.
-- 시청기록은 검증된 Access 사용자와 `user_watch_progress`를 회차 조회에 `LEFT JOIN`해서 표시한다. 기록이 없는 회차도 목록에 남고, 다른 사용자의 기록은 노출되지 않는다.
+- 시청기록은 검증된 Access 사용자와 대표 FULL 영상의 `video_id`를 `user_watch_progress`에 `LEFT JOIN`해서 표시한다. 기록이 없는 회차도 목록에 남고, 다른 사용자의 기록은 노출되지 않는다. 다른 FULL 영상과 프리뷰 기록은 합산하지 않는다.
 - 익명 요청이거나 시청기록이 없으면 `watchProgress`는 `null`이다. 시청기록은 회차 수, 공개 조건, 정렬, `isUnlocked`에 영향을 주지 않는다.
 - `imageUrls`에는 버킷과 리전 설정이 있을 때 공개 이미지의 직접 S3 URL을 제공한다. 이미지가 없으면 `null` 또는 빈 배열이다. 공개 URL은 `dramas/*/images/*/*.webp`, `dramas/*/episodes/*/images/*.webp`, `genres/*/images/*.webp` 키에만 허용한다.
 - 사용자별 구매·해제 여부는 재생 API 접근을 제한하지 않는다. 재생 API의 공개 규칙은 별도 정의를 따른다.

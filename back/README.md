@@ -71,6 +71,54 @@ Before applying a migration that changes primary or relationship keys, create a 
 
 MySQL DDL statements implicitly commit, so a failed migration is not guaranteed to roll back as one transaction. Do not treat a partially applied migration as rolled back: stop, inspect the schema, and restore the verified backup if recovery is needed. Run the migration only after the isolated rehearsal and data comparisons succeed, then verify the migrated schema and application against the target database.
 
+### Watch-progress key migration
+
+`ReplaceWatchProgressEpisodeWithVideo20261103000000` changes
+`user_watch_progress` from `(user_id, episode_id)` to `(user_id, video_id)`,
+where `video_id` is `content_videos.id`. Before `up`, the migration requires
+the old key, the existing user/recent-played index, and the position check. It
+checks the named CHECK through MySQL `information_schema`; TypeORM's MySQL
+`getTable()` metadata does not expose CHECK constraints. A missing or changed
+database constraint is a schema mismatch even if the Entity decorator exists.
+It maps each row to the `EPISODE`/`FULL` video with the lowest `display_order`,
+regardless of publication status. A missing episode or matching full video
+stops the migration before its first DDL statement. The backfill changes only
+the key; position, completion, and `last_played_at`, `created_at`, and
+`updated_at` are preserved. The
+migration keeps the user/recent-played index and position check, adds an index
+on `video_id`, and does not create a physical foreign key.
+
+Before applying it, stop watch-progress writes and confirm that the already
+running backend has `DB_SYNCHRONIZE=false`; the development default is
+`true`, which can alter the schema independently of migration history. Compare
+the TypeORM migration history with the actual schema, and do not run older
+pending migrations automatically against a schema already changed by
+`synchronize`. Create a restorable backup, restore it to a separate MySQL test
+database, and rehearse migration up, down, and up there. Compare row counts and
+each user's episode-to-representative-video mapping, including position,
+completion, and `last_played_at`, `created_at`, and `updated_at`, before and
+after both directions.
+
+The `down` migration accepts only existing `EPISODE`/`FULL` videos whose parent
+episodes still exist. It refuses preview rows, missing references, and any
+user with multiple video rows for one episode, since converting those rows to
+the former episode key would discard data. After a failed DDL step, inspect the
+actual columns, indexes, and primary key before proceeding. MySQL may have
+committed earlier statements; restore the verified backup if the schema is
+partially converted. Do not assume that rerunning the migration or invoking
+`down` is safe on a mixed schema. Store backups and credentials outside the
+repository.
+
+When rehearsing against another database, construct a fresh TypeORM `DataSource`
+with that database name. After initialization and before any DDL, verify that
+`SELECT DATABASE()`, `dataSource.options.database`, and
+`dataSource.driver.database` all identify the rehearsal database. Changing
+`database` with `setOptions()` on an initialized source does not retarget its
+MySQL driver connection. If the live schema already matches the migration's
+intended result and backup values match exactly, while the migration is the
+only pending history entry, record it with TypeORM fake migration mode; never
+rerun its DDL against an already converted schema.
+
 After building the application and setting `NODE_ENV=production` with the production environment variables, inspect and apply pending migrations during deployment:
 
 ```bash

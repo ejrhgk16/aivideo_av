@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "plan_id": "plan-49-video-watch-progress",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "시청 기록 영상 키 이관 migration과 적용 절차",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/common/database/migrations/20261103000000ReplaceWatchProgressEpisodeWithVideo.ts",
+        "back/test/unit/database/videoWatchProgressMigration.spec.ts",
+        "back/README.md"
+      ],
+      "checks": [
+        "npm --prefix back run test:unit -- test/unit/database/videoWatchProgressMigration.spec.ts",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-11-03T04:06:29.025Z",
+      "summary": "Added the guarded up/down migration, focused tests for key mapping, preserved values, schema checks, and unsafe rollback cases, plus README migration and recovery steps. Both declared checks passed: the focused migration suite (5 tests) and `npm --prefix back run build`. No live DB migration or rehearsal was performed; task-2 must first verify DB_SYNCHRONIZE=false, stopped writes, and a restorable backup with an isolated MySQL up/down/up rehearsal.",
+      "completed_at": "2026-11-03T04:10:22.636Z"
+    },
+    {
+      "id": "task-2",
+      "name": "영상별 시청 기록 저장·상세 조회 API와 fixture 전환",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/.env.development",
+        "back/tmp/plan49-db-transition.mjs",
+        "back/tmp/plan49-server.ps1",
+        "back/README.md",
+        "back/src/playback/entities/userWatchProgress.entity.ts",
+        "back/src/playback/watchProgressController.ts",
+        "back/src/playback/watchProgressService.ts",
+        "back/src/content/publicCatalogService.ts",
+        "back/test/api/run.mjs",
+        "back/test/api/fixtureContext.mjs",
+        "back/test/api/verifyParallel.mjs",
+        "back/test/api/watch-progress.postman_collection.json",
+        "back/test/api/content.postman_collection.json",
+        "back/test/api/saved-videos.postman_collection.json",
+        "back/test/api/README.md",
+        "back/test/unit/entities/entities.spec.ts",
+        "back/test/unit/content/publicCatalogService.spec.ts",
+        "back/test/unit/api/fixtureIsolation.spec.ts",
+        "_docs/api/04-playback/watch-progress.md",
+        "_docs/api/04-playback/README.md",
+        "_docs/api/02-content/dramas.md",
+        "_docs/api/00-overview/authentication.md",
+        "_docs/ARCHITECTURE.md",
+        "_docs/AI_DRAMA_data_model/00-overview/ERD.md",
+        "_docs/AI_DRAMA_data_model/00-overview/scope.md",
+        "_docs/AI_DRAMA_data_model/04-playback/README.md",
+        "_docs/AI_DRAMA_data_model/04-playback/user_watch_progress.md",
+        "_docs/AI_DRAMA_data_model/04-playback/user_preview_feed_states.md"
+      ],
+      "checks": [
+        "npm --prefix back run test:unit -- test/unit/entities/entities.spec.ts test/unit/content/publicCatalogService.spec.ts test/unit/api/fixtureIsolation.spec.ts",
+        "npm --prefix back run test:api -- --suite watch-progress --suite content --suite playback --suite saved-videos",
+        "npm --prefix back run test:api",
+        "npm --prefix back run test:api:parallel"
+      ],
+      "started_at": "2026-11-03T04:33:33.043Z",
+      "summary": "Implemented video-keyed watch progress for EPISODE/FULL and DRAMA/PREVIEW videos, representative-FULL detail lookup, fixture isolation, API collections, and documentation. All four declared checks passed on final runs: focused unit (3 files, 24 tests), selected API suites, full API, and parallel API. Two earlier selected-suite attempts exposed fixture-variable issues; those were fixed before the passing rerun. The original backup remains at C:\\Users\\jdh\\AppData\\Local\\Temp\\plan49-watch-progress-qpL0o0\\source.sql. Final DB verification found the expected video_id schema and migration history, with all 4 original rows preserved (SHA-256 4d26b2d90d9225178aae2f36dbc9912c75d6a8cc51782596e3551412a966681f). Isolated up/down/up rehearsal passed; the manifest-confirmed failed rehearsal DB was dropped, and temporary scripts were removed. DB_SYNCHRONIZE=false is set; backend is live in persistent exec session 86861, with new route 401 and removed route 404 probes verified.",
+      "completed_at": "2026-11-03T04:57:47.745Z"
+    },
+    {
+      "id": "task-3",
+      "name": "본편 시청 기록 요청을 실제 영상 UUID로 전환",
+      "status": "completed",
+      "depends_on": [
+        "task-2"
+      ],
+      "files": [
+        "front/src/features/playback/watchProgress.ts",
+        "front/src/screens/playbackScreen_episode.tsx",
+        "front/tests/unit/watchProgress.test.ts",
+        "front/tests/unit/playbackScreenEpisode.test.ts",
+        "front/tests/unit/session.test.ts"
+      ],
+      "checks": [
+        "npm --prefix front run test -- tests/unit/watchProgress.test.ts tests/unit/playbackScreenEpisode.test.ts tests/unit/dramaDetailScreen.test.ts tests/unit/session.test.ts"
+      ],
+      "started_at": "2026-11-03T04:58:03.960Z",
+      "summary": "Switched playback watch-progress requests to the actual video UUID and added coverage proving STARTED and COMPLETED use that UUID, distinct from the episode UUID. Updated the session retry request path. Read the exact Expo SDK 57 and expo-video 57 docs before editing. The declared frontend check passed: 54 tests across watchProgress, playbackScreenEpisode, dramaDetailScreen, and session.",
+      "completed_at": "2026-11-03T04:59:33.787Z"
+    }
+  ]
+}

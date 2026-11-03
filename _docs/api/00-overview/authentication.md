@@ -90,13 +90,13 @@ DB의 `auth_sessions`는 로그인별 사용자와 폐기 시각을 관리한다
 
 드라마 목록, 컬렉션, 작품 상세, 회차 재생, 프리뷰 재생은 선택 인증이다. `Authorization` 헤더가 없으면 익명으로 처리하고, 헤더가 있으면 `Bearer <accessToken>`을 검증한다. 빈 값·잘못된 스킴·만료·변조·Refresh 토큰은 `AUTH_INVALID_TOKEN`(401)이며 익명으로 재처리하지 않는다.
 
-작품 상세는 검증된 Access의 사용자 entitlement와 시청기록만 보여준다. 익명 응답에서는 무료 회차만 `isUnlocked: true`이며 모든 시청기록은 `null`이다. 전달된 `userUuid` query는 사용자를 선택하지 않는다.
+작품 상세는 검증된 Access의 사용자 entitlement와 대표 FULL 영상 시청기록만 보여준다. 익명 응답에서는 무료 회차만 `isUnlocked: true`이며 모든 시청기록은 `null`이다. 다른 FULL 영상과 작품 PREVIEW의 기록은 회차 상세에 합산하지 않는다. 전달된 `userUuid` query는 사용자를 선택하지 않는다. `PUT /me/videos/:videoUuid/watch-progress`는 로그인 사용자의 공개 FULL 또는 PREVIEW 영상 기록을 저장한다.
 
 드라마 목록·컬렉션·작품 상세의 영상 항목은 JWT 사용자 저장 여부 `isSaved`를 포함하며 익명 요청에서는 모두 `false`다. 회차 상세와 재생 응답은 대표 FULL 영상 UUID와 사용자 저장 여부를 제공한다. 프리뷰 재생 응답에도 해당 프리뷰 `videoUuid`와 `isSaved`를 제공한다.
 
 회차 재생은 공개 리소스를 확인한 뒤 무료 회차를 익명·인증 사용자 모두 허용한다. 유료 회차의 익명 요청은 `AUTH_INVALID_TOKEN`(401), 인증된 미구매 사용자는 `EPISODE_ACCESS_DENIED`(403), 구매 사용자는 200이다. 잔존 `userUuid` query는 사용자 선택에 사용하지 않는다.
 
-`POST /me/points/increase`, `POST /me/episodes/:episodeUuid/purchaseSingle`, `PUT /me/saved-videos/:videoUuid`, `DELETE /me/saved-videos/:videoUuid`, `GET /me/saved-videos`는 필수 Access JWT를 요구하며 검증된 payload의 `sub`로 사용자를 결정한다. 인증이 성공한 요청에만 기존 개발 환경 제한과 업무 처리를 적용한다. 비개발 환경의 404 보장은 인증을 통과한 요청에 적용된다.
+`POST /me/points/increase`, `POST /me/episodes/:episodeUuid/purchaseSingle`, `PUT /me/videos/:videoUuid/watch-progress`, `PUT /me/saved-videos/:videoUuid`, `DELETE /me/saved-videos/:videoUuid`, `GET /me/saved-videos`는 필수 Access JWT를 요구하며 검증된 payload의 `sub`로 사용자를 결정한다. 인증이 성공한 요청에만 기존 개발 환경 제한과 업무 처리를 적용한다. 비개발 환경의 404 보장은 인증을 통과한 요청에 적용된다.
 
 프론트의 공통 요청 함수는 endpoint가 공개·선택·필수 인증 중 하나를 지정한다. 실행 중 Refresh는 동시 401 요청 사이에서 한 번만 수행하고 각 원 요청은 새 Access로 최대 한 차례 재시도한다. 최종 Refresh 401은 사용자·포인트·Access를 정리하고 루트의 세션 만료 모달을 표시한다. 모달을 닫으면 같은 종료 세션의 늦은 오류로 다시 열리지 않으며 로그인 화면은 사용자가 모달의 로그인 버튼을 누른 경우에만 열린다. 미로그인 유료 재생은 화면에서 로그인 안내를, 구매 권한 거부는 회차/구매 안내를 표시한다.
 

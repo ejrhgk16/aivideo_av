@@ -9,11 +9,11 @@ import { User } from '../identity/entities/user.entity.js';
 
 type WatchProgressInput = { event: 'STARTED' | 'COMPLETED'; positionMs: number };
 
-type EpisodePlaybackRow = {
+type VideoPlaybackRow = {
   userId: number;
-  episodeId: number;
-  pricePoints: number | string;
-  durationMs: number;
+  videoId: number;
+  durationMs: number | string;
+  pricePoints: number | string | null;
   entitlementId: number | null;
 };
 
@@ -21,31 +21,30 @@ type EpisodePlaybackRow = {
 export class WatchProgressService {
   constructor(private readonly dataSource: DataSource) {}
 
-  async save(userUuid: string, episodeUuid: string, input: WatchProgressInput): Promise<void> {
+  async save(userUuid: string, videoUuid: string, input: WatchProgressInput): Promise<void> {
     const row = await this.dataSource.createQueryBuilder()
-      .select('appUser.id', 'userId')
-      .addSelect('episode.id', 'episodeId')
-      .addSelect('episode.pricePoints', 'pricePoints')
-      .addSelect('video.durationMs', 'durationMs')
-      .addSelect('entitlement.id', 'entitlementId')
-      .from(Episode, 'episode')
+      .from(ContentVideo, 'video')
+      .leftJoin(Episode, 'episode',
+        "video.contentType = 'EPISODE' AND video.kind = 'FULL' AND episode.id = video.contentId")
       .innerJoin(Drama, 'drama',
-        'drama.id = episode.dramaId AND drama.status = :dramaStatus AND drama.publishedAt <= UTC_TIMESTAMP(3)',
-        { dramaStatus: 'PUBLISHED' })
-      .innerJoin(ContentVideo, 'video',
-        'video.contentType = :contentType AND video.contentId = episode.id AND video.kind = :kind',
-        { contentType: 'EPISODE', kind: 'FULL' })
+        "((video.contentType = 'EPISODE' AND video.kind = 'FULL' AND drama.id = episode.dramaId) OR " +
+        "(video.contentType = 'DRAMA' AND video.kind = 'PREVIEW' AND drama.id = video.contentId))")
       .innerJoin(User, 'appUser', 'appUser.uuid = :userUuid', { userUuid })
       .leftJoin(EpisodeEntitlement, 'entitlement',
         'entitlement.userId = appUser.id AND entitlement.episodeId = episode.id')
-      .where('episode.uuid = :episodeUuid', { episodeUuid })
-      .andWhere('episode.status = :episodeStatus', { episodeStatus: 'PUBLISHED' })
-      .andWhere('episode.publishedAt <= UTC_TIMESTAMP(3)')
-      .orderBy('video.displayOrder', 'ASC')
-      .limit(1)
-      .getRawOne<EpisodePlaybackRow>();
+      .select('appUser.id', 'userId')
+      .addSelect('video.id', 'videoId')
+      .addSelect('video.durationMs', 'durationMs')
+      .addSelect('episode.pricePoints', 'pricePoints')
+      .addSelect('entitlement.id', 'entitlementId')
+      .where('video.uuid = :videoUuid', { videoUuid })
+      .andWhere("drama.status = 'PUBLISHED' AND drama.publishedAt <= UTC_TIMESTAMP(3)")
+      .andWhere("((video.contentType = 'DRAMA' AND video.kind = 'PREVIEW') OR " +
+        "(video.contentType = 'EPISODE' AND video.kind = 'FULL' AND " +
+        "episode.status = 'PUBLISHED' AND episode.publishedAt <= UTC_TIMESTAMP(3)))")
+      .getRawOne<VideoPlaybackRow>();
 
-    if (!row) throw new NotFoundException(`Episode '${episodeUuid}' was not found`);
+    if (!row) throw new NotFoundException(`Video '${videoUuid}' was not found`);
     if (Number(row.pricePoints) > 0 && row.entitlementId === null) {
       throw new EpisodeAccessDeniedException();
     }
@@ -60,10 +59,11 @@ export class WatchProgressService {
       throw new BadRequestException('Invalid watch progress');
     }
 
+    // Conditional atomic upsert preserves completion and position for STARTED events.
     await this.dataSource.query(
       `
         INSERT INTO user_watch_progress
-          (user_id, episode_id, position_ms, is_completed,
+          (user_id, video_id, position_ms, is_completed,
            last_played_at, created_at, updated_at)
         VALUES (?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))
         ON DUPLICATE KEY UPDATE
@@ -72,7 +72,7 @@ export class WatchProgressService {
           last_played_at = UTC_TIMESTAMP(3),
           updated_at = UTC_TIMESTAMP(3)
       `,
-      [row.userId, row.episodeId, input.positionMs, Number(completed)],
+      [row.userId, row.videoId, input.positionMs, Number(completed)],
     );
   }
 }

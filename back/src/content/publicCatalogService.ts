@@ -199,7 +199,7 @@ export class PublicCatalogService {
       'id' | 'uuid' | 'episodeNumber' | 'title' | 'synopsis' | 'durationMs' | 'pricePoints'
     > & {
       unlocked: number | string;
-      progressEpisodeId: number | null;
+      progressVideoId: number | null;
       positionMs: number | string | null;
       isCompleted: number | string | null;
       lastPlayedAt: Date | null;
@@ -216,7 +216,7 @@ export class PublicCatalogService {
         'entitlement.episodeId = episode.id AND entitlement.userId = :userId',
         { userId })
       .leftJoin(UserWatchProgress, 'progress',
-        'progress.episodeId = episode.id AND progress.userId = :userId',
+        'progress.videoId = video.id AND progress.userId = :userId',
         { userId })
       .leftJoin(UserSavedVideo, 'saved',
         "saved.videoId = video.id AND saved.userId = :userId AND saved.contentType = 'EPISODE'",
@@ -234,7 +234,7 @@ export class PublicCatalogService {
         'CASE WHEN episode.pricePoints = 0 OR entitlement.id IS NOT NULL THEN 1 ELSE 0 END',
         'unlocked',
       )
-      .addSelect('progress.episodeId', 'progressEpisodeId')
+      .addSelect('progress.videoId', 'progressVideoId')
       .addSelect('progress.positionMs', 'positionMs')
       .addSelect('progress.isCompleted', 'isCompleted')
       .addSelect('progress.lastPlayedAt', 'lastPlayedAt')
@@ -278,7 +278,7 @@ export class PublicCatalogService {
       previewVideos: mapPreviewVideos(videos),
       episodes: episodes.map(
         ({ id, uuid, episodeNumber, title, synopsis, durationMs, pricePoints, unlocked, videoUuid, isSaved,
-          progressEpisodeId, positionMs, isCompleted, lastPlayedAt }) => ({
+          progressVideoId, positionMs, isCompleted, lastPlayedAt }) => ({
           uuid,
           episodeNumber,
           title,
@@ -289,7 +289,7 @@ export class PublicCatalogService {
           isUnlocked: Number(unlocked) === 1,
           videoUuid,
           isSaved: Number(isSaved) === 1,
-          watchProgress: progressEpisodeId === null ? null : {
+          watchProgress: progressVideoId === null ? null : {
             positionMs: Number(positionMs),
             isCompleted: Number(isCompleted) === 1,
             lastPlayedAt: lastPlayedAt!.toISOString(),

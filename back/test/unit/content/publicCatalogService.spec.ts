@@ -96,10 +96,10 @@ describe('PublicCatalogService publication boundaries', () => {
           durationMs: 1000,
           pricePoints: 20,
           unlocked: '1',
-          progressEpisodeId: null,
-          positionMs: null,
-          isCompleted: null,
-          lastPlayedAt: null,
+          progressVideoId: 82,
+          positionMs: 450,
+          isCompleted: 1,
+          lastPlayedAt: new Date('2026-10-08T00:00:00Z'),
           videoUuid: 'full-video-uuid',
           isSaved: '1',
         },
@@ -143,7 +143,7 @@ describe('PublicCatalogService publication boundaries', () => {
     expect(query.leftJoin).toHaveBeenCalledWith(
       UserWatchProgress,
       'progress',
-      'progress.episodeId = episode.id AND progress.userId = :userId',
+      'progress.videoId = video.id AND progress.userId = :userId',
       { userId: user.id },
     );
     expect(query.leftJoin).toHaveBeenCalledWith(
@@ -162,7 +162,11 @@ describe('PublicCatalogService publication boundaries', () => {
         videoUuid: 'full-video-uuid',
         isSaved: true,
         isUnlocked: true,
-        watchProgress: null,
+        watchProgress: {
+          positionMs: 450,
+          isCompleted: true,
+          lastPlayedAt: '2026-10-08T00:00:00.000Z',
+        },
       }),
     ]);
     expect(detail.episodes[0]).not.toHaveProperty('id');
@@ -196,9 +200,9 @@ describe('PublicCatalogService publication boundaries', () => {
       orderBy: vi.fn().mockReturnThis(),
       getRawMany: vi.fn().mockResolvedValue([
         { id: 1, uuid: 'free', episodeNumber: 1, title: null, synopsis: null, durationMs: 1000, pricePoints: 0,
-          unlocked: '1', progressEpisodeId: null, positionMs: null, isCompleted: null, lastPlayedAt: null, videoUuid: 'free-video', isSaved: 0 },
+          unlocked: '1', progressVideoId: null, positionMs: null, isCompleted: null, lastPlayedAt: null, videoUuid: 'free-video', isSaved: 0 },
         { id: 2, uuid: 'paid', episodeNumber: 2, title: null, synopsis: null, durationMs: 1000, pricePoints: 10,
-          unlocked: '0', progressEpisodeId: null, positionMs: null, isCompleted: null, lastPlayedAt: null, videoUuid: null, isSaved: 0 },
+          unlocked: '0', progressVideoId: null, positionMs: null, isCompleted: null, lastPlayedAt: null, videoUuid: null, isSaved: 0 },
       ]),
     };
     const drama = { id: 7, uuid: 'drama', status: 'PUBLISHED', publishedAt: new Date('2026-10-08T00:00:00Z'),

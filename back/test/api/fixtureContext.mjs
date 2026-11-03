@@ -16,6 +16,7 @@ export function createFixtureContext({ db, suite, baseUrl, runId = randomUUID() 
   const userUuids = [];
   const progressPairs = [];
   let cleaned = false;
+  let progressCleaned = false;
 
   return {
     runId,
@@ -48,27 +49,38 @@ export function createFixtureContext({ db, suite, baseUrl, runId = randomUUID() 
         [randomUUID(), userId, episodeId],
       );
     },
-    async trackProgressPair(userId, episodeId) {
-      const pair = [userId, episodeId];
+    async trackProgressPair(userId, videoId) {
+      const pair = [userId, videoId];
       const [rows] = await db.execute(
-        'SELECT user_id FROM user_watch_progress WHERE user_id = ? AND episode_id = ?', pair,
+        'SELECT user_id FROM user_watch_progress WHERE user_id = ? AND video_id = ?', pair,
       );
       if (rows.length) throw new Error('Watch-progress fixture already exists before this run.');
       progressPairs.push(pair);
     },
-    async cleanup() {
-      if (cleaned) return;
+    async cleanupProgress() {
+      if (progressCleaned) return;
       const errors = [];
       for (const pair of progressPairs) {
         try {
-          await db.execute('DELETE FROM user_watch_progress WHERE user_id = ? AND episode_id = ?', pair);
+          await db.execute('DELETE FROM user_watch_progress WHERE user_id = ? AND video_id = ?', pair);
           const [rows] = await db.execute(
-            'SELECT user_id FROM user_watch_progress WHERE user_id = ? AND episode_id = ?', pair,
+            'SELECT user_id FROM user_watch_progress WHERE user_id = ? AND video_id = ?', pair,
           );
           if (rows.length) throw new Error('Run-owned watch-progress fixture remains after cleanup.');
         } catch (error) {
           errors.push(error);
         }
+      }
+      if (errors.length) throw new AggregateError(errors, 'Could not clean every owned watch-progress fixture.');
+      progressCleaned = true;
+    },
+    async cleanup() {
+      if (cleaned) return;
+      const errors = [];
+      try {
+        await this.cleanupProgress();
+      } catch (error) {
+        errors.push(error);
       }
       for (const uuid of [...ownedUserUuids].reverse()) {
         try {

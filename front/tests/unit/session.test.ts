@@ -565,7 +565,7 @@ test('cookie-mode concurrent requests share an account-switch refresh and both s
 
   const results = await Promise.allSettled([
     client.apiRequest('/me/episodes/one/purchaseSingle', { auth: 'required', method: 'POST', json: {} }),
-    client.apiRequest('/me/episodes/two/watch-progress', { auth: 'required', method: 'PUT', json: {} }),
+    client.apiRequest('/me/videos/video-two/watch-progress', { auth: 'required', method: 'PUT', json: {} }),
   ]);
 
   assert.equal(refreshCalls, 1);

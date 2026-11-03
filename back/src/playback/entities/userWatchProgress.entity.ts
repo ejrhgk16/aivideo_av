@@ -7,13 +7,14 @@ import { AuditedEntity } from '../../common/entities/auditedEntity.entity.js';
   'userId',
   'lastPlayedAt',
 ])
+@Index('idx_user_watch_progress_video_id', ['videoId'])
 @Check('CHK_user_watch_progress_position_ms', 'position_ms >= 0')
 export class UserWatchProgress extends AuditedEntity {
   @PrimaryColumn({ name: 'user_id', type: 'int', unsigned: true })
   userId!: number;
 
-  @PrimaryColumn({ name: 'episode_id', type: 'int', unsigned: true })
-  episodeId!: number;
+  @PrimaryColumn({ name: 'video_id', type: 'int', unsigned: true })
+  videoId!: number;
 
   @Column({ name: 'position_ms', type: 'int', default: 0 })
   positionMs!: number;

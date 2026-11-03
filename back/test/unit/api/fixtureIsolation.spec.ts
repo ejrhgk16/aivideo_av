@@ -56,6 +56,7 @@ describe('API fixture context', () => {
     await context.trackProgressPair(42, 52);
     const cleanup = context.cleanup();
     await expect(cleanup).rejects.toMatchObject({ name: 'AggregateError' });
+    expect(execute.mock.calls.some(([sql]) => String(sql).includes('video_id = ?'))).toBe(true);
     expect(execute.mock.calls.filter(([sql]) => String(sql).startsWith('DELETE FROM user_watch_progress'))).toHaveLength(2);
     await context.cleanup();
     expect(execute.mock.calls.filter(([sql]) => String(sql).startsWith('DELETE FROM user_watch_progress'))).toHaveLength(4);

@@ -207,7 +207,7 @@ describe('AI DRAMA entity registry', () => {
       [UserSavedVideo, 'userId'],
       [UserSavedVideo, 'videoId'],
       [UserWatchProgress, 'userId'],
-      [UserWatchProgress, 'episodeId'],
+      [UserWatchProgress, 'videoId'],
       [Wallet, 'userId'],
       [PointTransaction, 'walletUserId'],
       [EpisodeEntitlement, 'userId'],
@@ -308,6 +308,34 @@ describe('AI DRAMA entity registry', () => {
         target: UserSavedVideo,
         name: 'IDX_user_saved_videos_user_id_saved_at',
         columns: ['userId', 'savedAt'],
+      }),
+    );
+  });
+
+  it('defines watch progress with the composite user and video key', () => {
+    const primaryColumns = metadataStorage.columns
+      .filter(({ target, options }) => target === UserWatchProgress && options.primary)
+      .map(({ propertyName, options }) => options.name ?? propertyName);
+    expect(primaryColumns).toEqual(['user_id', 'video_id']);
+    expect(metadataStorage.columns).toContainEqual(
+      expect.objectContaining({
+        target: UserWatchProgress,
+        propertyName: 'videoId',
+        options: expect.objectContaining({ name: 'video_id', type: 'int', unsigned: true, primary: true }),
+      }),
+    );
+    expect(metadataStorage.indices).toContainEqual(
+      expect.objectContaining({
+        target: UserWatchProgress,
+        name: 'IDX_user_watch_progress_user_id_last_played_at',
+        columns: ['userId', 'lastPlayedAt'],
+      }),
+    );
+    expect(metadataStorage.indices).toContainEqual(
+      expect.objectContaining({
+        target: UserWatchProgress,
+        name: 'idx_user_watch_progress_video_id',
+        columns: ['videoId'],
       }),
     );
   });

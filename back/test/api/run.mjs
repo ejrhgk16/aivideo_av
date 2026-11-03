@@ -186,6 +186,8 @@ async function main() {
   let unentitled;
   let directory;
   let ownedPairs = [];
+  let savedProgressPairs = [];
+  let rejectedProgressPairs = [];
   let savedVideoFixture;
   let ownedSavedPairs = [];
   let ownedCollectionLinks = [];
@@ -241,7 +243,14 @@ async function main() {
     const paidEpisode = episodes.find(episode => episode.uuid === paidEpisodeUuid);
     if (!freeEpisode || !paidEpisode) throw new Error('Watch-progress episode fixtures are missing.');
     await fixtureContext.grantEpisode(entitled.id, paidEpisode.id);
-    const pairs = [[unentitled.id, freeEpisode.id], [entitled.id, paidEpisode.id]];
+    const [progressVideos] = await db.execute(
+      'SELECT id, uuid, content_id FROM content_videos WHERE uuid IN (?, ?)',
+      [free.videoUuid, selectedPaid.videoUuid],
+    );
+    const progressFreeVideo = progressVideos.find(video => video.uuid === free.videoUuid && video.content_id === freeEpisode.id);
+    const progressPaidVideo = progressVideos.find(video => video.uuid === selectedPaid.videoUuid && video.content_id === paidEpisode.id);
+    if (!progressFreeVideo || !progressPaidVideo) throw new Error('Watch-progress video fixtures are missing.');
+    const pairs = [[unentitled.id, progressFreeVideo.id], [entitled.id, progressPaidVideo.id]];
     for (const pair of pairs) {
       await fixtureContext.trackProgressPair(...pair);
     }
@@ -249,9 +258,9 @@ async function main() {
     const watchProgressLastPlayedAt = new Date();
     if (suites.some(suite => suite.id === 'content')) {
       await db.execute(
-        `INSERT INTO user_watch_progress (user_id, episode_id, position_ms, is_completed, last_played_at)
+        `INSERT INTO user_watch_progress (user_id, video_id, position_ms, is_completed, last_played_at)
          VALUES (?, ?, 0, 0, ?)`,
-        [entitled.id, paidEpisode.id, watchProgressLastPlayedAt],
+        [entitled.id, progressPaidVideo.id, watchProgressLastPlayedAt],
       );
     }
     if (!suites.some(suite => suite.id === 'saved-videos')) {
@@ -275,7 +284,7 @@ async function main() {
       if (exitCode !== 0) throw new Error('Postman failed for the selected API suite.');
       if (suites.some(suite => suite.id === 'watch-progress')) {
         const [rows] = await db.execute(
-          'SELECT user_id, episode_id FROM user_watch_progress WHERE (user_id, episode_id) IN ((?, ?), (?, ?)) ORDER BY user_id, episode_id',
+          'SELECT user_id, video_id FROM user_watch_progress WHERE (user_id, video_id) IN ((?, ?), (?, ?)) ORDER BY user_id, video_id',
           pairs.flat(),
         );
         if (rows.length !== pairs.length) throw new Error('Watch-progress verification did not leave both expected fixture rows.');
@@ -290,7 +299,7 @@ async function main() {
     if (savedRows.length) throw new Error('Saved-video write fixture already contains saved rows. Inspect test/api/README.md.');
     const [selectedIds] = await db.execute('SELECT id FROM dramas WHERE uuid = ?', [selected.uuid]);
     const stateFixtures = { dramas: [], episodes: [], videos: [], images: [] };
-    savedVideoFixture = { previewVideos: [], otherUserVideo: null, otherUserBaselineVideos: [], tieVideos: [], paidVideo: null, stateFixtures };
+    savedVideoFixture = { previewVideos: [], otherUserVideo: null, otherUserBaselineVideos: [], tieVideos: [], paidVideo: null, freeAlternateVideo: null, stateFixtures };
     const savedDramaUuid = randomUUID();
     stateFixtures.dramas.push({ uuid: savedDramaUuid });
     const [savedDramaResult] = await db.execute(
@@ -372,7 +381,7 @@ async function main() {
       "SELECT COALESCE(MAX(display_order), 0) AS max_order FROM content_videos WHERE content_type = 'EPISODE' AND content_id = ? AND kind = 'FULL'",
       [savedEpisodeId],
     );
-    if (orders[0].max_order + 64 > 32767 || paidOrders[0].max_order >= 32767 || freeOrders[0].max_order >= 32767) {
+    if (orders[0].max_order + 64 > 32767 || paidOrders[0].max_order >= 32767 || freeOrders[0].max_order + 2 > 32767) {
       throw new Error('Saved-video media fixture display-order capacity is unavailable.');
     }
     const previewVideos = Array.from({ length: 30 }, () => ({ uuid: randomUUID(), displayOrder: null }));
@@ -383,8 +392,9 @@ async function main() {
     const otherUserBaselineVideos = Array.from({ length: 31 }, (_, index) => ({ uuid: randomUUID(), displayOrder: orders[0].max_order + index + 32 }));
     const tieVideos = Array.from({ length: 2 }, (_, index) => ({ uuid: randomUUID(), displayOrder: orders[0].max_order + index + 63 }));
     const freeVideo = { uuid: randomUUID(), episodeId: savedEpisodeId, displayOrder: freeOrders[0].max_order + 1 };
+    const freeAlternateVideo = { uuid: randomUUID(), episodeId: savedEpisodeId, displayOrder: freeOrders[0].max_order + 2 };
     const paidVideo = { uuid: randomUUID(), episodeId: savedPaidEpisodeId, displayOrder: paidOrders[0].max_order + 1 };
-    Object.assign(savedVideoFixture, { dramaId: savedDramaId, previewVideos, otherUserVideo, otherUserBaselineVideos, tieVideos, paidVideo });
+    Object.assign(savedVideoFixture, { dramaId: savedDramaId, previewVideos, otherUserVideo, otherUserBaselineVideos, tieVideos, paidVideo, freeAlternateVideo });
     const trackSavedPairs = async videoUuid => {
       const [videos] = await db.execute('SELECT id FROM content_videos WHERE uuid = ?', [videoUuid]);
       if (!videos[0]) throw new Error('Saved-video fixture row could not be confirmed.');
@@ -456,7 +466,28 @@ async function main() {
       return uuid;
     };
     await addVideo('EPISODE', freeVideo.episodeId, 'FULL', freeVideo.displayOrder, freeVideo.uuid);
+    await addVideo('EPISODE', freeAlternateVideo.episodeId, 'FULL', freeAlternateVideo.displayOrder, freeAlternateVideo.uuid);
+    await db.execute('UPDATE content_videos SET duration_ms = 90000 WHERE uuid = ?', [freeAlternateVideo.uuid]);
     await addVideo('EPISODE', paidVideo.episodeId, 'FULL', paidVideo.displayOrder, paidVideo.uuid);
+    const progressFixtureVideos = [freeVideo.uuid, freeAlternateVideo.uuid, previewVideos[0].uuid];
+    const [progressVideoRows] = await db.query(
+      `SELECT id, uuid FROM content_videos WHERE uuid IN (${progressFixtureVideos.map(() => '?').join(',')})`,
+      progressFixtureVideos,
+    );
+    const progressIds = new Map(progressVideoRows.map(video => [video.uuid, video.id]));
+    const savedProgressExpected = new Map([
+      [progressIds.get(freeVideo.uuid), 40000],
+      [progressIds.get(freeAlternateVideo.uuid), 60000],
+      [progressIds.get(previewVideos[0].uuid), 40000],
+    ]);
+    for (const videoUuid of progressFixtureVideos) {
+      const videoId = progressIds.get(videoUuid);
+      if (videoId === undefined) throw new Error('Saved-video progress fixture could not be resolved.');
+      await fixtureContext.trackProgressPair(unentitled.id, videoId);
+      savedProgressPairs.push([unentitled.id, videoId]);
+    }
+    await fixtureContext.trackProgressPair(entitled.id, progressIds.get(freeVideo.uuid));
+    savedProgressPairs.push([entitled.id, progressIds.get(freeVideo.uuid)]);
     const [fullFixtureRows] = await db.execute(
       `SELECT free_video.uuid AS free_video_uuid, free_video.content_type AS free_content_type,
               free_video.kind AS free_kind, free_episode.id AS free_episode_id,
@@ -505,6 +536,13 @@ async function main() {
     const hiddenDramaId = await addDrama('PUBLISHED', new Date(Date.now() - 60000));
     const hiddenVideoUuid = await addVideo('DRAMA', hiddenDramaId, 'PREVIEW');
     const kindMismatchVideoUuid = await addVideo('DRAMA', savedDramaId, 'FULL');
+    const [rejectedVideos] = await db.execute(
+      'SELECT id, uuid FROM content_videos WHERE uuid IN (?, ?)', [hiddenVideoUuid, kindMismatchVideoUuid],
+    );
+    for (const video of rejectedVideos) {
+      await fixtureContext.trackProgressPair(unentitled.id, video.id);
+      rejectedProgressPairs.push([unentitled.id, video.id]);
+    }
     const episodeCases = [];
     const episodeDramaId = await addDrama('PUBLISHED', new Date(Date.now() - 60000));
     let episodeNumber = 1;
@@ -619,6 +657,12 @@ async function main() {
       savedPreviewVideoUuids: JSON.stringify(previewVideos.map(video => video.uuid)),
       savedLookupEpisodeUuid: savedEpisodeUuid,
       savedLookupEpisodeVideoUuid: freeVideo.uuid,
+      savedProgressDramaUuid: savedDramaUuid,
+      savedProgressEpisodeUuid: savedEpisodeUuid,
+      savedProgressPrimaryVideoUuid: freeVideo.uuid,
+      savedProgressAlternateVideoUuid: freeAlternateVideo.uuid,
+      savedProgressPreviewVideoUuid: previewVideos[0].uuid,
+      savedProgressWrongKindVideoUuid: kindMismatchVideoUuid,
       savedPaidEpisodeUuid,
       savedPaidVideoUuid: paidVideo.uuid,
       savedVideoIdOrder: JSON.stringify(savedVideoOrder.map(video => video.uuid)),
@@ -636,6 +680,25 @@ async function main() {
       userUuids: fixtureContext.userUuids, progressPairs: ownedPairs });
     exitCode = await runSuites(['--environment', environmentFile], false);
     if (exitCode !== 0) throw new Error('Postman failed for the saved-videos API suite.');
+    for (const [userId, videoId] of savedProgressPairs.filter(([userId]) => userId === unentitled.id)) {
+      const [rows] = await db.execute(
+        'SELECT position_ms, is_completed FROM user_watch_progress WHERE user_id = ? AND video_id = ?',
+        [userId, videoId],
+      );
+      if (rows.length !== 1 || Number(rows[0].position_ms) !== savedProgressExpected.get(videoId) || Number(rows[0].is_completed) !== 1) {
+        throw new Error('A saved-videos watch-progress fixture row did not match its expected owned state.');
+      }
+    }
+    const [otherUserProgress] = await db.execute(
+      'SELECT user_id FROM user_watch_progress WHERE user_id = ? AND video_id = ?', savedProgressPairs.at(-1),
+    );
+    if (otherUserProgress.length) throw new Error('A different fixture user received another user watch progress.');
+    for (const pair of rejectedProgressPairs) {
+      const [rows] = await db.execute(
+        'SELECT user_id FROM user_watch_progress WHERE user_id = ? AND video_id = ?', pair,
+      );
+      if (rows.length) throw new Error('A rejected saved-videos progress request created a watch-progress row.');
+    }
     const [hiddenSavedRows] = await db.execute(
       `SELECT saved.user_id
        FROM user_saved_videos saved
@@ -674,7 +737,14 @@ async function main() {
           [userId, videoUuid],
         ));
       }
-      if (savedVideoFixture) {
+      let progressCleanupSucceeded = true;
+      try {
+        await fixtureContext.cleanupProgress();
+      } catch (error) {
+        cleanupErrors.push(error);
+        progressCleanupSucceeded = false;
+      }
+      if (savedVideoFixture && progressCleanupSucceeded) {
         const videoIds = [
           ...savedVideoFixture.previewVideos.map(video => video.uuid),
           ...(savedVideoFixture.otherUserVideo ? [savedVideoFixture.otherUserVideo.uuid] : []),

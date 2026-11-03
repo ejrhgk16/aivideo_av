@@ -6,8 +6,8 @@ export type WatchProgressInput = {
   positionMs: number;
 };
 
-export function saveWatchProgress(episodeId: string, input: WatchProgressInput): Promise<void> {
-  return apiRequest<void>(`/me/episodes/${encodeURIComponent(episodeId)}/watch-progress`, {
+export function saveWatchProgress(videoUuid: string, input: WatchProgressInput): Promise<void> {
+  return apiRequest<void>(`/me/videos/${encodeURIComponent(videoUuid)}/watch-progress`, {
     auth: 'required',
     method: 'PUT',
     json: input,
