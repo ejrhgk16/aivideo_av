@@ -16,9 +16,11 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve, reject };
 }
 
-function setup() {
+function setup(initialTab = 'saved') {
   const requests: Deferred<any>[] = [];
   const requestPages: number[] = [];
+  const historyRequests: Deferred<any>[] = [];
+  const historyRequestPages: number[] = [];
   const routes: unknown[] = [];
   let user: { uuid: string } | null = null;
   let isRestoring = true;
@@ -67,7 +69,7 @@ function setup() {
     'react-native': { FlatList: 'FlatList', Pressable: 'Pressable', StyleSheet: { create: (value: unknown) => value }, View: 'View' },
     'expo-image': { Image: 'Image' },
     'expo-router': {
-      useLocalSearchParams: () => ({}),
+      useLocalSearchParams: () => ({ tab: initialTab }),
       useRouter: () => ({ push: (route: unknown) => routes.push(route) }),
       useFocusEffect(callback: () => void | (() => void)) {
         if (focusCallback !== callback) { focusDirty = true; focusCallback = callback; }
@@ -78,6 +80,7 @@ function setup() {
     '@/common/theme/tokens': { colors: { surface: '#111', elevated: '#222', muted: '#aaa', text: '#fff' } },
     '@/common/http/errorMessages': { getErrorMessage: (error: unknown) => error instanceof Error ? error.message : 'unknown' },
     '@/features/playback/savedVideos': { getSavedVideos: (page = 1) => { const request = deferred<any>(); requests.push(request); requestPages.push(page); return request.promise; }, savedVideoRoute: (item: any) => item.contentType === 'EPISODE' ? { pathname: '/episode/[id]', params: { id: item.episodeUuid, dramaId: item.dramaUuid } } : { pathname: '/preview/[dramaId]/[videoId]', params: { dramaId: item.dramaUuid, videoId: item.videoUuid } } },
+    '@/features/playback/watchHistory': { getWatchHistory: (page = 1) => { const request = deferred<any>(); historyRequests.push(request); historyRequestPages.push(page); return request.promise; } },
     '@/features/user/UserProvider': { useUser: () => ({ isRestoring, user, sessionVersion, isCurrentSession }) },
     '@/common/media': { resolveApiImageUrl: (url: string) => url },
   };
@@ -120,7 +123,7 @@ function setup() {
     return found.concat(Array.isArray(children) ? children.flatMap((child: any) => find(child, type)) : find(children, type));
   }
   return {
-    requests, requestPages, routes, render, settle, find, refocus, get tree() { return tree; },
+    requests, requestPages, historyRequests, historyRequestPages, routes, render, settle, find, refocus, get tree() { return tree; },
     setSession(nextUser: { uuid: string } | null, restoring: boolean, version: number) { user = nextUser; isRestoring = restoring; sessionVersion = version; },
   };
 }
@@ -128,6 +131,8 @@ function setup() {
 const page = (items: any[], hasNext = false) => ({ items, page: 1, hasNext });
 const preview = { videoUuid: 'preview-1', savedAt: 'now', dramaUuid: 'drama-1', dramaTitle: '작품 하나', imageUrl: null, durationMs: 60000, contentType: 'PREVIEW', episodeUuid: null, episodeNumber: null, episodeTitle: null };
 const episode = { videoUuid: 'episode-video-1', savedAt: 'now', dramaUuid: 'drama-2', dramaTitle: '작품 둘', imageUrl: '/cover.jpg', durationMs: 125000, contentType: 'EPISODE', episodeUuid: 'episode-1', episodeNumber: 2, episodeTitle: '두 번째' };
+const historyPreview = { ...preview, savedAt: undefined, lastPlayedAt: '2026-11-03T00:00:00.000Z' };
+const historyEpisode = { ...episode, savedAt: undefined, lastPlayedAt: '2026-11-02T00:00:00.000Z' };
 
 test('saved library waits for restored session, loads saved cards, and routes preview and episode records', async () => {
   const screen = setup();
@@ -222,40 +227,123 @@ test('saved library keeps load errors distinct from an empty list and refetches 
   assert.deepEqual(JSON.parse(JSON.stringify(late.find(late.tree, 'FlatList')[0].props.data.map((item: any) => item.videoUuid))), ['preview-1']);
 });
 
-test('saved library keeps history disconnected and retries the same next page without duplicate cards', async () => {
+test('history tab loads history cards only and routes preview and episode records like saved cards', async () => {
   const screen = setup();
   screen.render();
   const historyTab = screen.find(screen.tree, 'Pressable').find((node) => node.props.accessibilityRole === 'tab' && node.props.children?.props?.children === '시청 기록');
   assert.ok(historyTab);
   historyTab.props.onPress();
   screen.render();
-  assert.equal(screen.requests.length, 0, 'history does not call the saved-video API');
-  screen.setSession({ uuid: 'account-a' }, false, 1);
+  assert.equal(screen.requests.length, 0);
+  assert.deepEqual(screen.historyRequestPages, []);
+  screen.setSession(null, false, 1);
   screen.render();
-  assert.equal(screen.requests.length, 0, 'restoring a logged-in session while history is selected still does not load saved videos');
+  assert.equal(screen.find(screen.tree, 'EmptyState')[0]?.props.description, '시청 기록을 보려면 로그인해 주세요.');
+  assert.equal(screen.historyRequests.length, 0, 'anonymous history does not issue a request');
+  screen.setSession({ uuid: 'account-a' }, true, 2);
+  screen.render();
+  assert.equal(screen.requests.length, 0, 'history does not call the saved-video API');
+  assert.equal(screen.historyRequests.length, 0, 'history waits for session restoration');
+  screen.setSession({ uuid: 'account-a' }, false, 2);
+  screen.render();
+  assert.deepEqual(screen.historyRequestPages, [1]);
+  screen.historyRequests[0].resolve(page([historyPreview, historyEpisode]));
+  await screen.settle();
+  const list = screen.find(screen.tree, 'FlatList')[0];
+  assert.deepEqual(list.props.data.map((item: any) => item.videoUuid), ['preview-1', 'episode-video-1']);
+  list.props.renderItem({ item: historyPreview }).props.onPress();
+  list.props.renderItem({ item: historyEpisode }).props.onPress();
+  assert.deepEqual(JSON.parse(JSON.stringify(screen.routes)), [
+    { pathname: '/preview/[dramaId]/[videoId]', params: { dramaId: 'drama-1', videoId: 'preview-1' } },
+    { pathname: '/episode/[id]', params: { id: 'episode-1', dramaId: 'drama-2' } },
+  ]);
+  const card = list.props.renderItem({ item: historyPreview });
+  assert.deepEqual(screen.find(card, 'AppText').map((node) => node.props.children), ['작품 하나', '미리보기', '1분']);
+  assert.equal(screen.find(card, 'Image').length, 0);
+  assert.equal(screen.find(screen.tree, 'AppText').some((node) => node.props.children === historyPreview.lastPlayedAt), false);
+
   const savedTab = screen.find(screen.tree, 'Pressable').find((node) => node.props.accessibilityRole === 'tab' && node.props.children?.props?.children === '저장한 작품');
   assert.ok(savedTab);
   savedTab.props.onPress();
   screen.render();
   assert.deepEqual(screen.requestPages, [1]);
+  assert.deepEqual(screen.historyRequestPages, [1]);
   screen.requests[0].resolve(page([preview], true));
+  await screen.settle();
+});
+
+test('history retries the same next page, ignores duplicate requests, and deduplicates videos', async () => {
+  const screen = setup('history');
+  screen.setSession({ uuid: 'account-a' }, false, 1);
+  screen.render();
+  screen.historyRequests[0].resolve(page([historyPreview], true));
   await screen.settle();
 
   const more = screen.find(screen.find(screen.tree, 'FlatList')[0].props.ListFooterComponent, 'Button').find((node) => node.props.label === '더 보기');
   assert.ok(more);
   (more.props.onPress as () => void)();
   (more.props.onPress as () => void)();
-  assert.deepEqual(screen.requestPages, [1, 2], 'duplicate load-more presses share one in-flight page request');
-  screen.requests[1].reject(new Error('offline'));
+  assert.deepEqual(screen.historyRequestPages, [1, 2], 'duplicate load-more presses share one in-flight page request');
+  screen.historyRequests[1].reject(new Error('offline'));
   await screen.settle();
   assert.equal(screen.find(screen.tree, 'FlatList')[0].props.data.length, 1);
   const retry = screen.find(screen.find(screen.tree, 'FlatList')[0].props.ListFooterComponent, 'Button').find((node) => node.props.label === '다시 시도');
   assert.ok(retry);
   (retry.props.onPress as () => void)();
-  assert.deepEqual(screen.requestPages, [1, 2, 2], 'failed page is retried without advancing');
-  screen.requests[2].resolve(page([preview, episode]));
+  assert.deepEqual(screen.historyRequestPages, [1, 2, 2], 'failed page is retried without advancing');
+  screen.historyRequests[2].resolve(page([historyPreview, historyEpisode]));
   await screen.settle();
   assert.deepEqual(JSON.parse(JSON.stringify(screen.find(screen.tree, 'FlatList')[0].props.data.map((item: any) => item.videoUuid))), ['preview-1', 'episode-video-1']);
+});
+
+test('history distinguishes a first-page failure from an empty result and retries page one', async () => {
+  const screen = setup('history');
+  screen.setSession({ uuid: 'account-a' }, false, 1);
+  screen.render();
+  screen.historyRequests[0].reject(new Error('offline'));
+  await screen.settle();
+  const errorState = screen.find(screen.tree, 'EmptyState').find((node) => node.props.title === '시청 기록을 불러오지 못했어요');
+  assert.ok(errorState);
+  (errorState.props.onAction as () => void)();
+  screen.render();
+  assert.deepEqual(screen.historyRequestPages, [1, 1]);
+  screen.historyRequests[1].resolve(page([]));
+  await screen.settle();
+  assert.equal(screen.find(screen.tree, 'EmptyState')[0]?.props.title, '시청 기록이 없어요');
+});
+
+test('history hides cards during session changes and ignores late responses after tab switch or refocus', async () => {
+  const screen = setup('history');
+  screen.setSession({ uuid: 'account-a' }, false, 1);
+  screen.render();
+  screen.historyRequests[0].resolve(page([historyPreview], true));
+  await screen.settle();
+  const more = screen.find(screen.find(screen.tree, 'FlatList')[0].props.ListFooterComponent, 'Button').find((node) => node.props.label === '더 보기');
+  assert.ok(more);
+  (more.props.onPress as () => void)();
+  assert.deepEqual(screen.historyRequestPages, [1, 2]);
+
+  screen.setSession({ uuid: 'account-b' }, false, 2);
+  screen.render();
+  assert.equal(screen.find(screen.tree, 'FlatList').length, 0);
+  assert.deepEqual(screen.historyRequestPages, [1, 2, 1]);
+  screen.historyRequests[1].resolve(page([historyEpisode]));
+  await screen.settle();
+  assert.equal(screen.find(screen.tree, 'FlatList').length, 0, 'account A page cannot publish into account B');
+  screen.historyRequests[2].resolve(page([historyEpisode]));
+  await screen.settle();
+
+  screen.refocus();
+  screen.render();
+  assert.deepEqual(screen.historyRequestPages, [1, 2, 1, 1]);
+  screen.historyRequests[3].reject(new Error('late failure'));
+  const savedTab = screen.find(screen.tree, 'Pressable').find((node) => node.props.accessibilityRole === 'tab' && node.props.children?.props?.children === '저장한 작품');
+  assert.ok(savedTab);
+  savedTab.props.onPress();
+  screen.render();
+  await screen.settle();
+  assert.equal(screen.find(screen.tree, 'EmptyState').some((node) => node.props.title === '시청 기록을 불러오지 못했어요'), false,
+    'a late history error does not replace the selected saved tab');
 });
 
 test('saved library focus refresh shows server additions and removals and ignores an older next-page response', async () => {

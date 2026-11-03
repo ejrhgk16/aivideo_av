@@ -6,7 +6,8 @@ import { AppText, Button, EmptyState, Page, SectionTitle } from '@/components/ui
 import { AppTopBar } from '@/components/AppTopBar';
 import { colors } from '@/common/theme/tokens';
 import { getErrorMessage } from '@/common/http/errorMessages';
-import { getSavedVideos, savedVideoRoute, type SavedVideoItem } from '@/features/playback/savedVideos';
+import { getSavedVideos, savedVideoRoute, type SavedVideoItem, type WatchHistoryItem } from '@/features/playback/savedVideos';
+import { getWatchHistory } from '@/features/playback/watchHistory';
 import { useUser } from '@/features/user/UserProvider';
 import { resolveApiImageUrl } from '@/common/media';
 
@@ -19,6 +20,8 @@ function formatSavedDuration(durationMs: number): string {
 }
 
 type LibraryTab = '저장한 작품' | '시청 기록';
+type LibraryItem = SavedVideoItem | WatchHistoryItem;
+type ItemsOwner = { uuid: string; version: number; tab: LibraryTab };
 
 export function LibraryScreen() {
   const router = useRouter();
@@ -27,7 +30,7 @@ export function LibraryScreen() {
   const [selectedTab, setSelectedTab] = useState<LibraryTab | null>(null);
   useEffect(() => setSelectedTab(null), [params.tab]);
   const tab = selectedTab ?? (params.tab === 'history' || params.tab === '시청 기록' ? '시청 기록' : '저장한 작품');
-  const [items, setItems] = useState<SavedVideoItem[]>([]);
+  const [items, setItems] = useState<LibraryItem[]>([]);
   const [hasNext, setHasNext] = useState(false);
   const [status, setStatus] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
   const [error, setError] = useState<unknown>(null);
@@ -36,12 +39,20 @@ export function LibraryScreen() {
   const generation = useRef(0);
   const inFlight = useRef(false);
   const nextPage = useRef(2);
-  const [itemsOwner, setItemsOwner] = useState<{ uuid: string; version: number } | null>(null);
+  const [itemsOwner, setItemsOwner] = useState<ItemsOwner | null>(null);
   const owner = user?.uuid ?? null;
+  const currentTab = useRef(tab);
+  const currentOwner = useRef(owner);
+  currentTab.current = tab;
+  currentOwner.current = owner;
 
-  const loadPage = useCallback(async (page: number, replace: boolean, requestGeneration: number, version: number, userUuid: string) => {
+  const loadPage = useCallback(async (page: number, replace: boolean, requestGeneration: number, version: number, userUuid: string, requestTab: LibraryTab) => {
     if (inFlight.current) return;
     inFlight.current = true;
+    const isCurrentRequest = () => generation.current === requestGeneration
+      && isCurrentSession(version)
+      && currentOwner.current === userUuid
+      && currentTab.current === requestTab;
     if (replace) {
       setStatus('loading');
       setItems([]);
@@ -53,30 +64,37 @@ export function LibraryScreen() {
       setNextError(null);
     }
     try {
-      const result = await getSavedVideos(page);
-      if (generation.current !== requestGeneration || !isCurrentSession(version) || user?.uuid !== userUuid) return;
+      const result = requestTab === '시청 기록' ? await getWatchHistory(page) : await getSavedVideos(page);
+      if (!isCurrentRequest()) return;
       setItems((current) => {
-        const merged = replace ? [] : current;
+        if (replace) return result.items;
+        const merged: LibraryItem[] = [...current];
         const seen = new Set(merged.map((item) => item.videoUuid));
-        return [...merged, ...result.items.filter((item) => !seen.has(item.videoUuid))];
+        for (const item of result.items) {
+          if (!seen.has(item.videoUuid)) {
+            seen.add(item.videoUuid);
+            merged.push(item);
+          }
+        }
+        return merged;
       });
       setHasNext(result.hasNext);
-      nextPage.current = page + 1;
+      nextPage.current = result.page + 1;
       setStatus('loaded');
-      setItemsOwner({ uuid: userUuid, version });
+      setItemsOwner({ uuid: userUuid, version, tab: requestTab });
       setError(null);
       setNextError(null);
     } catch (error) {
-      if (generation.current !== requestGeneration || !isCurrentSession(version) || user?.uuid !== userUuid) return;
+      if (!isCurrentRequest()) return;
       if (replace) { setStatus('error'); setError(error); }
       else setNextError(error);
     } finally {
-      if (generation.current === requestGeneration) {
+      if (isCurrentRequest()) {
         inFlight.current = false;
         setNextLoading(false);
       }
     }
-  }, [isCurrentSession, user]);
+  }, [isCurrentSession]);
 
   useFocusEffect(useCallback(() => {
     const requestGeneration = ++generation.current;
@@ -86,23 +104,23 @@ export function LibraryScreen() {
     setItemsOwner(null);
     setHasNext(false);
     setNextError(null);
-    if (tab !== '저장한 작품' || isRestoring || !owner) {
+    if (isRestoring || !owner) {
       setStatus('idle');
       return () => { generation.current += 1; };
     }
-    void loadPage(1, true, requestGeneration, sessionVersion, owner);
+    void loadPage(1, true, requestGeneration, sessionVersion, owner, tab);
     return () => { generation.current += 1; inFlight.current = false; };
   }, [tab, isRestoring, owner, sessionVersion, loadPage]));
 
   const loadNextPage = () => {
-    if (!hasNext || nextLoading || status !== 'loaded' || !owner) return;
+    if (!ownsCurrentList || !hasNext || nextLoading || status !== 'loaded' || isRestoring || !owner) return;
     const page = nextPage.current;
-    void loadPage(page, false, generation.current, sessionVersion, owner);
+    void loadPage(page, false, generation.current, sessionVersion, owner, tab);
   };
-  const visibleItems = itemsOwner?.uuid === owner && itemsOwner.version === sessionVersion ? items : [];
-  const ownsCurrentList = itemsOwner?.uuid === owner && itemsOwner.version === sessionVersion;
+  const ownsCurrentList = itemsOwner?.uuid === owner && itemsOwner.version === sessionVersion && itemsOwner.tab === tab;
+  const visibleItems = ownsCurrentList ? items : [];
   const retry = () => {
-    if (owner) void loadPage(1, true, generation.current, sessionVersion, owner);
+    if (!isRestoring && owner) void loadPage(1, true, generation.current, sessionVersion, owner, tab);
   };
 
   return <Page header={<AppTopBar />} scroll={false} contentStyle={styles.page}>
@@ -110,12 +128,11 @@ export function LibraryScreen() {
     <View style={styles.tabs} accessibilityRole="tablist">
       {(['저장한 작품', '시청 기록'] as const).map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} style={[styles.tab, tab === item && styles.activeTab]} onPress={() => setSelectedTab(item)}><AppText weight={tab === item ? 'semibold' : 'regular'} style={[styles.tabLabel, tab === item && styles.activeLabel]}>{item}</AppText></Pressable>)}
     </View>
-    {tab === '시청 기록' ? <EmptyState title="시청 기록 기능은 준비 중이에요" description="시청 기록을 불러오는 기능은 아직 연결되지 않았어요." />
-      : isRestoring ? <EmptyState title="로그인 상태를 확인하고 있어요" description="잠시만 기다려 주세요." />
-      : !owner ? <EmptyState title="로그인이 필요해요" description="저장한 영상을 보려면 로그인해 주세요." action="로그인" onAction={() => router.push('/login')} />
-      : status === 'loading' || status === 'idle' || (status === 'loaded' && !ownsCurrentList) ? <EmptyState title="저장한 영상을 불러오는 중이에요" description="잠시만 기다려 주세요." />
-      : status === 'error' ? <EmptyState title="저장한 영상을 불러오지 못했어요" description={getErrorMessage(error)} action="다시 시도" onAction={retry} />
-      : visibleItems.length === 0 ? <EmptyState title="저장한 영상이 없어요" description="마음에 드는 영상을 저장해 보세요." />
+    {isRestoring ? <EmptyState title="로그인 상태를 확인하고 있어요" description="잠시만 기다려 주세요." />
+      : !owner ? <EmptyState title="로그인이 필요해요" description={tab === '시청 기록' ? '시청 기록을 보려면 로그인해 주세요.' : '저장한 영상을 보려면 로그인해 주세요.'} action="로그인" onAction={() => router.push('/login')} />
+      : status === 'loading' || status === 'idle' || (status === 'loaded' && !ownsCurrentList) ? <EmptyState title={tab === '시청 기록' ? '시청 기록을 불러오는 중이에요' : '저장한 영상을 불러오는 중이에요'} description="잠시만 기다려 주세요." />
+      : status === 'error' ? <EmptyState title={tab === '시청 기록' ? '시청 기록을 불러오지 못했어요' : '저장한 영상을 불러오지 못했어요'} description={getErrorMessage(error)} action="다시 시도" onAction={retry} />
+      : visibleItems.length === 0 ? <EmptyState title={tab === '시청 기록' ? '시청 기록이 없어요' : '저장한 영상이 없어요'} description={tab === '시청 기록' ? '영상을 시청하면 이곳에 표시돼요.' : '마음에 드는 영상을 저장해 보세요.'} />
       : <FlatList data={visibleItems} keyExtractor={(item) => item.videoUuid} renderItem={({ item }) => {
         const videoLabel = item.contentType === 'PREVIEW' ? '미리보기' : `에피소드 ${item.episodeNumber}화`;
         return <Pressable accessibilityRole="button" accessibilityLabel={`${item.dramaTitle} ${videoLabel}`} style={styles.card} onPress={() => router.push(savedVideoRoute(item))}>

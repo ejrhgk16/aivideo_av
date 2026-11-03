@@ -8,13 +8,15 @@ import { WatchProgressController } from './watchProgressController.js';
 import { WatchProgressService } from './watchProgressService.js';
 import { SavedVideoController } from './savedVideoController.js';
 import { SavedVideoService } from './savedVideoService.js';
+import { WatchHistoryController } from './watchHistoryController.js';
+import { WatchHistoryService } from './watchHistoryService.js';
 
 @Module({
   imports: [
     IdentityModule,
     TypeOrmModule.forFeature([Drama, Episode, ContentVideo, EpisodeEntitlement, User]),
   ],
-  controllers: [WatchProgressController, SavedVideoController],
-  providers: [WatchProgressService, SavedVideoService],
+  controllers: [WatchProgressController, SavedVideoController, WatchHistoryController],
+  providers: [WatchProgressService, SavedVideoService, WatchHistoryService],
 })
 export class PlaybackModule {}

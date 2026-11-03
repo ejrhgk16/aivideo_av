@@ -6,15 +6,21 @@ import { parseSuiteArguments, selectSuites, suites } from '../../api/suites.mjs'
 const collectionDirectory = fileURLToPath(new URL('../../api/', import.meta.url));
 
 describe('API suite selection', () => {
-  it('registers all eight suites in the default order', () => {
+  it('registers all nine suites in the default order', () => {
     expect(selectSuites([]).map(suite => suite.id)).toEqual([
-      'http', 'identity', 'content', 'programming', 'playback', 'economy', 'watch-progress', 'saved-videos',
+      'http', 'identity', 'content', 'programming', 'playback', 'economy', 'watch-progress', 'saved-videos', 'watch-history',
     ]);
   });
 
   it('selects requested suites once in canonical order', () => {
-    expect(selectSuites(['--suite', 'saved-videos', '--suite', 'content', '--suite', 'saved-videos'])
-      .map(suite => suite.id)).toEqual(['content', 'saved-videos']);
+    expect(selectSuites(['--suite', 'watch-history', '--suite', 'content', '--suite', 'watch-history'])
+      .map(suite => suite.id)).toEqual(['content', 'watch-history']);
+  });
+
+  it('runs watch-history under the exclusive content lock', () => {
+    expect(selectSuites(['--suite', 'watch-history'])).toMatchObject([
+      { id: 'watch-history', contentMode: 'exclusive', collection: 'watch-history.postman_collection.json' },
+    ]);
   });
 
   it.each([['--suite'], ['--suite', ''], ['--suite', 'unknown'], ['--unknown']])(

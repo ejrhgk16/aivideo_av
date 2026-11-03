@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ApiError } from '../../src/common/http/api';
+import type { WatchHistoryItem } from '../../src/features/playback/playbackResponses';
 import { getSavedVideos, removeSavedVideo, saveVideo, savedVideoRoute, type SavedVideoItem } from '../../src/features/playback/savedVideos';
 import { configureSessionClient } from '../../src/features/user/sessionClient';
 
@@ -88,6 +89,33 @@ test('saved-video requests use required auth, the existing endpoints, and type-s
       pathname: '/preview/[dramaId]/[videoId]',
       params: { dramaId: 'drama-1', videoId: 'preview-video' },
     });
+    const historyEpisode: WatchHistoryItem = {
+      videoUuid: episode.videoUuid,
+      contentType: episode.contentType,
+      lastPlayedAt: '2026-11-03T00:00:00.000Z',
+      dramaUuid: episode.dramaUuid,
+      dramaTitle: episode.dramaTitle,
+      imageUrl: episode.imageUrl,
+      durationMs: episode.durationMs,
+      episodeUuid: episode.episodeUuid,
+      episodeNumber: episode.episodeNumber,
+      episodeTitle: episode.episodeTitle,
+    };
+    const historyPreview: WatchHistoryItem = {
+      videoUuid: preview.videoUuid,
+      contentType: preview.contentType,
+      lastPlayedAt: '2026-11-02T00:00:00.000Z',
+      dramaUuid: preview.dramaUuid,
+      dramaTitle: preview.dramaTitle,
+      imageUrl: preview.imageUrl,
+      durationMs: preview.durationMs,
+      episodeUuid: preview.episodeUuid,
+      episodeNumber: preview.episodeNumber,
+      episodeTitle: preview.episodeTitle,
+    };
+    assert.deepEqual(savedVideoRoute(historyEpisode), savedVideoRoute(episode));
+    assert.deepEqual(savedVideoRoute(historyPreview), savedVideoRoute(preview));
+    assert.equal(requests.length, 4, 'routing history-shaped items does not issue another API request');
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;

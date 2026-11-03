@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import test from 'node:test';
 import vm from 'node:vm';
 import { createRecommendationPreviewBuffer, type RecommendationPreviewPlayer } from '../../src/features/playback/recommendationPreviewBuffer';
+import { createWatchProgressTracker } from '../../src/features/playback/watchProgress';
 
 type Target = { dramaId: string; videoId: string };
 type Deferred<T> = { promise: Promise<T>; resolve(value: T): void; reject(error: unknown): void };
@@ -19,6 +20,7 @@ function deferred<T>(): Deferred<T> {
 
 class FakePlayer implements RecommendationPreviewPlayer {
   currentTime = 0;
+  duration = 90;
   status = 'readyToPlay';
   playing = false;
   released = 0;
@@ -208,6 +210,7 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay', 
   const pending: Array<{ task: Deferred<any>; target: Target }> = [];
   const homeRequests: Array<Deferred<any>> = [];
   const savedWrites: unknown[][] = [];
+  const watchWrites: unknown[][] = [];
   const savedWriteTasks: Deferred<void>[] = [];
   let deferSavedWrites = false;
   let saveHandler = () => {};
@@ -342,6 +345,12 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay', 
       const task = deferred<void>(); savedWriteTasks.push(task); return task.promise;
     },
   };
+  modules['@/features/playback/watchProgress'] = {
+    createWatchProgressTracker,
+    saveWatchProgress: async (videoUuid: string, input: { event: string; positionMs: number }) => {
+      watchWrites.push([videoUuid, input.event, input.positionMs]);
+    },
+  };
   modules['@/features/user/UserProvider'] = { useUser: () => ({ isRestoring: false, sessionVersion: 1, isCurrentSession, sessionExpired: false, user: { uuid: 'user-1' } }) };
   modules['@/common/http/api'] = { ApiError: class ApiError extends Error { status = 401; }, SessionChangedError: class SessionChangedError extends Error {} };
   modules['@/common/http/errorMessages'] = { getErrorMessage: () => 'save failed' };
@@ -414,7 +423,7 @@ function createRecommendationScreenHarness(initialPlayerStatus = 'readyToPlay', 
     return rendered;
   };
   return {
-    commit, find, nodes, render, pending, players, timers, scrollOffsets, frames, wheelListeners, savedWrites, savedWriteTasks,
+    commit, find, nodes, render, pending, players, timers, scrollOffsets, frames, wheelListeners, savedWrites, savedWriteTasks, watchWrites,
     deferSavedWrites() { deferSavedWrites = true; },
     setSaveHandler(handler: () => void) { saveHandler = handler; },
     setScrollBounds(contentHeight: number, viewportHeight: number) {
@@ -502,12 +511,12 @@ test('recommendation mounts idle web players so canplay can make current and nei
 });
 
 
-async function loadScreen(screen: ReturnType<typeof createRecommendationScreenHarness>, count = 4, resolvePlayers = true, isSaved = false) {
+async function loadScreen(screen: ReturnType<typeof createRecommendationScreenHarness>, count = 4, resolvePlayers = true, isSaved = false, durationMs = 1000) {
   screen.commit();
   screen.homeRequests[0].resolve({ dramas: Array.from({ length: count }, (_, i) => ({
     uuid: `drama-${i + 1}`, displayOrder: i + 1, title: `Drama ${i + 1}`, shortDescription: '',
     genres: [], imageUrls: { poster: `poster-${i + 1}` },
-    previewVideos: [{ uuid: `preview-${i + 1}`, storageKey: '', durationMs: 1000, isSaved }],
+    previewVideos: [{ uuid: `preview-${i + 1}`, storageKey: '', durationMs, isSaved }],
   })) });
   await flush(); screen.commit();
   let feed = screen.nodes(screen.find('Page')).find((node) => node.type === 'View' && node.props.onLayout)!;
@@ -715,6 +724,55 @@ test('recommendation bookmark saves the first preview and the collection retains
   screen.commit();
   assert.equal(screen.find('FlatList').props.data[0].previewVideos[0].isSaved, true,
     'the parent collection keeps the saved flag when the active card controls are recreated');
+});
+
+test('recommendation records only the selected advancing preview with its server duration', async () => {
+  const screen = createRecommendationScreenHarness();
+  await loadScreen(screen, 2, true, false, 60000);
+  const list = screen.find('FlatList');
+  const firstDrama = list.props.data[0];
+  const firstCard = list.props.renderItem({ item: firstDrama });
+  const firstControl = screen.nodes(firstCard).find((node) => (node.type as any)?.name === 'RecommendationPreviewPlayer');
+  assert.ok(firstControl);
+  screen.render(firstControl);
+  screen.commit();
+
+  const [selectedPlayer, neighborPlayer] = screen.players;
+  assert.deepEqual(screen.watchWrites, [], 'preloaded neighbor players and playback URL loading do not record views');
+  neighborPlayer.emit('timeUpdate', { currentTime: 1 });
+  assert.deepEqual(screen.watchWrites, [], 'the neighbor has no recording listener before it becomes selected');
+
+  const withMoving = { ...firstControl, props: { ...firstControl.props, moving: true } };
+  screen.render(withMoving);
+  screen.commit();
+  selectedPlayer.emit('timeUpdate', { currentTime: 0 });
+  selectedPlayer.emit('timeUpdate', { currentTime: 1 });
+  await flush();
+  assert.deepEqual(screen.watchWrites, [], 'a swipe in progress does not create a view');
+
+  const settledControl = { ...firstControl, props: { ...firstControl.props, moving: false } };
+  screen.render(settledControl);
+  screen.commit();
+  selectedPlayer.emit('playingChange', { isPlaying: true });
+  for (let second = 0; second <= 39; second += 1) selectedPlayer.emit('timeUpdate', { currentTime: second });
+  await flush();
+  assert.deepEqual(JSON.parse(JSON.stringify(screen.watchWrites)), [
+    ['preview-1', 'STARTED', 0],
+  ], 'the selected preview records its exact UUID only after playback advances');
+
+  selectedPlayer.emit('timeUpdate', { currentTime: 40 });
+  selectedPlayer.emit('timeUpdate', { currentTime: 41 });
+  await flush();
+  assert.deepEqual(JSON.parse(JSON.stringify(screen.watchWrites)), [
+    ['preview-1', 'STARTED', 0],
+    ['preview-1', 'COMPLETED', 40000],
+  ], 'the completion threshold uses preview durationMs=60000 rather than the player duration of 90 seconds');
+
+  screen.blur();
+  screen.commit();
+  selectedPlayer.emit('timeUpdate', { currentTime: 42 });
+  await flush();
+  assert.equal(screen.watchWrites.length, 2, 'focus cleanup stops old playback events');
 });
 
 test('saving and removing the paused recommendation preview never resumes it', async () => {

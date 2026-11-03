@@ -17,6 +17,7 @@ import { getHomeCollection, type HomeCollection, type HomeCollectionDrama } from
 import { getPreviewPlayback } from '@/features/playback/previewPlayback';
 import { createRecommendationPreviewBuffer, recommendationPreviewKey, type RecommendationPreviewEntry } from '@/features/playback/recommendationPreviewBuffer';
 import { removeSavedVideo, saveVideo } from '@/features/playback/savedVideos';
+import { createWatchProgressTracker, saveWatchProgress } from '@/features/playback/watchProgress';
 import { useUser } from '@/features/user/UserProvider';
 
 type CollectionStatus = 'loading' | 'loaded' | 'error';
@@ -68,6 +69,11 @@ function RecommendationPreviewPlayer({
   const router = useRouter();
   const { user, isRestoring, sessionExpired, sessionVersion, isCurrentSession } = useUser();
   const preview = drama.previewVideos[0];
+  const movingRef = useRef(moving);
+  const trackListenerRef = useRef(trackListener);
+  const previousPlaybackTime = useRef<number | null>(null);
+  movingRef.current = moving;
+  trackListenerRef.current = trackListener;
   const [isSaved, setIsSaved] = useState(initialSaved);
   const [saving, setSaving] = useState(false);
   const [savedError, setSavedError] = useState<unknown>(null);
@@ -116,6 +122,7 @@ function RecommendationPreviewPlayer({
   const seeking = useRef(false);
   const seekTouchActive = useRef(false);
   onErrorRef.current = onError;
+  useEffect(() => { previousPlaybackTime.current = null; }, [moving]);
   const episodes = [...(content?.episodes ?? [])].sort((first, second) => first.episodeNumber - second.episodeNumber);
   const firstEpisode = episodes[0] ?? null;
   const genres = drama.genres.map((genre) => genre.name).join(' · ') || '장르 정보 없음';
@@ -187,6 +194,40 @@ function RecommendationPreviewPlayer({
     };
   }, [clearHideTimer, player, showControls]);
 
+  useEffect(() => {
+    if (!preview || isRestoring || !user || preview.durationMs <= 0) return;
+    let active = true;
+    const version = sessionVersion;
+    const tracker = createWatchProgressTracker(
+      (input) => saveWatchProgress(preview.uuid, input),
+      () => active && isCurrentSession(version),
+    );
+    const resetSample = () => { previousPlaybackTime.current = null; };
+    resetSample();
+    const time = trackListenerRef.current(player.addListener('timeUpdate', ({ currentTime }) => {
+      if (!active || !isCurrentSession(version) || movingRef.current || !player.playing || player.status !== 'readyToPlay' || seeking.current || !Number.isFinite(currentTime)) {
+        resetSample();
+        return;
+      }
+      const previous = previousPlaybackTime.current;
+      previousPlaybackTime.current = currentTime;
+      if (previous === null || currentTime <= previous) return;
+      if (currentTime - previous > Math.max(2, player.playbackRate * 2)) return;
+      const positionMs = Math.min(preview.durationMs, Math.max(0, Math.floor(currentTime * 1000)));
+      tracker.onProgress(positionMs, preview.durationMs);
+    }));
+    const playing = trackListenerRef.current(player.addListener('playingChange', resetSample));
+    const status = trackListenerRef.current(player.addListener('statusChange', resetSample));
+    return () => {
+      active = false;
+      tracker.dispose();
+      time.remove();
+      playing.remove();
+      status.remove();
+      resetSample();
+    };
+  }, [isCurrentSession, isRestoring, player, preview?.durationMs, preview?.uuid, sessionVersion, user?.uuid]);
+
   const formatTime = (seconds: number) => {
     const whole = Math.floor(Math.max(0, seconds));
     return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
@@ -248,7 +289,7 @@ function RecommendationPreviewPlayer({
         <View style={styles.playerEpisodeInfo}><AppText style={styles.playerEpisodeText}>{`${genres} · 미리보기`}</AppText><AppText style={styles.playerTime}>{formatTime(position)} / {formatTime(duration)}</AppText></View>
         <Pressable onPress={watchFirstEpisode} accessibilityRole="button" accessibilityLabel="1화부터 본편 보기" style={styles.playerWatchButton}><Icon name="play" size={16} color={colors.background} /><AppText weight="semibold" style={styles.playerWatchLabel}>1화부터 본편 보기</AppText><AppText style={styles.playerWatchMeta}>{firstEpisode ? `${firstEpisode.episodeNumber}화` : '회차 목록'}</AppText></Pressable>
         <Slider {...seekTouchHandlers} style={styles.playerSlider} minimumValue={0} maximumValue={Math.max(duration, 1)} value={position} disabled={duration <= 0} minimumTrackTintColor={colors.accent} maximumTrackTintColor="rgba(255,255,255,0.45)" thumbTintColor={colors.accent}
-          onSlidingStart={() => { seeking.current = true; onSeekTouch(true); clearHideTimer(); }} onValueChange={setPosition} onSlidingComplete={(value) => { player.currentTime = value; seeking.current = false; updateSeekTouch(false); showControls(); }} />
+          onSlidingStart={() => { seeking.current = true; previousPlaybackTime.current = null; onSeekTouch(true); clearHideTimer(); }} onValueChange={setPosition} onSlidingComplete={(value) => { player.currentTime = value; seeking.current = false; previousPlaybackTime.current = null; updateSeekTouch(false); showControls(); }} />
       </View>
     </>}
     <Modal visible={settingsOpen} transparent animationType="fade" onRequestClose={() => setSettingsOpen(false)} statusBarTranslucent>

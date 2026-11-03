@@ -16,6 +16,7 @@ import { colors } from '@/common/theme/tokens';
 import { getDramaContent, type DramaContent } from '@/features/drama/dramaContent';
 import { getPreviewPlayback, type PreviewPlayback } from '@/features/playback/previewPlayback';
 import { removeSavedVideo, saveVideo } from '@/features/playback/savedVideos';
+import { createWatchProgressTracker, saveWatchProgress } from '@/features/playback/watchProgress';
 import { useUser } from '@/features/user/UserProvider';
 
 type PreviewState =
@@ -86,10 +87,10 @@ export function PlaybackScreenPreview({ dramaId, videoId }: { dramaId: string; v
       ? { ...current, playback: { ...current.playback, isSaved: nextSaved } }
       : current);
   };
-  return <PreviewVideo key={`${user?.uuid ?? 'anonymous'}:${sessionVersion}:${videoId}`} drama={state.drama} url={state.playback.url} videoId={videoId} initialSaved={state.playback.isSaved} savedWrites={savedWrites.current} onSavedChange={updateSaved} onClose={back} />;
+  return <PreviewVideo key={`${user?.uuid ?? 'anonymous'}:${sessionVersion}:${state.playback.videoUuid}`} drama={state.drama} url={state.playback.url} videoId={state.playback.videoUuid} durationMs={state.playback.durationMs} initialSaved={state.playback.isSaved} savedWrites={savedWrites.current} onSavedChange={updateSaved} onClose={back} />;
 }
 
-function PreviewVideo({ drama, url, videoId, initialSaved, savedWrites, onSavedChange, onClose }: { drama: DramaContent; url: string; videoId: string; initialSaved: boolean; savedWrites: { ownerKey: string; revision: number; pending: boolean }; onSavedChange: (isSaved: boolean, version: number) => void; onClose: () => void }) {
+function PreviewVideo({ drama, url, videoId, durationMs, initialSaved, savedWrites, onSavedChange, onClose }: { drama: DramaContent; url: string; videoId: string; durationMs: number; initialSaved: boolean; savedWrites: { ownerKey: string; revision: number; pending: boolean }; onSavedChange: (isSaved: boolean, version: number) => void; onClose: () => void }) {
   const router = useRouter();
   const { user, isRestoring, sessionExpired, sessionVersion, isCurrentSession } = useUser();
   const [isSaved, setIsSaved] = useState(initialSaved);
@@ -111,6 +112,7 @@ function PreviewVideo({ drama, url, videoId, initialSaved, savedWrites, onSavedC
   const [playbackRate, setPlaybackRate] = useState(player.playbackRate);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seeking = useRef(false);
+  const previousPlaybackTime = useRef<number | null>(null);
   const insets = useSafeAreaInsets();
   const posterUrl = resolveApiImageUrl(drama.imageUrls.poster);
   const genres = drama.genres.map((genre) => genre.name).join(' · ') || '장르 정보 없음';
@@ -167,6 +169,38 @@ function PreviewVideo({ drama, url, videoId, initialSaved, savedWrites, onSavedC
     clearHideTimer();
     player.pause();
   }, [clearHideTimer, player]));
+  useFocusEffect(useCallback(() => {
+    if (isRestoring || !user || durationMs <= 0) return;
+    const version = sessionVersion;
+    const tracker = createWatchProgressTracker(
+      (input) => saveWatchProgress(videoId, input),
+      () => isCurrentSession(version),
+    );
+    player.timeUpdateEventInterval = 0.5;
+    previousPlaybackTime.current = null;
+    const resetSample = () => { previousPlaybackTime.current = null; };
+    const time = player.addListener('timeUpdate', ({ currentTime }) => {
+      if (!isCurrentSession(version) || !player.playing || player.status !== 'readyToPlay' || seeking.current || !Number.isFinite(currentTime)) {
+        resetSample();
+        return;
+      }
+      const previous = previousPlaybackTime.current;
+      previousPlaybackTime.current = currentTime;
+      if (previous === null || currentTime <= previous) return;
+      if (currentTime - previous > Math.max(2, player.playbackRate * 2)) return;
+      const positionMs = Math.min(durationMs, Math.max(0, Math.floor(currentTime * 1000)));
+      tracker.onProgress(positionMs, durationMs);
+    });
+    const playing = player.addListener('playingChange', resetSample);
+    const status = player.addListener('statusChange', resetSample);
+    return () => {
+      time.remove();
+      playing.remove();
+      status.remove();
+      previousPlaybackTime.current = null;
+      tracker.dispose();
+    };
+  }, [durationMs, isCurrentSession, isRestoring, player, sessionVersion, user?.uuid, videoId]));
   useEffect(() => {
     const playing = player.addListener('playingChange', ({ isPlaying: next }) => setIsPlaying(next));
     const status = player.addListener('statusChange', ({ status: next }) => {
@@ -299,11 +333,12 @@ function PreviewVideo({ drama, url, videoId, initialSaved, savedWrites, onSavedC
           minimumTrackTintColor={colors.accent}
           maximumTrackTintColor="rgba(255,255,255,0.45)"
           thumbTintColor={colors.accent}
-          onSlidingStart={() => { seeking.current = true; clearHideTimer(); }}
+          onSlidingStart={() => { seeking.current = true; previousPlaybackTime.current = null; clearHideTimer(); }}
           onValueChange={setPosition}
           onSlidingComplete={(value) => {
             player.currentTime = value;
             seeking.current = false;
+            previousPlaybackTime.current = null;
             showControls();
           }}
         />

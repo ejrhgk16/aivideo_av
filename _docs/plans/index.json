@@ -294,6 +294,12 @@
       "directory": "plan-49-video-watch-progress",
       "title": "시청 기록 사용자·영상 키 전환과 요청·조회 API 정합화",
       "status": "completed"
+    },
+    {
+      "id": "plan-50-watch-history-library",
+      "directory": "plan-50-watch-history-library",
+      "title": "보관함 시청기록 페이징 조회와 추천·미리보기 기록 저장",
+      "status": "completed"
     }
   ]
 }

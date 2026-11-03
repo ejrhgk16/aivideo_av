@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import test from 'node:test';
 import vm from 'node:vm';
+import { createWatchProgressTracker } from '../../src/features/playback/watchProgress';
 
 const ts = require(resolve(process.cwd(), 'node_modules/typescript')) as typeof import('typescript');
 type Tree = { type: any; props: Record<string, any> };
@@ -91,21 +92,28 @@ function previewScreen() {
   const callbacks = new Map<string, Array<{ callback: (...args: any[]) => any; deps: unknown[] }>>();
   let component = 'screen';
   let hook = 0;
-  let focusCallback: (() => void | (() => void)) | null = null;
-  let focusCleanup: (() => void) | undefined;
+  const focusEffects = new Map<string, { component: string; callback: () => void | (() => void); cleanup?: () => void }>();
+  let focused = true;
   let tree: Tree;
   let playerCount = 0;
   let activeSource: string | null = null;
+  const playerListeners = new Map<string, Set<(payload: any) => void>>();
   let sessionVersion = 1;
   const isCurrentSession = (version: number) => version === sessionVersion;
   const player = {
     currentTime: 0, duration: 60, playbackRate: 1, timeUpdateEventInterval: 0,
     playing: true, status: 'readyToPlay', playCalls: 0,
     play() { this.playCalls += 1; this.playing = true; }, pause() { this.playing = false; },
-    addListener() { return { remove() {} }; },
+    addListener(name: string, listener: (payload: any) => void) {
+      const listeners = playerListeners.get(name) ?? new Set();
+      listeners.add(listener);
+      playerListeners.set(name, listeners);
+      return { remove: () => listeners.delete(listener) };
+    },
   };
   const fetched: string[] = [];
   const savedWrites: unknown[][] = [];
+  const watchWrites: unknown[][] = [];
   const writeTasks: Deferred<void>[] = [];
   const queuedDrama: Deferred<any>[] = [];
   let deferWrites = false;
@@ -164,9 +172,12 @@ function previewScreen() {
     'expo-router': {
       useRouter: () => ({ canGoBack: () => true, back() {}, replace() {}, push(route: unknown) { pushes.push(route); } }),
       useFocusEffect(callback: () => void | (() => void)) {
-        if (component.startsWith('screen')) {
-          if (callback !== focusCallback) { focusCleanup?.(); focusCallback = callback; focusCleanup = callback() ?? undefined; }
-        } else callback();
+        const index = hook++;
+        const key = `${component}:${index}`;
+        const previous = focusEffects.get(key);
+        if (previous?.callback === callback) return;
+        previous?.cleanup?.();
+        focusEffects.set(key, { component, callback, cleanup: focused ? callback() ?? undefined : undefined });
       },
     },
     'expo-video': { VideoView: 'VideoView', useVideoPlayer: (url: string, initialize: (value: typeof player) => void) => { if (url !== activeSource) { activeSource = url; playerCount += 1; initialize(fakePlayer); } return fakePlayer; } },
@@ -189,6 +200,12 @@ function previewScreen() {
     '@/features/playback/savedVideos': {
       saveVideo: (videoUuid: string, type: string) => { savedWrites.push([videoUuid, type, 'save']); if (!deferWrites) return Promise.resolve(); const task = deferred<void>(); writeTasks.push(task); return task.promise; },
       removeSavedVideo: (videoUuid: string) => { savedWrites.push([videoUuid, 'remove']); if (!deferWrites) return Promise.resolve(); const task = deferred<void>(); writeTasks.push(task); return task.promise; },
+    },
+    '@/features/playback/watchProgress': {
+      createWatchProgressTracker,
+      saveWatchProgress: async (videoUuid: string, input: { event: string; positionMs: number }) => {
+        watchWrites.push([videoUuid, input.event, input.positionMs]);
+      },
     },
     '@/features/user/UserProvider': { useUser: () => ({ isRestoring, sessionVersion, isCurrentSession, user: currentUserUuid === null ? null : { uuid: currentUserUuid }, sessionExpired: false }) },
   };
@@ -221,13 +238,32 @@ function previewScreen() {
       bucket.forEach((entry) => entry?.cleanup?.());
       effects.delete(name); values.delete(name); refs.delete(name); callbacks.delete(name);
     }
+    for (const [key, entry] of focusEffects) {
+      if (entry.component === 'screen') continue;
+      const name = entry.component;
+      if (renderedComponents.has(name)) continue;
+      entry.cleanup?.();
+      focusEffects.delete(key);
+    }
     return tree;
   };
   const nodes = (node: any): Tree[] => !node || typeof node !== 'object' ? [] : [node as Tree, ...(Array.isArray(node.props?.children) ? node.props.children.flatMap(nodes) : nodes(node.props?.children))];
   return {
-    render, nodes, get tree() { return tree; }, get playerCount() { return playerCount; }, player: fakePlayer, fetched, savedWrites,
+    render, nodes, get tree() { return tree; }, get playerCount() { return playerCount; }, player: fakePlayer, fetched, savedWrites, watchWrites,
+    emit(name: string, payload: unknown) { for (const listener of playerListeners.get(name) ?? []) listener(payload); },
+    emitTime(currentTime: number) { fakePlayer.currentTime = currentTime; for (const listener of playerListeners.get('timeUpdate') ?? []) listener({ currentTime }); },
+    blur() {
+      focused = false;
+      for (const entry of focusEffects.values()) { entry.cleanup?.(); entry.cleanup = undefined; }
+    },
     pushes,
-    refocus() { focusCleanup?.(); focusCleanup = focusCallback?.() ?? undefined; },
+    refocus() {
+      focused = true;
+      for (const entry of focusEffects.values()) {
+        entry.cleanup?.();
+        entry.cleanup = entry.callback() ?? undefined;
+      }
+    },
     writeTasks,
     deferWrites() { deferWrites = true; },
     changeSession(uuid: string | null) { sessionVersion += 1; currentUserUuid = uuid; render(); },
@@ -264,6 +300,68 @@ test('preview save uses the exact selected route video and focus refresh keeps t
   assert.equal(screen.player.currentTime, 23, 'metadata refresh preserves playback position');
   assert.ok(screen.nodes(screen.tree).some((node) => node.type === 'Pressable' && node.props.accessibilityLabel === '저장 해제'),
     'fresh server metadata changes the button back to saved without remounting playback');
+});
+
+test('preview records the selected video once using server duration after playback advances', async () => {
+  const screen = previewScreen();
+  screen.render();
+  await screen.settle();
+  assert.deepEqual(screen.watchWrites, [], 'loading its URL alone does not record a view');
+
+  screen.emitTime(0);
+  for (let second = 1; second <= 39; second += 1) screen.emitTime(second);
+  await screen.settle();
+  assert.deepEqual(JSON.parse(JSON.stringify(screen.watchWrites)), [
+    ['preview-exact', 'STARTED', 0],
+  ], '39 seconds is below the server duration of 60 seconds and records only a start');
+
+  screen.emitTime(40);
+  screen.emitTime(41);
+  await screen.settle();
+  assert.deepEqual(JSON.parse(JSON.stringify(screen.watchWrites)), [
+    ['preview-exact', 'STARTED', 0],
+    ['preview-exact', 'COMPLETED', 40000],
+  ], 'the 2/3 boundary uses playback metadata durationMs even though the player reports 90 seconds');
+});
+
+test('preview ignores paused, sought, and blurred time updates while retaining player controls', async () => {
+  const screen = previewScreen();
+  screen.render();
+  await screen.settle();
+
+  screen.player.pause();
+  screen.emit('playingChange', { isPlaying: false });
+  screen.emitTime(1);
+  assert.deepEqual(screen.watchWrites, []);
+  screen.player.play();
+  screen.emit('playingChange', { isPlaying: true });
+  screen.emitTime(0);
+  screen.emitTime(1);
+  await screen.settle();
+  assert.deepEqual(JSON.parse(JSON.stringify(screen.watchWrites)), [['preview-exact', 'STARTED', 0]]);
+
+  const slider = screen.nodes(screen.tree).find((node) => node.type === 'Slider');
+  assert.ok(slider);
+  slider.props.onSlidingStart();
+  screen.emitTime(40);
+  assert.deepEqual(JSON.parse(JSON.stringify(screen.watchWrites)), [['preview-exact', 'STARTED', 0]], 'seeking alone cannot complete a watch');
+  slider.props.onSlidingComplete(40);
+  screen.emitTime(40.5);
+  assert.deepEqual(JSON.parse(JSON.stringify(screen.watchWrites)), [['preview-exact', 'STARTED', 0]], 'the first post-seek sample establishes a new baseline');
+  screen.emitTime(41);
+  await screen.settle();
+  assert.equal(screen.watchWrites.length, 2, 'completion follows an advancing sample after the seek');
+
+  screen.changeVideo('preview-next');
+  await screen.settle();
+  screen.emitTime(0);
+  screen.emitTime(1);
+  await screen.settle();
+  assert.equal(screen.watchWrites[2][0], 'preview-next', 'route changes dispose the prior video tracker and bind the selected playback UUID');
+
+  screen.blur();
+  screen.emitTime(2);
+  assert.equal(screen.watchWrites.length, 3, 'blur disposes the active playback listener and tracker');
 });
 
 test('preview bookmark save and removal keep a user-paused player paused', async () => {

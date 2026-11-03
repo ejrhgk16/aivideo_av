@@ -9,6 +9,7 @@ import { createConnection } from 'mysql2/promise';
 import { acquireContentLock } from './contentLock.mjs';
 import { createFixtureContext } from './fixtureContext.mjs';
 import { parseSuiteArguments } from './suites.mjs';
+import { createWatchHistoryFixtures } from './watchHistoryFixtures.mjs';
 
 const coordinatorAbort = new AbortController();
 let coordinatorDisconnected = false;
@@ -165,7 +166,7 @@ async function main() {
     database: process.env.DB_DATABASE,
     timezone: 'Z',
   });
-  const managedLockMode = suites.some(suite => suite.id === 'saved-videos') ? 'exclusive' : 'shared';
+  const managedLockMode = suites.some(suite => suite.contentMode === 'exclusive') ? 'exclusive' : 'shared';
   let releaseFixtureLock;
   try {
     releaseFixtureLock = await acquireContentLock(baseUrl, managedLockMode, {
@@ -189,12 +190,95 @@ async function main() {
   let savedProgressPairs = [];
   let rejectedProgressPairs = [];
   let savedVideoFixture;
+  let watchHistoryFixture;
   let ownedSavedPairs = [];
   let ownedCollectionLinks = [];
   let prepRefreshTokens = [];
   let exitCode;
   let cleanupError;
   let operationError;
+  const runWatchHistoryFixture = async sourceDramaId => {
+    watchHistoryFixture = await createWatchHistoryFixtures({ db, sourceDramaId });
+    await fixtureContext.grantEpisode(entitled.id, watchHistoryFixture.paidEpisode.id);
+    const visibleVideos = [
+      ...watchHistoryFixture.pageVideos,
+      watchHistoryFixture.preview,
+      watchHistoryFixture.alternate,
+      watchHistoryFixture.paidVideo,
+      watchHistoryFixture.noImagePreview,
+      watchHistoryFixture.posterPreview,
+    ];
+    for (const video of visibleVideos) await fixtureContext.trackProgressPair(entitled.id, video.id);
+    for (const video of [watchHistoryFixture.hiddenPreview, watchHistoryFixture.futurePreview,
+      watchHistoryFixture.hiddenFull, watchHistoryFixture.wrongKind]) {
+      await fixtureContext.trackProgressPair(entitled.id, video.id);
+      await db.execute(
+        `INSERT INTO user_watch_progress (user_id, video_id, position_ms, is_completed, last_played_at, created_at, updated_at)
+         VALUES (?, ?, 0, 0, DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 DAY), UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+        [entitled.id, video.id],
+      );
+    }
+    await fixtureContext.trackProgressPair(unentitled.id, watchHistoryFixture.pageVideos[0].id);
+    ownedPairs = fixtureContext.progressPairs;
+    const visibleUuids = visibleVideos.map(video => video.uuid);
+    const [orderedRows] = await db.execute(
+      `SELECT uuid FROM content_videos WHERE uuid IN (${visibleUuids.map(() => '?').join(',')}) ORDER BY id DESC`,
+      visibleUuids,
+    );
+    directory = mkdtempSync(join(tmpdir(), 'aivideo-postman-'));
+    const environmentFile = join(directory, 'environment.json');
+    const historyValues = {
+      baseUrl,
+      entitledLoginId: entitled.login_id, entitledPassword: entitled.password,
+      unentitledLoginId: unentitled.login_id, unentitledPassword: unentitled.password,
+      entitledUserUuid: entitledUuid, unentitledUserUuid: unentitledUuid,
+      historyPhase: 'seed', historyDramaUuid: watchHistoryFixture.drama.uuid,
+      historyPreviewVideoUuid: watchHistoryFixture.preview.uuid,
+      historyVideoUuids: JSON.stringify(visibleUuids),
+      historyExpectedVideoUuids: JSON.stringify(orderedRows.map(row => row.uuid)),
+      historyHiddenVideoUuids: JSON.stringify([
+        watchHistoryFixture.hiddenPreview.uuid, watchHistoryFixture.futurePreview.uuid,
+        watchHistoryFixture.hiddenFull.uuid, watchHistoryFixture.wrongKind.uuid,
+      ]),
+      historyRecentVideoUuid: watchHistoryFixture.pageVideos[30].uuid,
+      historyNoImageVideoUuid: watchHistoryFixture.noImagePreview.uuid,
+      historyPosterOnlyVideoUuid: watchHistoryFixture.posterPreview.uuid,
+      historyPaidVideoUuid: watchHistoryFixture.paidVideo.uuid,
+      historyAlternateVideoUuid: watchHistoryFixture.alternate.uuid,
+    };
+    const writeHistoryEnvironment = () => writeFileSync(environmentFile, JSON.stringify({ name: 'Watch history API test', values:
+      Object.entries(historyValues).map(([key, value]) => ({ key, value, enabled: true, type: 'secret' })) }), { mode: 0o600 });
+    writeHistoryEnvironment();
+    await coordinate('prepared', { suite: ['watch-history'], runId: fixtureContext.runId,
+      userUuids: fixtureContext.userUuids, progressPairs: ownedPairs });
+    exitCode = await runSuites(['--environment', environmentFile], false);
+    if (exitCode !== 0) throw new Error('Postman failed during watch-history pagination setup.');
+    const [visibleRows] = await db.execute(
+      `SELECT video.id FROM content_videos video WHERE video.uuid IN (${visibleUuids.map(() => '?').join(',')})`,
+      visibleUuids,
+    );
+    const visibleIds = visibleRows.map(row => row.id);
+    await db.execute(
+      `UPDATE user_watch_progress SET last_played_at = DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 DAY)
+       WHERE user_id = ? AND video_id IN (${visibleIds.map(() => '?').join(',')})`,
+      [entitled.id, ...visibleIds],
+    );
+    const [tieRows] = await db.execute(
+      `SELECT video.uuid FROM user_watch_progress progress
+       INNER JOIN content_videos video ON video.id = progress.video_id
+       WHERE progress.user_id = ? AND progress.video_id IN (${visibleIds.map(() => '?').join(',')})
+       ORDER BY progress.last_played_at DESC, progress.video_id DESC`,
+      [entitled.id, ...visibleIds],
+    );
+    historyValues.historyPhase = 'verify';
+    historyValues.historyExpectedVideoUuids = JSON.stringify(tieRows.map(row => row.uuid));
+    writeHistoryEnvironment();
+    exitCode = await runSuites(['--environment', environmentFile], false);
+    if (exitCode !== 0) throw new Error('Postman failed during watch-history contract verification.');
+    await coordinate('verified', { suite: ['watch-history'], runId: fixtureContext.runId,
+      userUuids: fixtureContext.userUuids, progressPairs: ownedPairs });
+    return exitCode;
+  };
   try {
     await (async () => {
     entitled = await fixtureContext.createUser({ balance: 10000 });
@@ -215,6 +299,15 @@ async function main() {
       exitCode = await runSuites(['--environment', environmentFile], false);
       if (exitCode !== 0) throw new Error('Postman failed for the identity API suite.');
       await coordinate('verified', { suite: ['identity'], runId: fixtureContext.runId, userUuids: fixtureContext.userUuids, progressPairs: [] });
+      return exitCode;
+    }
+    if (suites.length === 1 && suites[0].id === 'watch-history') {
+      const catalog = await fetch(`${baseUrl}/dramas`, { signal: AbortSignal.timeout(10000) }).then(response => response.json());
+      const source = catalog.find(drama => drama.episodeCount > 0 || drama.freeEpisodeCount > 0);
+      if (!source) throw new Error('A public drama is required as the watch-history fixture template.');
+      const [sourceRows] = await db.execute('SELECT id FROM dramas WHERE uuid = ?', [source.uuid]);
+      if (!sourceRows[0]) throw new Error('Could not resolve the public watch-history fixture template.');
+      exitCode = await runWatchHistoryFixture(sourceRows[0].id);
       return exitCode;
     }
     const catalog = await fetch(`${baseUrl}/dramas`, { signal: AbortSignal.timeout(10000) }).then(r => r.json());
@@ -262,6 +355,90 @@ async function main() {
          VALUES (?, ?, 0, 0, ?)`,
         [entitled.id, progressPaidVideo.id, watchProgressLastPlayedAt],
       );
+    }
+    if (suites.some(suite => suite.id === 'watch-history')) {
+      const [selectedRows] = await db.execute('SELECT id FROM dramas WHERE uuid = ?', [selected.uuid]);
+      if (!selectedRows[0]) throw new Error('Could not resolve a public source drama for watch-history fixtures.');
+      watchHistoryFixture = await createWatchHistoryFixtures({ db, sourceDramaId: selectedRows[0].id });
+      await fixtureContext.grantEpisode(entitled.id, watchHistoryFixture.paidEpisode.id);
+      const visibleVideos = [
+        ...watchHistoryFixture.pageVideos,
+        watchHistoryFixture.preview,
+        watchHistoryFixture.alternate,
+        watchHistoryFixture.paidVideo,
+        watchHistoryFixture.noImagePreview,
+        watchHistoryFixture.posterPreview,
+      ];
+      for (const video of visibleVideos) await fixtureContext.trackProgressPair(entitled.id, video.id);
+      for (const video of [watchHistoryFixture.hiddenPreview, watchHistoryFixture.futurePreview,
+        watchHistoryFixture.hiddenFull, watchHistoryFixture.wrongKind]) {
+        await fixtureContext.trackProgressPair(entitled.id, video.id);
+        await db.execute(
+          `INSERT INTO user_watch_progress (user_id, video_id, position_ms, is_completed, last_played_at, created_at, updated_at)
+           VALUES (?, ?, 0, 0, DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 DAY), UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
+          [entitled.id, video.id],
+        );
+      }
+      await fixtureContext.trackProgressPair(unentitled.id, watchHistoryFixture.pageVideos[0].id);
+      ownedPairs = fixtureContext.progressPairs;
+      const visibleUuids = visibleVideos.map(video => video.uuid);
+      const [orderedRows] = await db.execute(
+        `SELECT uuid FROM content_videos WHERE uuid IN (${visibleUuids.map(() => '?').join(',')}) ORDER BY id DESC`,
+        visibleUuids,
+      );
+      directory = mkdtempSync(join(tmpdir(), 'aivideo-postman-'));
+      const environmentFile = join(directory, 'environment.json');
+      const historyValues = {
+        baseUrl,
+        entitledLoginId: entitled.login_id, entitledPassword: entitled.password,
+        unentitledLoginId: unentitled.login_id, unentitledPassword: unentitled.password,
+        entitledUserUuid: entitledUuid, unentitledUserUuid: unentitledUuid,
+        historyPhase: 'seed', historyDramaUuid: watchHistoryFixture.drama.uuid,
+        historyPreviewVideoUuid: watchHistoryFixture.preview.uuid,
+        historyVideoUuids: JSON.stringify(visibleUuids),
+        historyExpectedVideoUuids: JSON.stringify(orderedRows.map(row => row.uuid)),
+        historyHiddenVideoUuids: JSON.stringify([
+          watchHistoryFixture.hiddenPreview.uuid, watchHistoryFixture.futurePreview.uuid,
+          watchHistoryFixture.hiddenFull.uuid, watchHistoryFixture.wrongKind.uuid,
+        ]),
+        historyRecentVideoUuid: watchHistoryFixture.pageVideos[30].uuid,
+        historyNoImageVideoUuid: watchHistoryFixture.noImagePreview.uuid,
+        historyPosterOnlyVideoUuid: watchHistoryFixture.posterPreview.uuid,
+        historyPaidVideoUuid: watchHistoryFixture.paidVideo.uuid,
+        historyAlternateVideoUuid: watchHistoryFixture.alternate.uuid,
+      };
+      const writeHistoryEnvironment = () => writeFileSync(environmentFile, JSON.stringify({ name: 'Watch history API test', values:
+        Object.entries(historyValues).map(([key, value]) => ({ key, value, enabled: true, type: 'secret' })) }), { mode: 0o600 });
+      writeHistoryEnvironment();
+      await coordinate('prepared', { suite: ['watch-history'], runId: fixtureContext.runId,
+        userUuids: fixtureContext.userUuids, progressPairs: ownedPairs });
+      exitCode = await runSuites(['--environment', environmentFile], false);
+      if (exitCode !== 0) throw new Error('Postman failed during watch-history pagination setup.');
+      const [visibleRows] = await db.execute(
+        `SELECT video.id FROM content_videos video WHERE video.uuid IN (${visibleUuids.map(() => '?').join(',')})`,
+        visibleUuids,
+      );
+      const visibleIds = visibleRows.map(row => row.id);
+      await db.execute(
+        `UPDATE user_watch_progress SET last_played_at = DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 1 DAY)
+         WHERE user_id = ? AND video_id IN (${visibleIds.map(() => '?').join(',')})`,
+        [entitled.id, ...visibleIds],
+      );
+      const [tieRows] = await db.execute(
+        `SELECT video.uuid FROM user_watch_progress progress
+         INNER JOIN content_videos video ON video.id = progress.video_id
+         WHERE progress.user_id = ? AND progress.video_id IN (${visibleIds.map(() => '?').join(',')})
+         ORDER BY progress.last_played_at DESC, progress.video_id DESC`,
+        [entitled.id, ...visibleIds],
+      );
+      historyValues.historyPhase = 'verify';
+      historyValues.historyExpectedVideoUuids = JSON.stringify(tieRows.map(row => row.uuid));
+      writeHistoryEnvironment();
+      exitCode = await runSuites(['--environment', environmentFile], false);
+      if (exitCode !== 0) throw new Error('Postman failed during watch-history contract verification.');
+      await coordinate('verified', { suite: ['watch-history'], runId: fixtureContext.runId,
+        userUuids: fixtureContext.userUuids, progressPairs: ownedPairs });
+      return exitCode;
     }
     if (!suites.some(suite => suite.id === 'saved-videos')) {
       directory = mkdtempSync(join(tmpdir(), 'aivideo-postman-'));
@@ -773,6 +950,27 @@ async function main() {
         }
         for (const drama of [...savedVideoFixture.stateFixtures.dramas].reverse()) {
           await attemptCleanup(() => db.execute('DELETE FROM dramas WHERE uuid = ?', [drama.uuid]));
+        }
+      }
+      if (watchHistoryFixture) {
+        let historyRowsClean = progressCleanupSucceeded;
+        if (!historyRowsClean) {
+          try {
+            await fixtureContext.cleanupProgress();
+            historyRowsClean = true;
+          } catch (error) {
+            cleanupErrors.push(error);
+          }
+        }
+        if (historyRowsClean) {
+          await attemptCleanup(async () => {
+            const [rows] = await db.execute('SELECT id FROM episodes WHERE uuid = ?', [watchHistoryFixture.paidEpisode.uuid]);
+            if (rows[0]) {
+              await db.execute('DELETE FROM episode_entitlements WHERE episode_id = ? AND user_id IN (?, ?)',
+                [rows[0].id, ...fixtureContext.ownedUserIds]);
+            }
+          });
+          await attemptCleanup(() => watchHistoryFixture.cleanup());
         }
       }
       for (const token of prepRefreshTokens) {

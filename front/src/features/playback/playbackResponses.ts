@@ -16,16 +16,15 @@ export type PreviewPlayback = {
 
 export type SavedContentType = 'EPISODE' | 'PREVIEW';
 
-type SavedVideoBase = {
+type LibraryVideoBase = {
   videoUuid: string;
-  savedAt: string;
   dramaUuid: string;
   dramaTitle: string;
   imageUrl: string | null;
   durationMs: number;
 };
 
-export type SavedVideoItem = SavedVideoBase & (
+type LibraryVideoDetails = LibraryVideoBase & (
   | {
       contentType: 'EPISODE';
       episodeUuid: string;
@@ -40,8 +39,18 @@ export type SavedVideoItem = SavedVideoBase & (
     }
 );
 
+export type SavedVideoItem = LibraryVideoDetails & { savedAt: string };
+
+export type WatchHistoryItem = LibraryVideoDetails & { lastPlayedAt: string };
+
 export type SavedVideoPage = {
   items: SavedVideoItem[];
+  page: number;
+  hasNext: boolean;
+};
+
+export type WatchHistoryPage = {
+  items: WatchHistoryItem[];
   page: number;
   hasNext: boolean;
 };

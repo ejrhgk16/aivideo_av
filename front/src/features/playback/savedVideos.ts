@@ -1,7 +1,7 @@
 import { apiRequest } from '../user/sessionClient';
-import type { SavedContentType, SavedVideoItem, SavedVideoPage } from './playbackResponses';
+import type { SavedContentType, SavedVideoItem, SavedVideoPage, WatchHistoryItem } from './playbackResponses';
 
-export type { SavedContentType, SavedVideoItem, SavedVideoPage } from './playbackResponses';
+export type { SavedContentType, SavedVideoItem, SavedVideoPage, WatchHistoryItem } from './playbackResponses';
 
 export function saveVideo(videoUuid: string, contentType: SavedContentType): Promise<void> {
   return apiRequest<void>('/me/saved-videos/' + encodeURIComponent(videoUuid), {
@@ -24,7 +24,7 @@ export function getSavedVideos(page = 1): Promise<SavedVideoPage> {
   });
 }
 
-export function savedVideoRoute(item: SavedVideoItem) {
+export function savedVideoRoute(item: SavedVideoItem | WatchHistoryItem) {
   return item.contentType === 'EPISODE'
     ? {
         pathname: '/episode/[id]' as const,
