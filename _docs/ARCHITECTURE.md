@@ -55,7 +55,7 @@ Preserved standalone web prototype. It is not imported or run by `front/`, and i
 | `.codex/hooks.json` | Codex hook registration. |
 | `tools/harness/` | Harness CLI, hook support, and tooling tests. |
 
-Harness permits depth 2 only for approved repetitive edits across independent files: main (depth 0) → `harness_worker` (depth 1) → `harness_repeater` (depth 2). The main coordinator reserves child capacity within the three-agent limit excluding itself. The worker establishes the edit pattern, assigns disjoint subsets of its task's files, retains shared-file edits, integrates all child results, and runs the task's declared checks. Children cannot delegate or change task state. Delegation details live in the plan/task Markdown without additional JSON task records; only `harness_worker` final results trigger the existing completion hook.
+Harness permits depth 2 only for approved repetitive edits across independent files: main (depth 0) → `harness_worker` (depth 1) → `harness_repeater` (depth 2). The main coordinator reserves child capacity within the five-agent limit excluding itself. The worker establishes the edit pattern, assigns disjoint subsets of its task's files, retains shared-file edits, integrates all child results, and runs the task's declared checks. Children cannot delegate or change task state. Delegation details live in the plan/task Markdown without additional JSON task records; only `harness_worker` final results trigger the existing completion hook.
 
 ## Boundaries
 
