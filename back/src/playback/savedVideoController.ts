@@ -1,7 +1,8 @@
 import { BadRequestException, Body, Controller, Delete, Get, HttpCode, Param, Put, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
+import { parsePage } from '../common/pagination/pagination.js';
 import { JwtAuthGuard } from '../identity/jwtAuthGuard.js';
-import { SavedVideoService } from './savedVideoService.js';
+import { SAVED_VIDEO_PAGE_SIZE, SavedVideoService } from './savedVideoService.js';
 import type { SavedVideoPageResponse } from './savedVideoResponses.js';
 
 type AuthenticatedRequest = Request & { user: { uuid: string } };
@@ -43,12 +44,7 @@ export class SavedVideoController {
 
   @Get()
   list(@Req() request: AuthenticatedRequest, @Query('page') rawPage: unknown): Promise<SavedVideoPageResponse> {
-    const page = rawPage === undefined
-      ? 1
-      : typeof rawPage === 'string' && /^[1-9][0-9]*$/.test(rawPage) ? Number(rawPage) : NaN;
-    if (!Number.isSafeInteger(page) || page < 1 || !Number.isSafeInteger((page - 1) * 30 + 31)) {
-      throw new BadRequestException('Invalid page');
-    }
+    const page = parsePage(rawPage, SAVED_VIDEO_PAGE_SIZE);
     return this.savedVideos.list(request.user.uuid, page);
   }
 }

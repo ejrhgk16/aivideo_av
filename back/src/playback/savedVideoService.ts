@@ -7,7 +7,10 @@ import { Episode } from '../content/entities/episode.entity.js';
 import { User } from '../identity/entities/user.entity.js';
 import { UserSavedVideo } from './entities/userSavedVideo.entity.js';
 import { createDramaImageUrls } from '../content/mediaUrl.js';
-import type { SavedContentType, SavedVideoBase, SavedVideoPageResponse } from './savedVideoResponses.js';
+import { createPageResponse, getPageWindow } from '../common/pagination/pagination.js';
+import type { SavedContentType, SavedVideoBase, SavedVideoItemResponse, SavedVideoPageResponse } from './savedVideoResponses.js';
+
+export const SAVED_VIDEO_PAGE_SIZE = 30;
 
 type SavedRow = {
   videoUuid: string;
@@ -75,6 +78,7 @@ export class SavedVideoService {
   }
 
   async list(userUuid: string, page: number): Promise<SavedVideoPageResponse> {
+    const { offset, limit } = getPageWindow(page, SAVED_VIDEO_PAGE_SIZE);
     const rows = await this.publicVideos()
       .innerJoin(UserSavedVideo, 'saved', 'saved.videoId = video.id')
       .innerJoin(User, 'appUser', 'appUser.id = saved.userId AND appUser.uuid = :userUuid', { userUuid })
@@ -97,11 +101,13 @@ export class SavedVideoService {
         .limit(1), 'imageKey')
       .orderBy('saved.savedAt', 'DESC')
       .addOrderBy('saved.videoId', 'DESC')
-      .offset((page - 1) * 30)
-      .limit(31)
+      .offset(offset)
+      .limit(limit)
       .getRawMany<SavedRow>();
+    const result = createPageResponse(rows, page, SAVED_VIDEO_PAGE_SIZE);
     return {
-      items: rows.slice(0, 30).map(row => {
+      ...result,
+      items: result.items.map<SavedVideoItemResponse>(row => {
         const base: SavedVideoBase = {
           videoUuid: row.videoUuid,
           savedAt: row.savedAt.toISOString(),
@@ -118,8 +124,6 @@ export class SavedVideoService {
           : { ...base, contentType: 'EPISODE', episodeUuid: row.episodeUuid!,
             episodeNumber: Number(row.episodeNumber), episodeTitle: row.episodeTitle };
       }),
-      page,
-      hasNext: rows.length > 30,
     };
   }
 }

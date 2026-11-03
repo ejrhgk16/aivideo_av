@@ -33,6 +33,7 @@ NestJS API server. Own `package.json` and lockfile.
 | `src/playback/` | JWT-authenticated saved-video writes and pages, plus episode watch-progress writes against the existing user/episode progress key. |
 | `src/common/entities/` | Shared persistence base entities and metadata. |
 | `src/common/error/` | Shared custom HTTP errors and application-wide exception filter that maps business, HTTP, parser, and unknown errors to the common five-field response. |
+| `src/common/pagination/` | Shared strict page parsing, offset/lookahead calculation, and generic items/page/hasNext response helpers; domain services own page sizes, queries, ordering, and item mapping. |
 | `src/common/database/` | Shared TypeORM configuration and Entity registry, CLI `DataSource`, explicit development seed CLI, and migration files. |
 | `test/api/` | Feature-scoped Postman suites, per-run fixture preparation and cleanup, cross-process content locks, and instructions for HTTP tests against the running API and its MySQL database. |
 | `test/unit/` | Focused tests for internal rules and publication/environment boundaries that cannot be exercised without changing existing data. |

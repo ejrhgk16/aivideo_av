@@ -1,3 +1,5 @@
+import type { PageResponse } from '../common/pagination/paginationResponses.js';
+
 export type SavedContentType = 'EPISODE' | 'PREVIEW';
 
 export type SavedVideoBase = {
@@ -14,8 +16,4 @@ export type SavedVideoItemResponse = SavedVideoBase & (
   | { contentType: 'EPISODE'; episodeUuid: string; episodeNumber: number; episodeTitle: string | null }
 );
 
-export type SavedVideoPageResponse = {
-  items: SavedVideoItemResponse[];
-  page: number;
-  hasNext: boolean;
-};
+export type SavedVideoPageResponse = PageResponse<SavedVideoItemResponse>;

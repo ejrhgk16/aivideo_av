@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "plan_id": "plan-48-common-pagination",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "공통 페이징 함수·응답 타입과 아키텍처 정의",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/src/common/pagination/pagination.ts",
+        "back/src/common/pagination/paginationResponses.ts",
+        "_docs/ARCHITECTURE.md"
+      ],
+      "checks": [
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-11-03T03:39:27.664Z",
+      "summary": "Added shared PageResponse<T>, parsePage, getPageWindow, and createPageResponse helpers, and documented the common pagination directory responsibility in _docs/ARCHITECTURE.md. Check passed: npm --prefix back run build.",
+      "completed_at": "2026-11-03T03:40:57.742Z"
+    },
+    {
+      "id": "task-2",
+      "name": "저장 영상 공통 페이징 적용·API 문서와 회귀 검증",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/playback/savedVideoController.ts",
+        "back/src/playback/savedVideoService.ts",
+        "back/src/playback/savedVideoResponses.ts",
+        "back/test/api/saved-videos.postman_collection.json",
+        "_docs/api/04-playback/saved-videos.md"
+      ],
+      "checks": [
+        "npm --prefix back run test:unit -- test/unit/playback/savedVideoService.spec.ts",
+        "npm --prefix back run test:api -- --suite saved-videos"
+      ],
+      "started_at": "2026-11-03T03:41:11.676Z",
+      "summary": "Applied shared pagination to saved videos and updated the API docs and invalid-page cases. Unit check passed: 4 tests. Saved-videos API suite passed against the existing localhost:3000 start:dev server, with the user confirming the changes were reflected: 181 requests, 94 assertions, 0 failures.",
+      "completed_at": "2026-11-03T03:43:36.618Z"
+    }
+  ]
+}
