@@ -318,6 +318,12 @@
       "directory": "plan-53-drama-catalog-pagination",
       "title": "드라마 목록 공통 페이징과 프론트 연결",
       "status": "completed"
+    },
+    {
+      "id": "plan-54-points-demo-design",
+      "directory": "plan-54-points-demo-design",
+      "title": "포인트 화면·내 정보 카드 디자인과 가상 체험 및 보관함 스크롤바 정리",
+      "status": "completed"
     }
   ]
 }

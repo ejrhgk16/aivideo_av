@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { AppText, Button, Icon, Page, SectionTitle } from '@/components/ui';
 import { AppTopBar } from '@/components/AppTopBar';
+import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '@/common/theme/tokens';
 import { useUser } from '@/features/user/UserProvider';
 
@@ -10,6 +11,7 @@ type AccountDialog = 'settings' | 'help' | 'about' | null;
 
 export function AccountScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
   const { user, points } = useUser();
   const [dialog, setDialog] = useState<AccountDialog>(null);
   const [dialogVisible, setDialogVisible] = useState(false);
@@ -39,14 +41,20 @@ export function AccountScreen() {
     </View>
     <View style={styles.accountBadge}><AppText style={styles.badgeText}>{accountTypeLabel}</AppText></View>
 
-    <Pressable accessibilityRole="button" onPress={() => router.push('/points')} style={styles.pointsCard}>
-      <View style={styles.pointsHeader}>
-        <View style={styles.pointsIcon}><Icon name="zap" size={19} color={colors.accent} /></View>
-        <AppText weight="semibold">내 포인트</AppText>
-        <Icon name="chevron-right" size={18} color={colors.muted} />
+    <Pressable accessibilityRole="button" accessibilityLabel={`내 포인트 ${amount}${points === null ? '' : ' P'}, 충전하기`} onPress={() => router.push('/points')} style={[styles.pointsCard, { borderRadius: width <= 700 ? 18 : 20 }]}>
+      <LinearGradient pointerEvents="none" colors={['#272F22', '#171C18']} style={StyleSheet.absoluteFill} />
+      <View style={styles.pointsCopy}>
+        <AppText weight="medium" style={styles.pointsLabel}>내 포인트</AppText>
+        <View style={styles.pointsAmountRow}>
+          <AppText weight="bold" style={[styles.pointsAmount, { fontSize: width <= 700 ? 39 : 45 }]}>{amount}</AppText>
+          {points !== null ? <AppText weight="semibold" style={styles.pointsUnit}>P</AppText> : null}
+        </View>
+        {points === null ? <AppText style={styles.pointsHint}>{pointsDescription}</AppText> : null}
       </View>
-      <AppText weight="bold" style={styles.pointsAmount}>{amount} P</AppText>
-      <AppText style={styles.muted}>{pointsDescription}</AppText>
+      <View style={styles.chargeLink}>
+        <AppText weight="semibold" style={styles.chargeLabel}>충전하기</AppText>
+        <Icon name="arrow-right" size={17} color={colors.text} />
+      </View>
     </Pressable>
 
     <View style={styles.menu}>
@@ -69,7 +77,7 @@ export function AccountScreen() {
             <SettingItem label="다음 회차 자동 재생" />
             <SettingItem label="화질" />
             <AppText style={styles.muted}>설정 기능은 준비 중이에요.</AppText>
-          </View> : dialog === 'help' ? <AppText style={styles.dialogCopy}>현재 포인트 기능은 화면만 준비되어 있어요. 포인트 조회와 사용은 아직 제공되지 않아요.</AppText>
+          </View> : dialog === 'help' ? <AppText style={styles.dialogCopy}>포인트 잔액과 이용 내역을 확인할 수 있어요. 광고와 충전은 실제 결제 없이 체험할 수 있어요. 체험 포인트는 포인트 화면을 나가면 초기화돼요.</AppText>
             : <AppText style={styles.dialogCopy}>AI DRAMA{ '\n' }드라마를 위한 체험 화면</AppText>}
           <Button label="닫기" onPress={closeDialog} />
         </View>
@@ -102,10 +110,15 @@ const styles = StyleSheet.create({
   muted: { color: colors.muted, lineHeight: 21, fontSize: 13 },
   accountBadge: { alignSelf: 'flex-start', backgroundColor: colors.surface, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, marginTop: -12 },
   badgeText: { color: colors.muted, fontSize: 12 },
-  pointsCard: { backgroundColor: colors.surface, borderRadius: 18, borderWidth: 1, borderColor: colors.border, padding: 19, gap: 8 },
-  pointsHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  pointsIcon: { width: 34, height: 34, borderRadius: 12, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center' },
-  pointsAmount: { fontSize: 29, lineHeight: 37, marginTop: 5 },
+  pointsCard: { width: '100%', maxWidth: 780, alignSelf: 'center', minHeight: 126, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#CBF46A18', paddingHorizontal: 20, paddingVertical: 18 },
+  pointsCopy: { flex: 1, minWidth: 0, gap: 6 },
+  pointsLabel: { color: '#B8C3B1', fontSize: 14 },
+  pointsAmountRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7 },
+  pointsAmount: { color: '#E1F8C3', lineHeight: 52 },
+  pointsUnit: { color: '#E1F8C3', fontSize: 23, lineHeight: 30 },
+  pointsHint: { color: '#B8C3B1', fontSize: 12, lineHeight: 18 },
+  chargeLink: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 4 },
+  chargeLabel: { color: colors.text, fontSize: 13 },
   menu: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', marginTop: -12 },
   menuItem: { minHeight: 56, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', gap: 13, borderBottomWidth: 1, borderBottomColor: colors.border },
   menuLabel: { flex: 1, fontSize: 14 },

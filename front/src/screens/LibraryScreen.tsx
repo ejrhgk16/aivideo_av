@@ -133,7 +133,7 @@ export function LibraryScreen() {
       : status === 'loading' || status === 'idle' || (status === 'loaded' && !ownsCurrentList) ? <EmptyState title={tab === '시청 기록' ? '시청 기록을 불러오는 중이에요' : '저장한 영상을 불러오는 중이에요'} description="잠시만 기다려 주세요." />
       : status === 'error' ? <EmptyState title={tab === '시청 기록' ? '시청 기록을 불러오지 못했어요' : '저장한 영상을 불러오지 못했어요'} description={getErrorMessage(error)} action="다시 시도" onAction={retry} />
       : visibleItems.length === 0 ? <EmptyState title={tab === '시청 기록' ? '시청 기록이 없어요' : '저장한 영상이 없어요'} description={tab === '시청 기록' ? '영상을 시청하면 이곳에 표시돼요.' : '마음에 드는 영상을 저장해 보세요.'} />
-      : <FlatList data={visibleItems} keyExtractor={(item) => item.videoUuid} renderItem={({ item }) => {
+      : <FlatList data={visibleItems} showsVerticalScrollIndicator={false} keyExtractor={(item) => item.videoUuid} renderItem={({ item }) => {
         const videoLabel = item.contentType === 'PREVIEW' ? '미리보기' : `에피소드 ${item.episodeNumber}화`;
         return <Pressable accessibilityRole="button" accessibilityLabel={`${item.dramaTitle} ${videoLabel}`} style={styles.card} onPress={() => router.push(savedVideoRoute(item))}>
           {item.imageUrl ? <Image source={{ uri: resolveApiImageUrl(item.imageUrl) ?? undefined }} contentFit="cover" style={styles.image} /> : <View style={[styles.image, styles.imagePlaceholder]} />}
