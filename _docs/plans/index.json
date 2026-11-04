@@ -300,6 +300,12 @@
       "directory": "plan-50-watch-history-library",
       "title": "보관함 시청기록 페이징 조회와 추천·미리보기 기록 저장",
       "status": "completed"
+    },
+    {
+      "id": "plan-51-point-history",
+      "directory": "plan-51-point-history",
+      "title": "포인트 전체 이용 내역 조회 API와 프론트 연결",
+      "status": "completed"
     }
   ]
 }

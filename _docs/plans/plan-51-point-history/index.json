@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "plan_id": "plan-51-point-history",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "포인트 이용 내역 API 테스트 작성",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/test/api/point-history.postman_collection.json",
+        "back/test/api/pointHistoryFixtures.mjs",
+        "back/test/api/run.mjs",
+        "back/test/api/suites.mjs",
+        "back/test/api/README.md",
+        "back/test/unit/api/suiteSelection.spec.ts"
+      ],
+      "checks": [
+        "node --check back/test/api/pointHistoryFixtures.mjs",
+        "node --check back/test/api/run.mjs",
+        "node --check back/test/api/suites.mjs",
+        "node -e \"JSON.parse(require('node:fs').readFileSync('back/test/api/point-history.postman_collection.json','utf8'))\""
+      ],
+      "started_at": "2026-11-04T02:31:27.045Z",
+      "summary": "수정: point-history 컬렉션의 날짜 검사 5곳에서 과도한 이스케이프를 바로잡아 ISO UTC 형식 정규식이 정상적으로 해석되도록 했습니다. 이전 wallets 스냅샷 정렬 수정(`ORDER BY user_id`)도 유지했습니다. 선언된 정적 검사 4개(node --check fixture, runner, suites 및 컬렉션 JSON 파싱)는 모두 통과했습니다. 계약과 페이지별 날짜 검사를 확인했으며, HTTP 동작 테스트는 task-2에서 실행해야 합니다.",
+      "completed_at": "2026-11-04T02:35:09.333Z"
+    },
+    {
+      "id": "task-2",
+      "name": "포인트 이용 내역 API 구현 및 검증",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/economy/pointController.ts",
+        "back/src/economy/pointService.ts",
+        "back/src/economy/pointResponses.ts",
+        "_docs/api/README.md",
+        "_docs/api/05-economy/README.md",
+        "_docs/api/05-economy/points.md",
+        "_docs/api/00-overview/authentication.md"
+      ],
+      "checks": [
+        "npm --prefix back run test:unit -- test/unit/api/suiteSelection.spec.ts test/unit/api/fixtureIsolation.spec.ts",
+        "npm --prefix back run test:api -- --suite point-history --suite economy",
+        "npm --prefix back run test:api"
+      ],
+      "started_at": "2026-11-04T02:35:16.808Z",
+      "summary": "전체 검증 통과: 단위 테스트 2개 파일·22 tests, 선택 API 검사에서 point-history 20 requests·20 assertions와 economy 19 requests·59 assertions, 전체 API suite 실행. 실제 localhost:3000에서 새 route 동작과 fixture 정리가 확인됐습니다.",
+      "completed_at": "2026-11-04T02:37:45.672Z"
+    },
+    {
+      "id": "task-3",
+      "name": "포인트 이용 내역 프론트 테스트 작성",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/tests/unit/pointHistory.test.ts",
+        "front/tests/unit/pointsScreen.test.ts"
+      ],
+      "checks": [],
+      "started_at": "2026-11-04T02:53:44.197Z",
+      "summary": "직접 helper 보완 완료: 중첩 children/FlatList footer 탐색, EmptyState 문구 관찰, 동일 Text 안의 JSX children 연결을 실제 표시와 일치시킴. 승인 시나리오와 assertion을 유지하고 복원 안내를 확인. 기능 검증은 task-4에서 실행.",
+      "completed_at": "2026-11-04T02:53:47.985Z"
+    },
+    {
+      "id": "task-4",
+      "name": "포인트 이용 내역 프론트 연결 및 검증",
+      "status": "completed",
+      "depends_on": [
+        "task-2",
+        "task-3"
+      ],
+      "files": [
+        "front/src/features/economy/pointHistory.ts",
+        "front/src/features/economy/economyResponses.ts",
+        "front/src/screens/PointsScreen.tsx",
+        "front/README.md"
+      ],
+      "checks": [
+        "npm --prefix front run test -- tests/unit/pointHistory.test.ts tests/unit/pointsScreen.test.ts tests/unit/episodePurchase.test.ts tests/unit/episodeUnlockDialog.test.ts"
+      ],
+      "started_at": "2026-11-04T02:53:50.306Z",
+      "summary": "사용자 지시에 따라 직접 마무리. 포인트 이용 내역 API 연결/화면 구현을 확인하고 지정 신규 요청·화면 및 기존 회차 구매·다이얼로그 테스트 24개 모두 통과(exit 0). helper의 중첩 children, EmptyState 문구, FlatList footer, JSX 텍스트 연결 결함을 task-3 범위에서 수정했으며 검증 조건은 유지. 백엔드 전체 API 검증은 task-2에서 통과했고 이후 백엔드 변경 없음. 실제 브라우저 수동 화면 확인은 수행하지 않음.",
+      "completed_at": "2026-11-04T02:54:15.760Z"
+    }
+  ]
+}

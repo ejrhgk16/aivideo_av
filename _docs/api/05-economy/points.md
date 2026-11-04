@@ -1,9 +1,42 @@
 # 포인트 API
 
-## 공통 동작
+## 포인트 이용 내역
 
-- 아래 변경 API는 개발 환경에서만 사용할 수 있다. `NODE_ENV`가 없으면 development로 취급한다. 다른 환경에서는 404를 반환한다.
-- 두 API 모두 `Authorization: Bearer <accessToken>`이 필요하고, 검증된 JWT payload의 사용자 UUID로 처리한다. 요청 경로·본문·query에서 사용자 UUID를 받지 않는다.
+### `GET /me/points/transactions?page=1`
+
+현재 로그인 사용자의 전체 포인트 거래 원장을 최신순으로 조회한다. 결제 충전, 광고 보상, 회차 구매, 관리자 조정, 환불을 모두 포함하며 아직 실제 충전·광고 보상·환불 처리 API가 구현되었다는 의미는 아니다.
+
+#### 인증과 query
+
+Access JWT가 필요하다. 사용자와 페이지 소유자는 검증된 JWT에서 결정하며 `userUuid` query는 받지 않는다. `page`는 선택 정수이고 생략하면 1이다. 페이지당 30개를 반환하며 `hasNext`가 다음 페이지 존재 여부를 나타낸다. 정렬은 `created_at DESC, id DESC`로 같은 시각의 거래도 순서가 고정된다. 빈 원장이나 범위를 벗어난 페이지는 200과 빈 `items`, `hasNext: false`를 반환한다.
+
+#### 200 Response
+
+```json
+{
+  "items": [
+    {
+      "uuid": "5c0d2ef3-fbb4-4b28-a34a-6fe781ac1d61",
+      "transactionType": "EPISODE_UNLOCK",
+      "amount": -30,
+      "balanceAfter": 970,
+      "createdAt": "2026-11-03T18:04:00.000Z",
+      "episode": { "dramaTitle": "테스트 작품", "episodeNumber": 2 }
+    }
+  ],
+  "page": 1,
+  "hasNext": false
+}
+```
+
+항목에는 `uuid`, `transactionType`, 부호가 있는 `amount`, 거래 직후의 `balanceAfter`, UTC ISO 8601 `createdAt`, `episode`가 포함된다. 거래 유형은 `PURCHASE`, `AD_REWARD`, `EPISODE_UNLOCK`, `ADMIN_ADJUSTMENT`, `REFUND`다. 같은 사용자 원장만 반환하고 내부 숫자 ID, 지갑 ID, idempotency key, memo는 노출하지 않는다. 회차 구매 거래는 같은 사용자 권한과 연결된 회차·작품이 모두 `PUBLISHED`이고 공개 시각이 지난 경우에만 `episode`에 작품명과 회차 번호를 표시한다. 숨김·공개 예정·삭제 또는 연결 정보가 없는 회차 구매도 원장 항목은 유지하고 `episode: null`로 반환한다.
+
+잘못된 `page` 형식은 400 `HTTP_BAD_REQUEST`, 누락되거나 잘못된 Access JWT는 401 `AUTH_INVALID_TOKEN`이다. 이 조회 API는 읽기 전용이며 개발 환경 제한이 없다.
+
+## 변경 API 공통 동작
+
+- 아래 POST 변경 API는 개발 환경에서만 사용할 수 있다. `NODE_ENV`가 없으면 development로 취급한다. 다른 환경에서는 404를 반환한다. 위의 GET 이용 내역 조회에는 이 제한이 적용되지 않는다.
+- 두 POST 모두 `Authorization: Bearer <accessToken>`이 필요하고, 검증된 JWT payload의 사용자 UUID로 처리한다. 요청 경로·본문·query에서 사용자 UUID를 받지 않는다.
 - 기존 `POST /users/:userUuid/points/increase`와 `POST /users/:userUuid/episodes/:episodeUuid/purchaseSingle` 경로는 제거했으며 요청 시 404다.
 - 경로 값의 UUID 형식을 별도로 검사하지 않고 DB에서 조회한다. 조회되는 리소스가 없으면 404를 반환한다. 숫자 ID는 응답에 노출하지 않는다.
 - 성공 요청은 envelope 없이 JSON 응답을 반환한다. 업무 오류는 아래 공통 필드의 포인트 커스텀 오류 형식으로 반환한다.

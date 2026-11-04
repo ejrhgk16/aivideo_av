@@ -9,6 +9,7 @@ import { createConnection } from 'mysql2/promise';
 import { acquireContentLock } from './contentLock.mjs';
 import { createFixtureContext } from './fixtureContext.mjs';
 import { parseSuiteArguments } from './suites.mjs';
+import { createPointHistoryFixtures } from './pointHistoryFixtures.mjs';
 import { createWatchHistoryFixtures } from './watchHistoryFixtures.mjs';
 
 const coordinatorAbort = new AbortController();
@@ -191,6 +192,7 @@ async function main() {
   let rejectedProgressPairs = [];
   let savedVideoFixture;
   let watchHistoryFixture;
+  let pointHistoryFixture;
   let ownedSavedPairs = [];
   let ownedCollectionLinks = [];
   let prepRefreshTokens = [];
@@ -308,6 +310,30 @@ async function main() {
       const [sourceRows] = await db.execute('SELECT id FROM dramas WHERE uuid = ?', [source.uuid]);
       if (!sourceRows[0]) throw new Error('Could not resolve the public watch-history fixture template.');
       exitCode = await runWatchHistoryFixture(sourceRows[0].id);
+      return exitCode;
+    }
+    if (suites.length === 1 && suites[0].id === 'point-history') {
+      const catalog = await fetch(`${baseUrl}/dramas`, { signal: AbortSignal.timeout(10000) }).then(response => response.json());
+      const source = catalog.find(drama => drama.episodeCount > 0 || drama.freeEpisodeCount > 0);
+      if (!source) throw new Error('A public drama is required as the point-history fixture template.');
+      const [sourceRows] = await db.execute('SELECT id FROM dramas WHERE uuid = ?', [source.uuid]);
+      if (!sourceRows[0]) throw new Error('Could not resolve the public point-history fixture template.');
+      pointHistoryFixture = createPointHistoryFixtures({ db, runId: fixtureContext.runId });
+      const values = await pointHistoryFixture.prepare({
+        fixtureContext, entitled, unentitled, sourceDramaId: sourceRows[0].id,
+      });
+      directory = mkdtempSync(join(tmpdir(), 'aivideo-postman-'));
+      const environmentFile = join(directory, 'environment.json');
+      const environmentValues = { baseUrl, ...values };
+      writeFileSync(environmentFile, JSON.stringify({ name: 'Point history API test', values:
+        Object.entries(environmentValues).map(([key, value]) => ({ key, value, enabled: true, type: 'secret' })) }), { mode: 0o600 });
+      await coordinate('prepared', { suite: ['point-history'], runId: fixtureContext.runId,
+        userUuids: fixtureContext.userUuids, progressPairs: [] });
+      exitCode = await runSuites(['--environment', environmentFile], false);
+      if (exitCode !== 0) throw new Error('Postman point-history verification failed.');
+      await pointHistoryFixture.verifyUnchanged();
+      await coordinate('verified', { suite: ['point-history'], runId: fixtureContext.runId,
+        userUuids: fixtureContext.userUuids, progressPairs: [] });
       return exitCode;
     }
     const catalog = await fetch(`${baseUrl}/dramas`, { signal: AbortSignal.timeout(10000) }).then(r => r.json());
@@ -983,6 +1009,7 @@ async function main() {
         });
       }
       await attemptCleanup(() => fixtureContext.cleanup());
+      if (pointHistoryFixture) await attemptCleanup(() => pointHistoryFixture.cleanup());
       if (!cleanupErrors.length) process.send?.({ type: 'cleaned', suite: suites.map(suite => suite.id), runId: fixtureContext.runId,
         userUuids: fixtureContext.userUuids, progressPairs: ownedPairs });
     } finally {

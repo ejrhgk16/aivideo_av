@@ -6,8 +6,12 @@ import { User } from '../identity/entities/index.js';
 import { EpisodeEntitlement, PointTransaction, Wallet } from './entities/index.js';
 import type {
   IncreasePointsResponse,
+  PointHistoryItemResponse,
+  PointHistoryPageResponse,
+  PointTransactionType,
   PurchaseEpisodeResponse,
 } from './pointResponses.js';
+import { createPageResponse, getPageWindow } from '../common/pagination/pagination.js';
 import {
   InsufficientPointsException,
   PointBalanceOverflowException,
@@ -24,10 +28,64 @@ export interface IncreasePointsInput {
 }
 
 const MAX_POINTS = 2147483647;
+export const POINT_HISTORY_PAGE_SIZE = 30;
+
+type PointHistoryRow = {
+  uuid: string;
+  transactionType: PointTransactionType;
+  amount: number | string;
+  balanceAfter: number | string;
+  createdAt: Date;
+  dramaTitle: string | null;
+  episodeNumber: number | string | null;
+};
 
 @Injectable()
 export class PointService {
   constructor(private readonly dataSource: DataSource) {}
+
+  async listTransactions(userUuid: string, page: number): Promise<PointHistoryPageResponse> {
+    const { offset, limit } = getPageWindow(page, POINT_HISTORY_PAGE_SIZE);
+    const rows = await this.dataSource.createQueryBuilder()
+      .from(PointTransaction, 'point')
+      .innerJoin(User, 'appUser', 'appUser.id = point.walletUserId AND appUser.uuid = :userUuid', { userUuid })
+      .leftJoin(EpisodeEntitlement, 'entitlement',
+        "point.transactionType = 'EPISODE_UNLOCK' AND entitlement.unlockTransactionId = point.id " +
+        'AND entitlement.userId = point.walletUserId')
+      .leftJoin(Episode, 'episode',
+        "episode.id = entitlement.episodeId AND episode.status = 'PUBLISHED' " +
+        'AND episode.publishedAt <= UTC_TIMESTAMP(3)')
+      .leftJoin(Drama, 'drama',
+        "drama.id = episode.dramaId AND drama.status = 'PUBLISHED' " +
+        'AND drama.publishedAt <= UTC_TIMESTAMP(3)')
+      .select('point.uuid', 'uuid')
+      .addSelect('point.transactionType', 'transactionType')
+      .addSelect('point.amount', 'amount')
+      .addSelect('point.balanceAfter', 'balanceAfter')
+      .addSelect('point.createdAt', 'createdAt')
+      .addSelect('drama.title', 'dramaTitle')
+      .addSelect('episode.episodeNumber', 'episodeNumber')
+      .orderBy('point.createdAt', 'DESC')
+      .addOrderBy('point.id', 'DESC')
+      .offset(offset)
+      .limit(limit)
+      .getRawMany<PointHistoryRow>();
+    const result = createPageResponse(rows, page, POINT_HISTORY_PAGE_SIZE);
+
+    return {
+      ...result,
+      items: result.items.map<PointHistoryItemResponse>(row => ({
+        uuid: row.uuid,
+        transactionType: row.transactionType,
+        amount: Number(row.amount),
+        balanceAfter: Number(row.balanceAfter),
+        createdAt: new Date(row.createdAt).toISOString(),
+        episode: row.dramaTitle !== null && row.episodeNumber !== null
+          ? { dramaTitle: row.dramaTitle, episodeNumber: Number(row.episodeNumber) }
+          : null,
+      })),
+    };
+  }
 
   async increase(
     userUuid: string,

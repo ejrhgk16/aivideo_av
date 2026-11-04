@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   NotFoundException,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -15,8 +17,11 @@ import { InvalidPointIncreaseException } from '../common/error/error.customExcep
 import { JwtAuthGuard } from '../identity/jwtAuthGuard.js';
 import type {
   IncreasePointsResponse,
+  PointHistoryPageResponse,
   PurchaseEpisodeResponse,
 } from './pointResponses.js';
+import { POINT_HISTORY_PAGE_SIZE } from './pointService.js';
+import { parsePage } from '../common/pagination/pagination.js';
 
 type AuthenticatedRequest = Request & { user: { uuid: string } };
 
@@ -27,6 +32,15 @@ export class PointController {
     private readonly configService: ConfigService,
     private readonly pointService: PointService,
   ) {}
+
+  @Get('points/transactions')
+  listTransactions(
+    @Req() request: AuthenticatedRequest,
+    @Query('page') rawPage: unknown,
+  ): Promise<PointHistoryPageResponse> {
+    const page = parsePage(rawPage, POINT_HISTORY_PAGE_SIZE);
+    return this.pointService.listTransactions(request.user.uuid, page);
+  }
 
   @Post('points/increase')
   @HttpCode(200)
