@@ -1,4 +1,4 @@
-import type { DramaContent } from '../../src/features/drama/dramaContent';
+import type { DramaContent, DramaListPage, DramaSummary, GenreSummary } from '../../src/features/drama/dramaContent';
 
 let ApiError: typeof import('../../src/common/http/api').ApiError;
 let dramaApi: typeof import('../../src/features/drama/dramaContent');
@@ -25,7 +25,7 @@ test('drama list requests the latest public catalog and returns the API response
   const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   const originalFetch = globalThis.fetch;
   const requestedUrls: string[] = [];
-  const responseBody = [{
+  const responseItem: DramaSummary = {
     uuid: '00000002-0000-4000-8000-000000000001',
     slug: 'our-last-spring',
     title: '우리의 마지막 봄',
@@ -36,7 +36,8 @@ test('drama list requests the latest public catalog and returns the API response
     previewVideos: [],
     episodeCount: 4,
     freeEpisodeCount: 1,
-  }];
+  };
+  const responseBody: DramaListPage = { items: [responseItem], page: 1, hasNext: false };
 
   process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000/';
   globalThis.fetch = (async (input) => {
@@ -48,8 +49,100 @@ test('drama list requests the latest public catalog and returns the API response
     configureApiClient();
     const result = await dramaApi.getDramaList();
 
-    expect(requestedUrls).toEqual(['http://localhost:3000/dramas?sort=latest']);
+    expect(requestedUrls).toEqual(['http://localhost:3000/dramas?sort=latest&page=1']);
     expect(result).toEqual(responseBody);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    else process.env.EXPO_PUBLIC_API_BASE_URL = originalBaseUrl;
+  }
+});
+
+test('drama list encodes paged search and genre query parameters in contract order', async () => {
+  const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+  const originalFetch = globalThis.fetch;
+  const requestedUrls: string[] = [];
+  const responseBody: DramaListPage = { items: [], page: 2, hasNext: false };
+  process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
+  globalThis.fetch = (async (input) => {
+    requestedUrls.push(String(input));
+    return { ok: true, json: async () => responseBody } as Response;
+  }) as typeof fetch;
+
+  try {
+    configureApiClient();
+    await dramaApi.getDramaList({ page: 2, q: ' 봄 ', genre: ' ROMANCE ' });
+    expect(requestedUrls).toEqual(['http://localhost:3000/dramas?sort=latest&page=2&q=%EB%B4%84&genre=ROMANCE']);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    else process.env.EXPO_PUBLIC_API_BASE_URL = originalBaseUrl;
+  }
+});
+
+test('drama list omits blank filters and encodes literal query characters', async () => {
+  const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+  const originalFetch = globalThis.fetch;
+  const requestedUrls: string[] = [];
+  process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
+  globalThis.fetch = (async (input) => {
+    requestedUrls.push(String(input));
+    return { ok: true, json: async () => ({ items: [], page: 1, hasNext: false }) } as Response;
+  }) as typeof fetch;
+
+  try {
+    configureApiClient();
+    await dramaApi.getDramaList({ page: 1, q: '   ', genre: '  ' });
+    await dramaApi.getDramaList({ q: '100%_봄!' });
+    expect(requestedUrls).toEqual([
+      'http://localhost:3000/dramas?sort=latest&page=1',
+      'http://localhost:3000/dramas?sort=latest&page=1&q=100%25_%EB%B4%84!',
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    else process.env.EXPO_PUBLIC_API_BASE_URL = originalBaseUrl;
+  }
+});
+
+test('genres request the public genre endpoint and return the complete response', async () => {
+  const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+  const originalFetch = globalThis.fetch;
+  const requested: Array<{ url: string; headers: HeadersInit | undefined }> = [];
+  const responseBody: GenreSummary[] = [
+    { id: 1, code: 'ROMANCE', name: '로맨스', tileImage: 'genres/romance/tile.webp' },
+    { id: 2, code: 'ACTION', name: '액션', tileImage: null },
+  ];
+  process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000/';
+  globalThis.fetch = (async (input, init) => {
+    requested.push({ url: String(input), headers: init?.headers });
+    return { ok: true, json: async () => responseBody } as Response;
+  }) as typeof fetch;
+
+  try {
+    const client = configureApiClient();
+    await client.login({ loginId: 'test', password: 'test' });
+    expect(await dramaApi.getGenres()).toEqual(responseBody);
+    expect(requested.map(({ url }) => url)).toEqual(['http://localhost:3000/genres']);
+    expect((requested[0].headers as Record<string, string>).Authorization).toBeUndefined();
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    else process.env.EXPO_PUBLIC_API_BASE_URL = originalBaseUrl;
+  }
+});
+
+test('genre request reports an unsuccessful response', async () => {
+  const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+  const originalFetch = globalThis.fetch;
+  process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
+  globalThis.fetch = (async () => ({ ok: false, status: 503 }) as Response) as typeof fetch;
+
+  try {
+    configureApiClient();
+    const request = dramaApi.getGenres();
+    await expect(request).rejects.toBeInstanceOf(ApiError);
+    await expect(request).rejects.toMatchObject({ status: 503 });
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -197,14 +290,14 @@ test('drama list sends the optional Access token when signed in', async () => {
   process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
   globalThis.fetch = (async (input, init) => {
     requests.push({ url: String(input), headers: init?.headers });
-    return { ok: true, json: async () => [] } as Response;
+    return { ok: true, json: async () => ({ items: [], page: 1, hasNext: false }) } as Response;
   }) as typeof fetch;
 
   try {
     const client = configureApiClient();
     await client.login({ loginId: 'test', password: 'test' });
     await dramaApi.getDramaList();
-    expect(requests[0].url).toBe('http://localhost:3000/dramas?sort=latest');
+    expect(requests[0].url).toBe('http://localhost:3000/dramas?sort=latest&page=1');
     expect((requests[0].headers as Record<string, string>).Authorization).toBe('Bearer access-token');
   } finally {
     globalThis.fetch = originalFetch;

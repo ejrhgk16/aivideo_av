@@ -11,6 +11,8 @@ import { createFixtureContext } from './fixtureContext.mjs';
 import { parseSuiteArguments } from './suites.mjs';
 import { createPointHistoryFixtures } from './pointHistoryFixtures.mjs';
 import { createWatchHistoryFixtures } from './watchHistoryFixtures.mjs';
+import { readCatalogPages } from './catalogPages.mjs';
+import { createDramaPaginationFixtures } from './dramaPaginationFixtures.mjs';
 
 const coordinatorAbort = new AbortController();
 let coordinatorDisconnected = false;
@@ -193,6 +195,7 @@ async function main() {
   let savedVideoFixture;
   let watchHistoryFixture;
   let pointHistoryFixture;
+  let dramaPaginationFixture;
   let ownedSavedPairs = [];
   let ownedCollectionLinks = [];
   let prepRefreshTokens = [];
@@ -287,6 +290,27 @@ async function main() {
     unentitled = await fixtureContext.createUser();
     entitledUuid = entitled.uuid;
     unentitledUuid = unentitled.uuid;
+    if (suites.length === 1 && suites[0].id === 'drama-pagination') {
+      dramaPaginationFixture = createDramaPaginationFixtures({ db, runId: fixtureContext.runId });
+      const values = await dramaPaginationFixture.prepare();
+      directory = mkdtempSync(join(tmpdir(), 'aivideo-postman-'));
+      const environmentFile = join(directory, 'environment.json');
+      const environmentValues = {
+        baseUrl,
+        entitledLoginId: entitled.loginId, entitledPassword: entitled.password, entitledUserUuid: entitledUuid,
+        unentitledLoginId: unentitled.loginId, unentitledPassword: unentitled.password, unentitledUserUuid: unentitledUuid,
+        ...values,
+      };
+      writeFileSync(environmentFile, JSON.stringify({ name: 'Drama catalog pagination API test', values:
+        Object.entries(environmentValues).map(([key, value]) => ({ key, value, enabled: true, type: 'secret' })) }), { mode: 0o600 });
+      await coordinate('prepared', { suite: ['drama-pagination'], runId: fixtureContext.runId,
+        userUuids: fixtureContext.userUuids, progressPairs: [] });
+      exitCode = await runSuites(['--environment', environmentFile], false);
+      if (exitCode !== 0) throw new Error('Postman drama-pagination verification failed.');
+      await coordinate('verified', { suite: ['drama-pagination'], runId: fixtureContext.runId,
+        userUuids: fixtureContext.userUuids, progressPairs: [] });
+      return exitCode;
+    }
     if (suites.every(suite => suite.id === 'identity')) {
       directory = mkdtempSync(join(tmpdir(), 'aivideo-postman-'));
       const environmentFile = join(directory, 'environment.json');
@@ -304,7 +328,7 @@ async function main() {
       return exitCode;
     }
     if (suites.length === 1 && suites[0].id === 'watch-history') {
-      const catalog = await fetch(`${baseUrl}/dramas`, { signal: AbortSignal.timeout(10000) }).then(response => response.json());
+      const catalog = await readCatalogPages(baseUrl);
       const source = catalog.find(drama => drama.episodeCount > 0 || drama.freeEpisodeCount > 0);
       if (!source) throw new Error('A public drama is required as the watch-history fixture template.');
       const [sourceRows] = await db.execute('SELECT id FROM dramas WHERE uuid = ?', [source.uuid]);
@@ -313,7 +337,7 @@ async function main() {
       return exitCode;
     }
     if (suites.length === 1 && suites[0].id === 'point-history') {
-      const catalog = await fetch(`${baseUrl}/dramas`, { signal: AbortSignal.timeout(10000) }).then(response => response.json());
+      const catalog = await readCatalogPages(baseUrl);
       const source = catalog.find(drama => drama.episodeCount > 0 || drama.freeEpisodeCount > 0);
       if (!source) throw new Error('A public drama is required as the point-history fixture template.');
       const [sourceRows] = await db.execute('SELECT id FROM dramas WHERE uuid = ?', [source.uuid]);
@@ -336,7 +360,7 @@ async function main() {
         userUuids: fixtureContext.userUuids, progressPairs: [] });
       return exitCode;
     }
-    const catalog = await fetch(`${baseUrl}/dramas`, { signal: AbortSignal.timeout(10000) }).then(r => r.json());
+    const catalog = await readCatalogPages(baseUrl);
     const selected = catalog.find(drama => drama.previewVideos.length > 0 &&
       drama.freeEpisodeCount > 0 && drama.episodeCount > drama.freeEpisodeCount);
     if (!selected) throw new Error('Public API content fixtures are missing.');
@@ -1009,6 +1033,7 @@ async function main() {
         });
       }
       await attemptCleanup(() => fixtureContext.cleanup());
+      if (dramaPaginationFixture) await attemptCleanup(() => dramaPaginationFixture.cleanup());
       if (pointHistoryFixture) await attemptCleanup(() => pointHistoryFixture.cleanup());
       if (!cleanupErrors.length) process.send?.({ type: 'cleaned', suite: suites.map(suite => suite.id), runId: fixtureContext.runId,
         userUuids: fixtureContext.userUuids, progressPairs: ownedPairs });

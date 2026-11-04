@@ -4,7 +4,7 @@ import { Text } from 'react-native';
 import { act, fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { renderRouter, testRouter } from 'expo-router/testing-library';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { getDramaContent, getDramaList } from '@/features/drama/dramaContent';
+import { getDramaContent, getDramaList, getGenres } from '@/features/drama/dramaContent';
 import type { DramaContent } from '@/features/drama/dramaResponses';
 import { getHomeCollection } from '@/features/home/homeContent';
 import type { HomeCollection, HomeCollectionDrama } from '@/features/home/homeResponses';
@@ -18,7 +18,7 @@ import { HomeScreen } from '@/screens/HomeScreen';
 import { PlaybackScreenPreview } from '@/screens/playbackScreen_preview';
 import { mockVideoPlayers } from '../support/video';
 
-jest.mock('@/features/drama/dramaContent', () => ({ getDramaContent: jest.fn(), getDramaList: jest.fn() }));
+jest.mock('@/features/drama/dramaContent', () => ({ getDramaContent: jest.fn(), getDramaList: jest.fn(), getGenres: jest.fn() }));
 jest.mock('@/features/home/homeContent', () => ({ getHomeCollection: jest.fn() }));
 jest.mock('@/features/playback/previewPlayback', () => ({ getPreviewPlayback: jest.fn() }));
 jest.mock('@/features/playback/savedVideos', () => ({ saveVideo: jest.fn(), removeSavedVideo: jest.fn() }));
@@ -169,6 +169,7 @@ beforeEach(() => {
   featuredQueue = [];
   jest.mocked(getDramaContent).mockReset();
   jest.mocked(getDramaList).mockReset();
+  jest.mocked(getGenres).mockReset();
   jest.mocked(getHomeCollection).mockReset();
   jest.mocked(getPreviewPlayback).mockReset();
   jest.mocked(saveVideo).mockReset();
@@ -201,7 +202,8 @@ beforeEach(() => {
     if (code === 'HOME_FEATURED' && featuredQueue.length) return Promise.resolve(featuredQueue.shift()!);
     return Promise.resolve(emptyCollection(code));
   });
-  jest.mocked(getDramaList).mockResolvedValue([]);
+  jest.mocked(getDramaList).mockResolvedValue({ items: [], page: 1, hasNext: false });
+  jest.mocked(getGenres).mockResolvedValue([]);
 });
 
 afterEach(() => {

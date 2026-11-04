@@ -51,3 +51,22 @@ export type DramaSummary = {
   episodeCount: number;
   freeEpisodeCount: number;
 };
+
+export type DramaListParams = {
+  page?: number;
+  q?: string;
+  genre?: string;
+};
+
+export type DramaListPage = {
+  items: DramaSummary[];
+  page: number;
+  hasNext: boolean;
+};
+
+export type GenreSummary = {
+  id: number;
+  code: string;
+  name: string;
+  tileImage: string | null;
+};

@@ -17,44 +17,53 @@
 | 이름 | 필수 | 허용 값 | 기본값 | 설명 |
 | --- | --- | --- | --- | --- |
 | `sort` | 아니요 | `latest` | `latest` | 작품 공개일 기준 최신순 정렬 |
+| `page` | 아니요 | 양의 안전 정수 | `1` | 고정 30개 단위 페이지 번호 |
+| `q` | 아니요 | 단일 문자열 | 없음 | 작품명 또는 연결된 장르명의 대소문자 구분 없는 부분 검색. 앞뒤 공백은 제거하며 `%`, `_`, `!`는 일반 문자로 검색 |
+| `genre` | 아니요 | 단일 장르 코드 | 없음 | 장르 코드 필터. `q`와 함께 지정하면 두 조건을 모두 만족하는 작품을 반환 |
 
-`sort`에 `latest` 외 값을 전달하면 `400 Bad Request`를 반환한다.
+`sort`에 `latest` 외 값을 전달하거나 `page`가 양의 안전 정수 형식이 아니면 `400 Bad Request`를 반환한다. `q`와 `genre`는 반복·배열·객체 값이면 400이다. `q[name]`, `genre[]`와 같은 괄호형 필터 키도 허용하지 않는다. 공백만 있는 값은 필터를 적용하지 않는다. 존재하지 않는 장르 코드는 빈 페이지를 반환한다.
 
 #### 200 Response
 
-응답 본문은 작품 배열이다.
+응답 본문은 공통 페이지 객체다. `items`에는 최대 30개 작품이 들어가며, `hasNext`는 다음 페이지 존재 여부다. 결과가 없거나 범위를 벗어난 페이지는 요청한 `page`와 빈 `items`, `hasNext: false`를 반환한다.
 
 ```json
-[
-  {
-    "uuid": "00000002-0000-4000-8000-000000000001",
-    "slug": "our-last-spring",
-    "title": "우리의 마지막 봄",
-    "shortDescription": "서로의 비밀을 간직한 두 사람의 봄날 로맨스",
-    "productionCompany": "라이트하우스 스튜디오",
-    "genres": [
-      { "id": 1, "code": "ROMANCE", "name": "로맨스" }
-    ],
-  "imageUrls": {
-    "poster": "https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/00000002-0000-4000-8000-000000000001/images/poster/image-1.webp",
-    "posterLandscape": "https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/00000002-0000-4000-8000-000000000001/images/poster-landscape/image-1.webp",
-    "homeHero": "https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/00000002-0000-4000-8000-000000000001/images/home-hero/image-1.webp",
-    "detailCover": null,
-    "campaigns": []
-  },
-  "previewVideos": [
+{
+  "items": [
     {
-      "uuid": "00000002-0000-4000-8000-000000000201",
-      "storageKey": "dramas/our-last-spring/videos/preview-1.mp4",
-      "durationMs": 30000,
-      "isSaved": false
+      "uuid": "00000002-0000-4000-8000-000000000001",
+      "slug": "our-last-spring",
+      "title": "우리의 마지막 봄",
+      "shortDescription": "서로의 비밀을 간직한 두 사람의 봄날 로맨스",
+      "productionCompany": "라이트하우스 스튜디오",
+      "genres": [
+        { "id": 1, "code": "ROMANCE", "name": "로맨스" }
+      ],
+      "imageUrls": {
+        "poster": "https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/00000002-0000-4000-8000-000000000001/images/poster/image-1.webp",
+        "posterLandscape": "https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/00000002-0000-4000-8000-000000000001/images/poster-landscape/image-1.webp",
+        "homeHero": "https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/dramas/00000002-0000-4000-8000-000000000001/images/home-hero/image-1.webp",
+        "detailCover": null,
+        "campaigns": []
+      },
+      "previewVideos": [
+        {
+          "uuid": "00000002-0000-4000-8000-000000000201",
+          "storageKey": "dramas/our-last-spring/videos/preview-1.mp4",
+          "durationMs": 30000,
+          "isSaved": false
+        }
+      ],
+      "episodeCount": 4,
+      "freeEpisodeCount": 1
     }
   ],
-    "episodeCount": 4,
-    "freeEpisodeCount": 1
-  }
-]
+  "page": 1,
+  "hasNext": true
+}
 ```
+
+작품은 필터를 적용한 뒤 `published_at DESC, id DESC` 순서로 페이지를 나눈다. 페이지 사이에 작품이 추가·변경되면 offset 기준 결과가 이동할 수 있다.
 
 | 필드 | 타입 | 설명 |
 | --- | --- | --- |
@@ -92,7 +101,8 @@
 ## 노출 규칙
 
 - 작품은 `PUBLISHED`이고 `published_at`이 현재 시각 이하인 경우에만 반환한다.
-- 작품은 `published_at` 내림차순으로 정렬한다.
+- `published_at` 내림차순, 같은 시각이면 내부 `id` 내림차순으로 정렬한다. `id`는 응답에 포함하지 않는다.
+- 검색·장르 조건을 적용한 결과에서 30개씩 페이지를 반환한다. `hasNext` 판정에 필요한 추가 한 작품은 응답에 포함하지 않는다.
 - 회차 수와 무료 회차 수에는 같은 공개 조건을 만족하는 회차만 포함한다.
 
 ## 작품 상세 API

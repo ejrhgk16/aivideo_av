@@ -1,11 +1,12 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { PanResponder, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type ImageStyle, type StyleProp, type ViewStyle } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AppText, Button, EmptyState, Icon, Page, SectionTitle } from '@/components/ui';
 import { AppTopBar } from '@/components/AppTopBar';
-import { getDramaList, type DramaSummary } from '@/features/drama/dramaContent';
+import { getDramaList, getGenres, type DramaSummary, type GenreSummary } from '@/features/drama/dramaContent';
+import { SessionChangedError } from '@/common/http/api';
 import { getHomeCollection, type HomeCollection, type HomeCollectionDrama } from '@/features/home/homeContent';
 import { resolveApiImageUrl } from '@/common/media';
 import { colors } from '@/common/theme/tokens';
@@ -77,13 +78,65 @@ export function HomeScreen() {
   const [topThreeStatus, setTopThreeStatus] = useState<CollectionStatus>('loading');
   const [catalog, setCatalog] = useState<DramaSummary[]>([]);
   const [catalogStatus, setCatalogStatus] = useState<CollectionStatus>('loading');
+  const [catalogHasNext, setCatalogHasNext] = useState(false);
+  const [catalogNextLoading, setCatalogNextLoading] = useState(false);
+  const [catalogNextError, setCatalogNextError] = useState(false);
+  const [genres, setGenres] = useState<GenreSummary[]>([]);
+  const [genresStatus, setGenresStatus] = useState<CollectionStatus>('loading');
+  const generation = useRef(0);
+  const inFlight = useRef(false);
+  const nextPage = useRef(2);
+
+  const loadCatalogPage = useCallback(async (page: number, replace: boolean, requestGeneration: number, version: number) => {
+    if (inFlight.current || isRestoring) return;
+    inFlight.current = true;
+    const isCurrent = () => generation.current === requestGeneration && isCurrentSession(version);
+    if (replace) {
+      setCatalog([]);
+      setCatalogStatus('loading');
+    } else {
+      setCatalogNextLoading(true);
+    }
+    setCatalogNextError(false);
+    try {
+      const result = await getDramaList({ page });
+      if (!isCurrent()) return;
+      setCatalog((current) => {
+        if (!isCurrent()) return current;
+        if (replace) return result.items;
+        const merged = [...current];
+        const seen = new Set(current.map((drama) => drama.uuid));
+        result.items.forEach((drama) => {
+          if (!seen.has(drama.uuid)) { seen.add(drama.uuid); merged.push(drama); }
+        });
+        return merged;
+      });
+      nextPage.current = result.page + 1;
+      setCatalogHasNext(result.hasNext);
+      setCatalogStatus('loaded');
+    } catch (error) {
+      if (!isCurrent() || error instanceof SessionChangedError) return;
+      if (replace) setCatalogStatus('error');
+      else setCatalogNextError(true);
+    } finally {
+      if (isCurrent()) {
+        inFlight.current = false;
+        setCatalogNextLoading(false);
+      }
+    }
+  }, [isCurrentSession, isRestoring]);
 
   useFocusEffect(useCallback(() => {
     let active = true;
     const version = sessionVersion;
+    const requestGeneration = ++generation.current;
+    inFlight.current = false;
+    nextPage.current = 2;
     setFeatured(null); setDaily(null); setCampaign(null); setTopThree(null); setCatalog([]);
     setFeaturedStatus('loading'); setDailyStatus('loading'); setTopThreeStatus('loading'); setCatalogStatus('loading');
-    if (isRestoring) return () => { active = false; };
+    setCatalogHasNext(false); setCatalogNextError(false); setCatalogNextLoading(false);
+    setGenres([]); setGenresStatus('loading');
+    if (isRestoring) return () => { active = false; generation.current += 1; inFlight.current = false; };
     setHeroIndex(0);
     void getHomeCollection('HOME_FEATURED').then(
       (collection) => { if (active && isCurrentSession(version)) { setFeatured(collection); setFeaturedStatus('loaded'); } },
@@ -101,12 +154,27 @@ export function HomeScreen() {
       (collection) => { if (active && isCurrentSession(version)) setCampaign(collection); },
       () => undefined,
     );
-    void getDramaList().then(
-      (dramaList) => { if (active && isCurrentSession(version)) { setCatalog(dramaList); setCatalogStatus('loaded'); } },
-      () => { if (active && isCurrentSession(version)) setCatalogStatus('error'); },
+    void loadCatalogPage(1, true, requestGeneration, version);
+    void getGenres().then(
+      (result) => { if (active && generation.current === requestGeneration && isCurrentSession(version)) { setGenres(result); setGenresStatus('loaded'); } },
+      () => { if (active && generation.current === requestGeneration && isCurrentSession(version)) setGenresStatus('error'); },
     );
-    return () => { active = false; };
-  }, [isRestoring, sessionVersion, user?.uuid, isCurrentSession]));
+    return () => { active = false; generation.current += 1; inFlight.current = false; };
+  }, [isRestoring, sessionVersion, user?.uuid, isCurrentSession, loadCatalogPage]));
+
+  const loadNextCatalogPage = () => {
+    if (!catalogHasNext || catalogNextLoading || catalogStatus !== 'loaded' || isRestoring) return;
+    void loadCatalogPage(nextPage.current, false, generation.current, sessionVersion);
+  };
+  const retryGenres = () => {
+    const requestGeneration = generation.current;
+    const version = sessionVersion;
+    setGenresStatus('loading');
+    void getGenres().then(
+      (result) => { if (generation.current === requestGeneration && isCurrentSession(version)) { setGenres(result); setGenresStatus('loaded'); } },
+      () => { if (generation.current === requestGeneration && isCurrentSession(version)) setGenresStatus('error'); },
+    );
+  };
 
   const featuredDramas = collectionDramas(featured);
   const dailyDramas = collectionDramas(daily);
@@ -136,6 +204,32 @@ export function HomeScreen() {
   const ranks = topThreeStatus === 'loaded' && topThreeDramas.length > 0
     ? <ApiRankRows dramas={topThreeDramas} onPress={openDetail} />
     : collectionState(topThreeStatus, 'TOP 3', '새로운 작품을 준비하고 있어요.');
+  const retryCatalog = () => void loadCatalogPage(1, true, generation.current, sessionVersion);
+  const latestContent = catalogStatus === 'loading'
+    ? <EmptyState title="최신 작품 불러오는 중" description="잠시만 기다려 주세요." />
+    : catalogStatus === 'error'
+      ? <EmptyState title="최신 작품을 불러오지 못했어요" description="잠시 후 다시 확인해 주세요." action="다시 시도" onAction={retryCatalog} />
+      : catalog.length === 0
+        ? <EmptyState title="최신 작품이 없어요" description="새로운 작품을 준비하고 있어요." />
+        : <>
+          <View style={styles.posterGrid}>{catalog.map((drama) => <Pressable key={drama.uuid} accessibilityRole="button" accessibilityLabel={drama.title + ' 작품 소개'} style={{ width: posterWidth, gap: 10 }} onPress={() => openDetail(drama)}><View style={[styles.apiPoster, { height: posterWidth * 1.48 }]}><ApiDramaImage imageUrl={drama.imageUrls.poster} title={drama.title} style={StyleSheet.absoluteFill} /></View><AppText weight="semibold" numberOfLines={1}>{drama.title}</AppText><AppText style={styles.apiMeta}>{summaryGenreLabel(drama)} · {drama.freeEpisodeCount}화 무료</AppText></Pressable>)}</View>
+          {catalogNextLoading ? <AppText style={styles.apiMeta}>더 불러오는 중이에요</AppText> : catalogNextError ? <View><AppText style={styles.apiMeta}>작품을 더 불러오지 못했어요</AppText><Button label="다시 시도" variant="secondary" onPress={loadNextCatalogPage} /></View> : catalogHasNext ? <Button label="더 보기" variant="secondary" onPress={loadNextCatalogPage} /> : null}
+        </>;
+  const genreContent = genresStatus === 'loading'
+    ? <EmptyState title="장르 불러오는 중" description="잠시만 기다려 주세요." />
+    : genresStatus === 'error'
+      ? <EmptyState title="장르를 불러오지 못했어요" description="잠시 후 다시 확인해 주세요." action="다시 시도" onAction={retryGenres} />
+      : genres.length === 0
+        ? <EmptyState title="장르가 없어요" description="작품 장르를 준비하고 있어요." />
+        : <View style={styles.genreList}>{genres.map((genre) => {
+          const drama = catalog.find((item) => item.genres.some((itemGenre) => itemGenre.code === genre.code));
+          const imageUrl = drama?.imageUrls.posterLandscape ?? drama?.imageUrls.poster ?? null;
+          return <Pressable key={genre.id} style={styles.genreTile} accessibilityRole="button" accessibilityLabel={`${genre.name} 작품 찾기`} onPress={() => openGenre(genre.code)}>
+            <ApiDramaImage imageUrl={imageUrl} title={genre.name} style={StyleSheet.absoluteFill} />
+            <LinearGradient pointerEvents="none" colors={['#0B0C0FDB', '#0B0C0F10']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} />
+            <View style={styles.genreContent}><AppText weight="bold" style={styles.genreTitle}>{genre.name}</AppText><Icon name="arrow-up-right" color={colors.text} size={23} /></View>
+          </Pressable>;
+        })}</View>;
 
   return (
     <Page header={<AppTopBar />} contentStyle={styles.page}>
@@ -176,7 +270,7 @@ export function HomeScreen() {
           <SectionTitle eyebrow="EDITOR’S PICK" title="지금 눈여겨볼 TOP 3" action="더 보기" onAction={() => setTab('랭킹')} />{ranks}
           <Pressable style={styles.previewLink} accessibilityRole="button" onPress={() => router.push('/recommend')}><View style={styles.previewIcon}><Icon name="film" color={colors.accent} size={24} /></View><View style={styles.flex}><AppText weight="semibold" style={styles.previewTitle}>어떤 이야기가 취향인가요?</AppText><AppText style={styles.small}>넘겨보며 다음 드라마를 골라보세요.</AppText></View><Icon name="arrow-right" color={colors.text} size={19} /></Pressable>
         </View>
-      </> : tab === '최신' ? <View style={styles.section}><SectionTitle eyebrow="JUST ARRIVED" title="새로운 이야기가 도착했어요" />{catalogStatus === 'loaded' && catalog.length > 0 ? <View style={styles.posterGrid}>{catalog.map((drama) => <Pressable key={drama.uuid} accessibilityRole="button" accessibilityLabel={drama.title + ' 작품 소개'} style={{ width: posterWidth, gap: 10 }} onPress={() => openDetail(drama)}><View style={[styles.apiPoster, { height: posterWidth * 1.48 }]}><ApiDramaImage imageUrl={drama.imageUrls.poster} title={drama.title} style={StyleSheet.absoluteFill} /></View><AppText weight="semibold" numberOfLines={1}>{drama.title}</AppText><AppText style={styles.apiMeta}>{summaryGenreLabel(drama)} · {drama.freeEpisodeCount}화 무료</AppText></Pressable>)}</View> : collectionState(catalogStatus, '최신 작품', '새로운 작품을 준비하고 있어요.')}</View> : tab === '랭킹' ? <View style={styles.section}><SectionTitle eyebrow="THE TOP THREE" title="지금 눈여겨볼 TOP 3" /><AppText style={styles.intro}>편집부가 고른 이번 주의 이야기</AppText>{ranks}</View> : <View style={styles.section}><SectionTitle eyebrow="FIND YOUR MOOD" title="오늘은 어떤 이야기인가요?" />{catalogStatus === 'loaded' && catalog.some((drama) => drama.genres.length > 0) ? <View style={styles.genreList}>{Array.from(new Map(catalog.flatMap((drama) => drama.genres.map((genre) => [genre.name, { genre, drama }] as const))).values()).map(({ genre, drama }) => <Pressable key={genre.id} style={styles.genreTile} accessibilityRole="button" accessibilityLabel={`${genre.name} 작품 찾기`} onPress={() => openGenre(genre.code)}><ApiDramaImage imageUrl={drama.imageUrls.posterLandscape ?? drama.imageUrls.poster} title={genre.name} style={StyleSheet.absoluteFill} /><LinearGradient pointerEvents="none" colors={['#0B0C0FDB', '#0B0C0F10']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={StyleSheet.absoluteFill} /><View style={styles.genreContent}><AppText weight="bold" style={styles.genreTitle}>{genre.name}</AppText><Icon name="arrow-up-right" color={colors.text} size={23} /></View></Pressable>)}</View> : collectionState(catalogStatus, '장르', '작품 장르를 준비하고 있어요.')}</View>}
+      </> : tab === '최신' ? <View style={styles.section}><SectionTitle eyebrow="JUST ARRIVED" title="새로운 이야기가 도착했어요" />{latestContent}</View> : tab === '랭킹' ? <View style={styles.section}><SectionTitle eyebrow="THE TOP THREE" title="지금 눈여겨볼 TOP 3" /><AppText style={styles.intro}>편집부가 고른 이번 주의 이야기</AppText>{ranks}</View> : <View style={styles.section}><SectionTitle eyebrow="FIND YOUR MOOD" title="오늘은 어떤 이야기인가요?" />{genreContent}</View>}
     </Page>
   );
 }

@@ -6,9 +6,15 @@ import { parseSuiteArguments, selectSuites, suites } from '../../api/suites.mjs'
 const collectionDirectory = fileURLToPath(new URL('../../api/', import.meta.url));
 
 describe('API suite selection', () => {
-  it('registers all ten suites in the default order', () => {
+  it('registers all eleven suites in the default order', () => {
     expect(selectSuites([]).map(suite => suite.id)).toEqual([
-      'http', 'identity', 'content', 'programming', 'playback', 'economy', 'watch-progress', 'saved-videos', 'watch-history', 'point-history',
+      'http', 'identity', 'content', 'drama-pagination', 'programming', 'playback', 'economy', 'watch-progress', 'saved-videos', 'watch-history', 'point-history',
+    ]);
+  });
+
+  it('runs drama-pagination under the exclusive content lock', () => {
+    expect(selectSuites(['--suite', 'drama-pagination'])).toMatchObject([
+      { id: 'drama-pagination', contentMode: 'exclusive', collection: 'drama-pagination.postman_collection.json' },
     ]);
   });
 

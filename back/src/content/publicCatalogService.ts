@@ -15,13 +15,22 @@ import { UserSavedVideo } from '../playback/entities/userSavedVideo.entity.js';
 import { createDramaImageUrls } from './mediaUrl.js';
 import type {
   DramaDetailResponse,
-  DramaSummaryResponse,
+  DramaPageResponse,
   EpisodePlaybackResponse,
   GenreResponse,
   PreviewPlaybackResponse,
 } from './contentResponses.js';
 import { S3VideoUrlService } from './s3VideoUrlService.js';
 import { EpisodeAccessDeniedException, InvalidTokenException } from '../common/error/error.customExceptions.js';
+import { createPageResponse, getPageWindow } from '../common/pagination/pagination.js';
+
+export const DRAMA_PAGE_SIZE = 30;
+
+export type DramaListOptions = {
+  page: number;
+  q?: string;
+  genre?: string;
+};
 
 const PUBLIC_STATUS = 'PUBLISHED';
 
@@ -92,20 +101,47 @@ export class PublicCatalogService {
     return rows.map((row) => ({ ...row, isSaved: Number(row.isSaved) === 1 }));
   }
 
-  async listDramas(sort: 'latest' = 'latest', now = new Date(), userUuid?: string): Promise<DramaSummaryResponse[]> {
-    if (sort !== 'latest') {
-      return [];
+  async listDramas(
+    options: DramaListOptions,
+    now = new Date(),
+    userUuid?: string,
+  ): Promise<DramaPageResponse> {
+    const { offset, limit } = getPageWindow(options.page, DRAMA_PAGE_SIZE);
+    const query = this.dramaRepository.createQueryBuilder('drama')
+      .where('drama.status = :status', { status: PUBLIC_STATUS })
+      .andWhere('drama.publishedAt <= :now', { now });
+
+    if (options.q) {
+      const escapedQuery = options.q.replace(/[!%_]/g, (character) => `!${character}`).toLowerCase();
+      query.andWhere(
+        "(LOWER(drama.title) LIKE :catalogSearch ESCAPE '!' OR EXISTS (" +
+        'SELECT 1 FROM drama_genres searchLink INNER JOIN genres searchGenre ' +
+        'ON searchGenre.id = searchLink.genre_id WHERE searchLink.drama_id = drama.id ' +
+        "AND LOWER(searchGenre.name) LIKE :catalogSearch ESCAPE '!'))",
+        { catalogSearch: `%${escapedQuery}%` },
+      );
     }
 
-    const dramas = await this.dramaRepository
-      .createQueryBuilder('drama')
-      .where('drama.status = :status', { status: PUBLIC_STATUS })
-      .andWhere('drama.publishedAt <= :now', { now })
+    if (options.genre) {
+      query.andWhere(
+        'EXISTS (SELECT 1 FROM drama_genres filterLink INNER JOIN genres filterGenre ' +
+        'ON filterGenre.id = filterLink.genre_id WHERE filterLink.drama_id = drama.id ' +
+        'AND filterGenre.code = :catalogGenre)',
+        { catalogGenre: options.genre },
+      );
+    }
+
+    const rows = await query
       .orderBy('drama.publishedAt', 'DESC')
+      .addOrderBy('drama.id', 'DESC')
+      .offset(offset)
+      .limit(limit)
       .getMany();
+    const page = createPageResponse(rows, options.page, DRAMA_PAGE_SIZE);
+    const dramas = page.items;
 
     if (dramas.length === 0) {
-      return [];
+      return { items: [], page: options.page, hasNext: false };
     }
 
     const dramaIds = dramas.map((drama) => drama.id);
@@ -148,29 +184,32 @@ export class PublicCatalogService {
       episodesByDrama.set(episode.dramaId, dramaEpisodes);
     }
 
-    return dramas.map((drama) => {
-      const dramaImages = imagesByDrama.get(drama.id) ?? [];
-      const dramaVideos = videosByDrama.get(drama.id) ?? [];
-      const dramaEpisodes = episodesByDrama.get(drama.id) ?? [];
-      const dramaGenresForDrama = genreLinksByDrama.get(drama.id) ?? [];
-      const dramaImagesForResponse = mapImages(dramaImages);
+    return {
+      ...page,
+      items: dramas.map((drama) => {
+        const dramaImages = imagesByDrama.get(drama.id) ?? [];
+        const dramaVideos = videosByDrama.get(drama.id) ?? [];
+        const dramaEpisodes = episodesByDrama.get(drama.id) ?? [];
+        const dramaGenresForDrama = genreLinksByDrama.get(drama.id) ?? [];
+        const dramaImagesForResponse = mapImages(dramaImages);
 
-      return {
-        uuid: drama.uuid,
-        slug: drama.publicSlug,
-        title: drama.title,
-        shortDescription: drama.shortDescription,
-        productionCompany: companiesById.get(drama.productionCompanyId) ?? null,
-        genres: dramaGenresForDrama
-          .map((link) => genresById.get(link.genreId))
-          .filter((genre): genre is Genre => genre !== undefined)
-          .map(({ id, code, name }) => ({ id, code, name })),
-        imageUrls: createDramaImageUrls(dramaImagesForResponse),
-        previewVideos: mapPreviewVideos(dramaVideos),
-        episodeCount: dramaEpisodes.length,
-        freeEpisodeCount: dramaEpisodes.filter((episode) => episode.pricePoints === 0).length,
-      };
-    });
+        return {
+          uuid: drama.uuid,
+          slug: drama.publicSlug,
+          title: drama.title,
+          shortDescription: drama.shortDescription,
+          productionCompany: companiesById.get(drama.productionCompanyId) ?? null,
+          genres: dramaGenresForDrama
+            .map((link) => genresById.get(link.genreId))
+            .filter((genre): genre is Genre => genre !== undefined)
+            .map(({ id, code, name }) => ({ id, code, name })),
+          imageUrls: createDramaImageUrls(dramaImagesForResponse),
+          previewVideos: mapPreviewVideos(dramaVideos),
+          episodeCount: dramaEpisodes.length,
+          freeEpisodeCount: dramaEpisodes.filter((episode) => episode.pricePoints === 0).length,
+        };
+      }),
+    };
   }
 
   async getDrama(dramaId: string, now = new Date(), userUuid?: string): Promise<DramaDetailResponse> {

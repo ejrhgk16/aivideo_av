@@ -1,0 +1,104 @@
+{
+  "version": 1,
+  "plan_id": "plan-53-drama-catalog-pagination",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "드라마 목록 백엔드 테스트·fixture 작성",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/test/api/content.postman_collection.json",
+        "back/test/api/programming.postman_collection.json",
+        "back/test/api/playback.postman_collection.json",
+        "back/test/api/economy.postman_collection.json",
+        "back/test/api/watch-progress.postman_collection.json",
+        "back/test/api/saved-videos.postman_collection.json",
+        "back/test/api/drama-pagination.postman_collection.json",
+        "back/test/api/catalogPages.mjs",
+        "back/test/api/dramaPaginationFixtures.mjs",
+        "back/test/api/run.mjs",
+        "back/test/api/suites.mjs",
+        "back/test/unit/api/catalogPages.spec.ts",
+        "back/test/unit/api/dramaPaginationFixtures.spec.ts",
+        "back/test/unit/api/suiteSelection.spec.ts",
+        "back/test/unit/content/publicCatalogService.spec.ts"
+      ],
+      "checks": [
+        "node --check back/test/api/catalogPages.mjs",
+        "node --check back/test/api/dramaPaginationFixtures.mjs",
+        "node --check back/test/api/run.mjs",
+        "node --check back/test/api/suites.mjs",
+        "node -e \"const fs=require('node:fs'); for (const name of ['content','programming','playback','economy','watch-progress','saved-videos','drama-pagination']) JSON.parse(fs.readFileSync('back/test/api/'+name+'.postman_collection.json','utf8'))\""
+      ],
+      "started_at": "2026-11-04T08:13:46.873Z",
+      "summary": "Fixed the literal-search fixture and preview-save request body. All five declared static checks, Postman script parsing, and focused unit tests passed (4 files, 42 tests). Content API suite passed (15 requests, 54 assertions). Drama-pagination had one remaining C1 source-contract failure: q[name] returned 200 instead of 400 (33 requests, 21 assertions). Handed this validation gap to task-2; audited pagination consumers across all six legacy collections.",
+      "completed_at": "2026-11-04T08:19:38.223Z"
+    },
+    {
+      "id": "task-2",
+      "name": "드라마 목록 백엔드 구현·문서·검증",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/src/content/publicCatalogController.ts",
+        "back/src/content/publicCatalogService.ts",
+        "back/src/content/contentResponses.ts",
+        "_docs/api/02-content/dramas.md",
+        "_docs/api/00-overview/conventions.md",
+        "back/README.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run test:api -- --suite content --suite drama-pagination",
+        "npm --prefix back run test",
+        "npm --prefix back run test:api:parallel",
+        "npm --prefix back run build"
+      ],
+      "started_at": "2026-11-04T08:19:46.553Z",
+      "summary": "Implemented GET /dramas pagination, search, and genre filtering with the common `{items,page,hasNext}` response. The controller rejects invalid scalar and bracket-form query keys; the service filters before fetching 31 rows, sorts by publishedAt/id descending, and enriches only the returned 30. Updated the drama API docs, pagination conventions, and backend README. All declared checks passed: lint; selected content and drama-pagination suites (15/54 and 37/20 requests/assertions); full backend test (25 files, 165 unit tests, all 11 HTTP suites); parallel API isolation; and build. Final diff scope and whitespace checks passed.",
+      "completed_at": "2026-11-04T08:23:58.658Z"
+    },
+    {
+      "id": "task-3",
+      "name": "드라마 목록 프론트 테스트 작성",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/tests/unit/dramaContent.test.ts",
+        "front/tests/unit/searchScreen.test.tsx",
+        "front/tests/unit/homeScreen.test.tsx",
+        "front/tests/unit/savedVideoScreens.test.tsx"
+      ],
+      "checks": [],
+      "started_at": "2026-11-04T08:30:34.704Z",
+      "summary": "수정한 테스트 결함: encodeURIComponent의 실제 `!` 인코딩, Home fixture의 이미지 URL, Expo Image의 배열형 source, Router 복귀 URL 인코딩. 지정 명령으로 4개 테스트 파일을 실행했습니다. Home, dramaContent, savedVideoScreens는 통과했습니다. Search에는 C4 소스 계약 실패 4건이 남았습니다: 기본 장르 sentinel `all` 전송, 장르 로드 실패 후 재시도에서 route 장르 미적용, 전체 장르 선택 후 refocus 시 route 장르 재적용, debounce 전에 입력한 검색어가 refocus 요청에 반영되지 않음. 경고와 미완료 비동기 요청은 남지 않았습니다. task-4에서 해당 소스 결함을 수정하고 선언된 검사를 다시 실행해야 합니다.",
+      "completed_at": "2026-11-04T08:34:12.247Z"
+    },
+    {
+      "id": "task-4",
+      "name": "드라마 목록 프론트 API·화면 구현·검증",
+      "status": "completed",
+      "depends_on": [
+        "task-2",
+        "task-3"
+      ],
+      "files": [
+        "front/src/features/drama/dramaContent.ts",
+        "front/src/features/drama/dramaResponses.ts",
+        "front/src/screens/HomeScreen.tsx",
+        "front/src/screens/SearchScreen.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test -- tests/unit/dramaContent.test.ts tests/unit/searchScreen.test.tsx tests/unit/homeScreen.test.tsx tests/unit/savedVideoScreens.test.tsx",
+        "npm --prefix front run test"
+      ],
+      "started_at": "2026-11-04T08:34:20.039Z",
+      "summary": "Implemented paged drama and genre API types/calls, Home pagination and genre tiles, and Search server-side filtering, debounce, pagination, retries, and stale-response guards. Checks passed on the final source: typecheck; focused tests (4 suites, 42 tests); full frontend suite (25 suites, 210 tests).",
+      "completed_at": "2026-11-04T08:40:14.727Z"
+    }
+  ]
+}

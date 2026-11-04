@@ -175,7 +175,7 @@
           "      }",
           "      Object.values(value).forEach(check);",
           "    }",
-          "    if (pm.response.code === 200) checkResponseRoot(pm.info.requestName, pm.response.json());",
+          "    if (pm.response.code === 200) checkResponseRoot(pm.info.requestName, pm.info.requestName === 'Latest dramas' ? pm.response.json().items : pm.response.json());",
           "    check(pm.response.json());",
           "  });",
           "}"
@@ -258,26 +258,11 @@
             "exec": [
               "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
               "",
-              "const dramas = pm.response.json();",
-              "pm.test(\"Catalog has distinct dramas for playback and ownership checks\", () => {",
-              "  pm.expect(dramas).to.be.an(\"array\");",
-              "  pm.expect(dramas.length).to.be.at.least(2);",
-              "  pm.expect(new Set(dramas.map(drama => drama.uuid)).size).to.equal(dramas.length);",
-              "});",
-              "const selected = dramas.find(drama => drama.previewVideos.length > 0 && drama.freeEpisodeCount > 0 && drama.episodeCount > drama.freeEpisodeCount);",
-              "pm.test(\"Database has a drama with a preview, free episode, and paid episode\", () => {",
-              "  pm.expect(selected, \"Prepare existing development data before running API tests\").to.exist;",
-              "});",
-              "pm.collectionVariables.set(\"catalog\", JSON.stringify(dramas));",
-              "if (selected) {",
-              "  pm.collectionVariables.set(\"selectedDrama\", JSON.stringify(selected));",
-              "  pm.collectionVariables.set(\"dramaId\", selected.uuid);",
-              "  pm.collectionVariables.set(\"previewId\", selected.previewVideos[0].uuid);",
-              "  const other = dramas.find(drama => drama.uuid !== selected.uuid);",
-              "  if (other) pm.collectionVariables.set(\"otherDramaId\", other.uuid);",
-              "} else {",
-              "  pm.execution.setNextRequest(null);",
-              "}"
+              "const base = pm.variables.replaceIn('{{baseUrl}}').replace(/\\/+$/, ''); const first = pm.response.json(); const dramas = []; const seen = new Set();",
+              "const exact=(value,keys)=>pm.expect(Object.keys(value).sort()).to.eql(keys.slice().sort()); const checkItem=item=>{exact(item,['uuid','slug','title','shortDescription','productionCompany','genres','imageUrls','previewVideos','episodeCount','freeEpisodeCount']);pm.expect(item.uuid).to.match(/^[0-9a-f-]{36}$/i);['slug','title','shortDescription'].forEach(key=>pm.expect(item[key]).to.be.a('string'));pm.expect(item.productionCompany===null||typeof item.productionCompany==='string').to.equal(true);pm.expect(item.genres).to.be.an('array');item.genres.forEach(genre=>{exact(genre,['id','code','name']);pm.expect(genre.id).to.satisfy(Number.isInteger);pm.expect(genre.code).to.be.a('string');pm.expect(genre.name).to.be.a('string');});exact(item.imageUrls,['poster','posterLandscape','homeHero','detailCover','campaigns']);['poster','posterLandscape','homeHero','detailCover'].forEach(key=>pm.expect(item.imageUrls[key]===null||typeof item.imageUrls[key]==='string').to.equal(true));pm.expect(item.imageUrls.campaigns).to.be.an('array').and.satisfy(values=>values.every(value=>typeof value==='string'));pm.expect(item.previewVideos).to.be.an('array');item.previewVideos.forEach(video=>{exact(video,['uuid','storageKey','durationMs','isSaved']);pm.expect(video.uuid).to.match(/^[0-9a-f-]{36}$/i);pm.expect(video.storageKey).to.be.a('string');pm.expect(video.durationMs).to.satisfy(Number.isInteger);pm.expect(video.isSaved).to.be.a('boolean');});pm.expect(item.episodeCount).to.satisfy(Number.isInteger);pm.expect(item.freeEpisodeCount).to.satisfy(Number.isInteger).and.be.within(0,item.episodeCount);};",
+              "const validatePage=(body,page)=>{exact(body,['items','page','hasNext']);pm.expect(body.page).to.equal(page);pm.expect(body.items).to.be.an('array').and.have.lengthOf.at.most(30);pm.expect(body.hasNext).to.be.a('boolean');body.items.forEach(checkItem);if(body.hasNext)pm.expect(body.items).to.have.lengthOf(30);};",
+              "const requestPage = page => new Promise((resolve, reject) => pm.sendRequest({url:base+'/dramas?sort=latest&page='+page,method:'GET'},(error,response)=>error?reject(error):resolve(response)));",
+              "(async () => { let response; let page=1; while(true) { if(page===1) pm.response.to.have.status(200); else pm.expect(response.code).to.equal(200); const data=page===1?first:response.json(); validatePage(data,page); data.items.forEach(item=>{pm.expect(seen.has(item.uuid)).to.equal(false);seen.add(item.uuid);dramas.push(item);}); if(!data.hasNext) break; page+=1; response=await requestPage(page); } pm.test('Catalog has distinct dramas for playback and ownership checks',()=>{pm.expect(dramas.length).to.be.at.least(2);}); const selected=dramas.find(drama=>drama.previewVideos.length>0&&drama.freeEpisodeCount>0&&drama.episodeCount>drama.freeEpisodeCount); pm.test('Database has a drama with a preview, free episode, and paid episode',()=>pm.expect(selected,'Prepare existing development data before running API tests').to.exist); pm.collectionVariables.set('catalog',JSON.stringify(dramas)); if(selected){pm.collectionVariables.set('selectedDrama',JSON.stringify(selected));pm.collectionVariables.set('dramaId',selected.uuid);pm.collectionVariables.set('previewId',selected.previewVideos[0].uuid);const other=dramas.find(drama=>drama.uuid!==selected.uuid);if(other)pm.collectionVariables.set('otherDramaId',other.uuid);}else pm.execution.setNextRequest(null); })().catch(error=>pm.test('Catalog pagination follow-up requests succeed',()=>{throw error;}));"
             ]
           }
         }

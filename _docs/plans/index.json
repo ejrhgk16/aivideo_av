@@ -312,6 +312,12 @@
       "directory": "plan-52-front-rntl-tests",
       "title": "프론트 Jest·React Native Testing Library 전체 전환과 테스트 규약",
       "status": "completed"
+    },
+    {
+      "id": "plan-53-drama-catalog-pagination",
+      "directory": "plan-53-drama-catalog-pagination",
+      "title": "드라마 목록 공통 페이징과 프론트 연결",
+      "status": "completed"
     }
   ]
 }

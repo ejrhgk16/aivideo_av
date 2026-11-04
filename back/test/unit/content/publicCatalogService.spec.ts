@@ -54,7 +54,10 @@ describe('PublicCatalogService publication boundaries', () => {
       where: vi.fn().mockReturnThis(),
       andWhere: vi.fn().mockReturnThis(),
       orderBy: vi.fn().mockReturnThis(),
+      addOrderBy: vi.fn().mockReturnThis(),
+      offset: vi.fn().mockReturnThis(),
       getMany: vi.fn().mockResolvedValue([{ id: 1, uuid: 'public', productionCompanyId: 1 }]),
+      limit: vi.fn().mockReturnThis(),
     };
     const dramas = { ...repository(), createQueryBuilder: vi.fn().mockReturnValue(query) };
     const episodes = repository();
@@ -71,9 +74,9 @@ describe('PublicCatalogService publication boundaries', () => {
       episodes as never,
     );
 
-    await expect(service.listDramas('latest', now)).resolves.toEqual([
-      expect.objectContaining({ episodeCount: 2, freeEpisodeCount: 1 }),
-    ]);
+    await expect(service.listDramas({ page: 1 }, now)).resolves.toEqual({
+      items: [expect.objectContaining({ episodeCount: 2, freeEpisodeCount: 1 })], page: 1, hasNext: false,
+    });
   });
 
   it('queries public detail episodes in database order and joins only the requested user entitlement', async () => {
@@ -302,12 +305,12 @@ describe('PublicCatalogController optional identity', () => {
 
     controller.getDrama('drama', request);
     controller.getEpisodePlayback('episode', request);
-    controller.listDramas(undefined, request);
+    controller.listDramas({}, request);
     controller.getDramaPreviewPlayback('drama', 'preview', request);
 
     expect(service.getDrama).toHaveBeenCalledWith('drama', undefined, 'jwt-user');
     expect(service.getEpisodePlaybackUrl).toHaveBeenCalledWith('episode', 'jwt-user');
-    expect(service.listDramas).toHaveBeenCalledWith('latest', undefined, 'jwt-user');
+    expect(service.listDramas).toHaveBeenCalledWith({ page: 1 }, undefined, 'jwt-user');
     expect(service.getDramaPreviewPlaybackUrl).toHaveBeenCalledWith('drama', 'preview', 'jwt-user');
     expect(Reflect.getMetadata(GUARDS_METADATA, PublicCatalogController.prototype.getDrama))
       .toEqual([OptionalJwtAuthGuard]);

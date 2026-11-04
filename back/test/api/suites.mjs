@@ -2,6 +2,7 @@ export const suites = [
   { id: 'http', collection: 'http.postman_collection.json', contentMode: 'shared' },
   { id: 'identity', collection: 'identity.postman_collection.json', contentMode: 'shared' },
   { id: 'content', collection: 'content.postman_collection.json', contentMode: 'shared' },
+  { id: 'drama-pagination', collection: 'drama-pagination.postman_collection.json', contentMode: 'exclusive' },
   { id: 'programming', collection: 'programming.postman_collection.json', contentMode: 'shared' },
   { id: 'playback', collection: 'playback.postman_collection.json', contentMode: 'shared' },
   { id: 'economy', collection: 'economy.postman_collection.json', contentMode: 'shared' },

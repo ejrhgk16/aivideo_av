@@ -1,4 +1,5 @@
 import type { DramaImageUrls } from './mediaUrl.js';
+import type { PageResponse } from '../common/pagination/paginationResponses.js';
 
 export type DramaGenreResponse = {
   id: number;
@@ -29,6 +30,8 @@ export type DramaSummaryResponse = {
   episodeCount: number;
   freeEpisodeCount: number;
 };
+
+export type DramaPageResponse = PageResponse<DramaSummaryResponse>;
 
 export type DramaWatchProgressResponse = {
   positionMs: number;

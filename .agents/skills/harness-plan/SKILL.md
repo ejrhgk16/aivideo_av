@@ -10,7 +10,7 @@ Use this skill only after the user explicitly writes `$harness-plan`. It creates
 1. The planning/main agent reads the root `AGENTS.md`, `_docs/ARCHITECTURE.md`, and [common task rules](../../../_docs/plans/README.md). Reuse their current text when supplied in context; read missing or changed instructions as needed. Do not read or plan work under `web-prototype/`.
 2. State the intended scope, non-goals, affected layers, assumptions, and verification commands. Ask for scope approval. Do not create a plan yet.
    Map changed behavior and affected consumers to focused checks using the common role/verification rules. For backend work read [backend verification](../../../back/README.md#검증); for frontend selectors read [frontend verification](../../../front/README.md#검증). Record the impact rationale, required data, outputs/fixtures, and parallel/sequential conditions. If impact cannot be bounded, select full verification and explain why.
-3. After approval, define the shared contracts below and propose exact writable `files`, `depends_on`, and `checks`. Apply the common rules for role separation, existing-implementation test-only tasks, required reads, shared-file sequencing, and repetitive-work delegation with reserved child capacity. Ask for approval of the contracts and task structure together.
+3. After approval, define the shared contracts below and propose exact writable `files`, `depends_on`, and `checks`. Apply the common rules for role separation and task sizing: bound each task's required reading and distinct responsibilities, including within test authoring. Separate checks runnable during authoring from checks requiring future product implementation; name the latter's source task and implementation prerequisite in the task document. Apply the common rules for existing-implementation test-only tasks, shared-file sequencing, and repetitive-work delegation with reserved child capacity. Ask for approval of the contracts and task structure together.
 4. After the second approval, create `_docs/plans/plan-N-name/` using the next numeric `N`, add its human-readable `plan.md`, create one `task-N-name.md` per task, create `_docs/plans/plan-N-name/index.json` for the task state, and add only the plan metadata entry to `_docs/plans/index.json`.
 
 ## Shared contracts before task execution
@@ -77,7 +77,7 @@ Use the common rules for state JSON, role-specific worker inputs, and delegation
 {작업 목표 요약}
 
 ### 역할과 완료 조건
-{미구현 기능 테스트 작성, 소스 구현, 기존 구현 테스트 전용 등의 역할과 범위·비목표·승인된 계약·선행 task·수정 파일·checks·완료 조건. 역할별 검사와 완료 조건은 플랜 공통 규칙을 따른다.}
+{미구현 기능 테스트 작성, 소스 구현, 기존 구현 테스트 전용 등의 역할과 범위·비목표·승인된 계약·선행 task·수정 파일·checks·완료 조건. 테스트 작성은 바로 실행할 검사와 제품 구현 때문에 유예할 검사·필요한 구현·담당 소스 task를 구분한다. 전체 회귀 검사를 선언한 task는 선택 검사로 수정한 뒤 최종 변경에 전체 검사를 실행하도록 순서를 명시한다. 역할별 자체 검토·완료 보고는 플랜 공통 규칙을 따른다.}
 
 ### 적용 계약
 {plan.md의 계약 ID와 이 task에 필요한 정확한 시그니처·동작 발췌. 다른 task의 타입·호출 예시와 일치해야 한다. 공유 경계 변경이 없으면 해당 없음을 명시한다.}
@@ -93,6 +93,6 @@ Use the common rules for state JSON, role-specific worker inputs, and delegation
 
 각 task 문서는 해당 worker에게 전달할 정확한 파일 범위, 검증 명령, 완료 조건을 `## 작업` 아래에 함께 명시한다.
 
-Before `validate`, reopen each new task document and review its exact edits/main logic, files, role, checks, and completion criteria against the common rules. Existing-implementation test-only tasks must execute their tests; unimplemented-feature authoring tasks defer behavioral execution to their dependent source task. Compare every contract excerpt and code example against the authoritative plan section. Resolve mismatched names, exports, types, defaults, callback payloads, or behavior before approval. Verify conditional reading references, dependency/parallel conditions, and any child file/slot assignments and integration responsibility. `validate` checks indexes, not task Markdown; passing it does not replace this review.
+Before `validate`, reopen each new task document and review its exact edits/main logic, files, role, checks, and completion criteria against the common rules. Check task size using required reading and distinct responsibilities. Existing-implementation test-only tasks must execute their tests; unimplemented-feature authoring tasks execute independent checks and defer only checks needing future product implementation to the named source task. Compare every contract excerpt and code example against the authoritative plan section. Resolve mismatched names, exports, types, defaults, callback payloads, or behavior before approval. Verify conditional reading references, dependency/parallel conditions, and any child file/slot assignments and integration responsibility. `validate` checks indexes, not task Markdown; passing it does not replace this review.
 
 Run `node tools/harness/cli.mjs validate --plan <id>` after writing the plan. Report the plan ID and that the user can explicitly invoke `$harness` next.
