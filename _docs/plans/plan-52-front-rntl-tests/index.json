@@ -1,0 +1,163 @@
+{
+  "version": 1,
+  "plan_id": "plan-52-front-rntl-tests",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "Jest·RNTL 실행 기반과 기준 테스트 작성",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/package.json",
+        "front/package-lock.json",
+        "front/tsconfig.json",
+        "front/jest.config.cjs",
+        "front/scripts/test-front.cjs",
+        "front/tests/setup.ts",
+        "front/tests/support/video.ts",
+        "front/tests/unit/testFrontRunner.test.ts",
+        "front/tests/unit/media.test.ts"
+      ],
+      "checks": [
+        "node --check front/jest.config.cjs",
+        "node --check front/scripts/test-front.cjs"
+      ],
+      "started_at": "2026-11-04T04:29:24.164Z",
+      "summary": "RNTL 13의 timer helper가 모듈 초기화 때 `setImmediate`를 캡처하는 것을 확인했습니다. setup에서 RNTL을 불러오기 전에 Node의 `setImmediate`와 `clearImmediate`를 없는 경우에만 추가해 jsdom fake timer와 충돌하지 않도록 했습니다. `node --check front/jest.config.cjs` 통과, `node --check front/scripts/test-front.cjs` 통과. 동작 테스트와 typecheck는 실행하지 않았습니다.",
+      "completed_at": "2026-11-04T04:30:16.491Z"
+    },
+    {
+      "id": "task-2",
+      "name": "API·세션·순수 로직 테스트 이전 작성",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/tests/unit/api.test.ts",
+        "front/tests/unit/dramaContent.test.ts",
+        "front/tests/unit/episodePlayback.test.ts",
+        "front/tests/unit/episodePurchase.test.ts",
+        "front/tests/unit/errorMessages.test.ts",
+        "front/tests/unit/homeContent.test.ts",
+        "front/tests/unit/login.test.ts",
+        "front/tests/unit/pointHistory.test.ts",
+        "front/tests/unit/previewPlayback.test.ts",
+        "front/tests/unit/savedVideos.test.ts",
+        "front/tests/unit/session.test.ts",
+        "front/tests/unit/watchHistory.test.ts",
+        "front/tests/unit/watchProgress.test.ts"
+      ],
+      "checks": [],
+      "started_at": "2026-11-04T04:30:25.273Z",
+      "summary": "기존 96개 실행 시나리오 계약과 수정 사항을 그대로 유지했습니다. 추가 파일 수정이나 동작 테스트·typecheck는 수행하지 않았습니다. 전달받은 이전 통합 결과는 96/96 통과입니다.",
+      "completed_at": "2026-11-04T04:30:34.196Z"
+    },
+    {
+      "id": "task-3",
+      "name": "목록·상세 화면 RNTL 테스트 작성",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/tests/unit/dramaDetailScreen.test.ts",
+        "front/tests/unit/dramaDetailScreen.test.tsx",
+        "front/tests/unit/searchScreen.test.ts",
+        "front/tests/unit/searchScreen.test.tsx",
+        "front/tests/unit/libraryScreen.test.ts",
+        "front/tests/unit/libraryScreen.test.tsx",
+        "front/tests/unit/pointsScreen.test.ts",
+        "front/tests/unit/pointsScreen.test.tsx"
+      ],
+      "checks": [],
+      "started_at": "2026-11-04T04:41:34.097Z",
+      "summary": "구현 동작에 맞게 세 곳을 보정했습니다. Drama 구매 테스트는 추가 API 재조회를 기대하지 않고, 뒤로 이동한 뒤 회차 3만 잠금 해제되고 회차 4는 잠긴 상태인지 확인합니다. 테스트별 mock 초기화로 사용되지 않은 once 응답이 후속 케이스에 남지 않게 했습니다. Search 재시도 fixture는 액션 장르를 유지하면서 검색어와 일치하지 않는 제목을 사용해 빈 결과와 선택된 장르를 함께 관찰합니다. Library는 각 카드 안에서 ‘미리보기’ 라벨을 조회합니다. 23개 시나리오를 유지했습니다. checks가 비어 있어 동작 테스트와 typecheck는 실행하지 않았습니다.",
+      "completed_at": "2026-11-04T04:42:25.966Z"
+    },
+    {
+      "id": "task-4",
+      "name": "구매·세션 만료 팝업 RNTL 테스트 작성",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/tests/unit/episodeUnlockDialog.test.ts",
+        "front/tests/unit/episodeUnlockDialog.test.tsx",
+        "front/tests/unit/sessionExpiredDialog.test.ts",
+        "front/tests/unit/sessionExpiredDialog.test.tsx"
+      ],
+      "checks": [],
+      "started_at": "2026-11-04T04:30:53.457Z",
+      "summary": "재검증 결과 두 테스트 묶음 모두 통과해 11개 시나리오(구매 8개, 세션 만료 3개)가 유지됨을 확인했습니다. 추가 수정은 없습니다.",
+      "completed_at": "2026-11-04T04:31:03.047Z"
+    },
+    {
+      "id": "task-5",
+      "name": "본편·미리보기·홈 RNTL 테스트 작성",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/tests/unit/playbackScreenEpisode.test.ts",
+        "front/tests/unit/playbackScreenEpisode.test.tsx",
+        "front/tests/unit/savedVideoScreens.test.ts",
+        "front/tests/unit/savedVideoScreens.test.tsx"
+      ],
+      "checks": [],
+      "started_at": "2026-11-04T04:48:14.749Z",
+      "summary": "Corrected the episode saved-state race: start the deferred focus read before saving, resolve it while the write is pending, start a second focus read while still pending, then complete the save before resolving that read with stale unsaved metadata. The test asserts the saved UI survives the stale response without expecting future fresh reads to be ignored. Fixed the mocked API call-count typing. Deferred reads are awaited inside async act with UI assertions. All 18 scenarios remain; checks are empty, and behavioral verification remains with task-7.",
+      "completed_at": "2026-11-04T04:49:02.992Z"
+    },
+    {
+      "id": "task-6",
+      "name": "추천 피드·버퍼 RNTL 테스트 작성",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/tests/unit/recommendationPreviewBuffer.test.ts",
+        "front/tests/unit/recommendationPreviewBuffer.test.tsx"
+      ],
+      "checks": [],
+      "started_at": "2026-11-04T05:20:28.709Z",
+      "summary": "Wheel listener 검증을 현재 등록 상태에 맞게 수정했습니다. Resize 후 최신 callback이 등록되어 있고 아직 제거되지 않았는지, blur 이동 후 그 callback이 제거되고 남은 wheel listener가 없는지 확인합니다. 31개 시나리오와 도착·quiet 조건은 유지했습니다. 동작 테스트와 typecheck는 실행하지 않았습니다.",
+      "completed_at": "2026-11-04T05:21:09.308Z"
+    },
+    {
+      "id": "task-7",
+      "name": "프론트 테스트 규약 적용 및 통합 검증",
+      "status": "completed",
+      "depends_on": [
+        "task-1",
+        "task-2",
+        "task-3",
+        "task-4",
+        "task-5",
+        "task-6"
+      ],
+      "files": [
+        "front/AGENTS.md",
+        "front/tests/README.md",
+        "_docs/ARCHITECTURE.md"
+      ],
+      "checks": [
+        "npm --prefix front run test -- tests/unit/testFrontRunner.test.ts tests/unit/media.test.ts",
+        "npm --prefix front run test -- tests/unit/api.test.ts tests/unit/dramaContent.test.ts tests/unit/episodePlayback.test.ts tests/unit/episodePurchase.test.ts tests/unit/errorMessages.test.ts tests/unit/homeContent.test.ts tests/unit/login.test.ts tests/unit/pointHistory.test.ts tests/unit/previewPlayback.test.ts tests/unit/savedVideos.test.ts tests/unit/session.test.ts tests/unit/watchHistory.test.ts tests/unit/watchProgress.test.ts",
+        "npm --prefix front run test -- tests/unit/dramaDetailScreen.test.tsx tests/unit/searchScreen.test.tsx tests/unit/libraryScreen.test.tsx tests/unit/pointsScreen.test.tsx",
+        "npm --prefix front run test -- tests/unit/episodeUnlockDialog.test.tsx tests/unit/sessionExpiredDialog.test.tsx",
+        "npm --prefix front run test -- tests/unit/playbackScreenEpisode.test.tsx tests/unit/savedVideoScreens.test.tsx",
+        "npm --prefix front run test -- tests/unit/recommendationPreviewBuffer.test.tsx",
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-11-04T05:21:19.012Z",
+      "summary": "Updated the three assigned docs with RNTL, Expo Router, act, jsdom/native-boundary, and timer rules. All 9 declared checks passed: selected groups 1–6 (24 suites, 187 tests, 0 skipped), typecheck, full test (24 suites, 187 tests, 0 skipped), and export for web/iOS/Android. Confirmed 24 test files (15 .ts, 9 .tsx); no legacy custom renderer or VM test code found.",
+      "completed_at": "2026-11-04T05:24:39.399Z"
+    }
+  ]
+}

@@ -7,41 +7,27 @@ description: "Create an approved, executable harness plan. Use only when the use
 
 Use this skill only after the user explicitly writes `$harness-plan`. It creates task state; it does not edit product code, dispatch workers, or run Git commands.
 
-1. The planning/main agent reads the root `AGENTS.md`, `_docs/ARCHITECTURE.md`, `_docs/plans/README.md`, and applicable nested `AGENTS.md` files. Reuse their current text when already supplied in context; read missing or changed instructions as needed. Do not read or plan work under `web-prototype/`.
+1. The planning/main agent reads the root `AGENTS.md`, `_docs/ARCHITECTURE.md`, and [common task rules](../../../_docs/plans/README.md). Reuse their current text when supplied in context; read missing or changed instructions as needed. Do not read or plan work under `web-prototype/`.
 2. State the intended scope, non-goals, affected layers, assumptions, and verification commands. Ask for scope approval. Do not create a plan yet.
-   Select checks that cover the changed behavior and affected consumers. When tests need adding or updating, separate test authoring from source implementation under the rules below. For backend REST behavior changes, assign collections, fixtures, and required test-runner changes to the test-authoring task; assign product code and affected API documents to the source task. Put the matching `npm --prefix back run test:api -- --suite <suite>` command and any needed focused unit test in the source task's `checks`, after implementation. Read `back/test/api/README.md` for the existing server and data requirements. Do not plan database resets or seed writes for read-only API verification. Keep unit tests for internal rules and boundaries that HTTP cannot reproduce without changing existing data. For front source tasks, use exact test paths with `npm --prefix front run test -- tests/unit/<feature>.test.ts`; no paths runs all discovered tests. Plan the feature-to-test mapping, why the selected checks cover the impact, and whether files, generated outputs, fixtures, or shared content permit parallel execution. When impact cannot be bounded with evidence, select full validation and record why. Documentation-only or declaration-only changes still need checks appropriate to their content. Shared files require task dependencies so their edits run sequentially.
-3. After approval, propose tasks with exact repository-relative writable `files`, `depends_on`, and `checks`. Checks may read tests and related documentation without adding those files to `files`; `files` is the worker's edit boundary. Explain the feature-to-test mapping, impact rationale, data/output conditions for parallel work, any sequential dependency, and whether each task permits repetitive-work delegation under the rules below. Tasks that could run at the same time must not share an edited file or conflicting output/fixture. Include child agents in the existing concurrency budget and reserve capacity for approved delegation. Ask for task-structure approval.
+   Map changed behavior and affected consumers to focused checks using the common role/verification rules. For backend work read [backend verification](../../../back/README.md#검증); for frontend selectors read [frontend verification](../../../front/README.md#검증). Record the impact rationale, required data, outputs/fixtures, and parallel/sequential conditions. If impact cannot be bounded, select full verification and explain why.
+3. After approval, define the shared contracts below and propose exact writable `files`, `depends_on`, and `checks`. Apply the common rules for role separation, existing-implementation test-only tasks, required reads, shared-file sequencing, and repetitive-work delegation with reserved child capacity. Ask for approval of the contracts and task structure together.
 4. After the second approval, create `_docs/plans/plan-N-name/` using the next numeric `N`, add its human-readable `plan.md`, create one `task-N-name.md` per task, create `_docs/plans/plan-N-name/index.json` for the task state, and add only the plan metadata entry to `_docs/plans/index.json`.
 
-## Task responsibilities and checks
+## Shared contracts before task execution
 
-For each feature requiring test changes, plan `test authoring → source implementation and test execution`. State the role in task Markdown without adding JSON fields or a new agent type. Fix the behavior contract, entry points, and expected results in the approved task documents before authoring tests.
+Before task-structure approval, inspect existing entry points and consumers, then fix each new or changed boundary used by multiple tasks or by tests and source. Record it once in a named `plan.md` contract section with a stable ID. Preserve existing contracts unless the requested change requires otherwise; omit irrelevant fields and do not design private implementation details in advance.
 
-- The test-authoring task owns test files, fixtures, and necessary test-runner changes. It writes the tests against the approved contract without editing product code. Its `checks` cover only syntax or structure that can be verified without the planned implementation. Tests may reference the planned interfaces, but do not run feature tests or checks that load unimplemented modules, or require an expected failing test run before source implementation. If no suitable static command exists, use `checks: []` and explicitly require scenario/contract review in the completion summary. Authoring completion means the tests are ready, not that the feature has passed.
-- The source task owns product code and related product/API documentation. Its `depends_on` includes the matching test-authoring task. After implementation, it runs the authored tests and relevant existing regression tests through its declared `checks`; those commands must not be left solely in the test-authoring task or deferred to finish. Test-runner changes also require selected and no-selector regression commands here. The source worker may read failing tests but must not edit or weaken them to pass; a test defect is reported with evidence for a scoped test correction. Do not complete the source task while its checks fail or remain unrun.
-- Keep required reads specific to the role: approved contracts, assigned files, and direct dependencies. List tests and fixtures that a source worker may need to diagnose failures under a separate conditional-reference section; executing a test does not require reading its entire implementation first. Test authors need only relevant product interfaces or entry points, not the whole implementation.
+- **Identity and ownership:** exact component/function/type name, repository-relative definition path, named/default export, consuming call site, and task responsible for the definition. If a shared definition must exist before consumers run, declare that dependency.
+- **Inputs and outputs:** a concrete signature/type definition in the target language for code interfaces; props/arguments, required versus optional fields, defaults, return values, and callback names and payload types. State who owns mutable state and whether inputs are controlled when relevant.
+- **Observable behavior:** trigger → visible result or side effect, callback timing and call count, and relevant loading, empty, error, disabled, or navigation/focus behavior. Name user-facing labels or accessibility roles where they form part of the acceptance criteria. Resolve behavior-affecting ambiguity before approving dependent tasks.
+- **Test boundaries and data:** actual runner/library versions and existing helpers to reuse; exact imports and external mock targets; API/fixture shapes and relevant error results; required initial state, event order, and observable async completion. Inspect existing exports and test APIs before using them. Distinguish approved future interfaces from existing ones; do not invent unplanned exports, test-only product props, or internal call counts to make tests convenient. Use the applicable testing skill for rendering, mocks, and async handling rather than restating those rules here.
+- **Consumers and verification:** task IDs using the contract, representative input → expected result scenarios, and the tests/checks that verify them. For non-code changes, specify the exact shared artifact and expected result instead of inventing props or signatures.
 
-If existing tests already cover the change without edits, keep a source task that runs them; do not create an empty authoring task. Documentation-only work also needs no artificial test/source pair. Final `$finish-plan` verification remains unchanged.
+Each task carries the contract ID and the exact relevant signature/behavior excerpt, sufficient for that worker without a full-plan reread. The plan section is authoritative; review task excerpts and code examples against it to prevent divergent copies. Workers must not invent missing names, props, or behavior, or silently change the contract to fit their implementation. If a conflict appears, hold affected tasks, resolve it centrally, update the contract and all affected task inputs, and obtain renewed approval if the approved scope or behavior changes before resuming those tasks.
 
-## Worker inputs and reference scope
+## Document structures
 
-The main agent reads the full plan and gives each worker its own task document, applicable instructions, its task index entry, and relevant dependency results. Make the task document sufficient for the assigned work: include its approved scope, non-goals, contract, exact files, checks, and completion criteria. Do not require every worker to reread common documents in full.
-
-- `AGENTS.md`: always applies. Reuse authoritative instructions already supplied in the worker's context; reread only missing or changed instructions, including applicable nested files. A summary does not replace instructions that were never supplied.
-- `_docs/ARCHITECTURE.md`: reference the relevant section when changing structure or file responsibility, judging layer boundaries, or resolving missing architectural context. Preserve the project's requirement to read it before structural/responsibility changes; do not make unrelated sections mandatory for every task.
-- `plan.md`: the main agent reads the whole document. Workers use the contract, scope, dependencies, and relevant results provided with their task. Refer to a named plan section only when needed to resolve an omission or conflict rather than guessing.
-
-Required file lists contain assigned files and direct dependencies with relevant sections. Put common documents under conditional references with the reason to consult them; do not copy a mandatory `AGENTS.md`, `ARCHITECTURE.md`, or full `plan.md` reread into every task.
-
-## Repetitive-work delegation
-
-Allow depth 2 only for repetitive work: the same established edit pattern applied to independent files without separate design decisions. Count the main agent as depth 0, the task worker as depth 1, and its child as depth 2. All other tasks stay at depth 1.
-
-For each permitted task, record the repeated edit pattern, exact disjoint file assignments within the task's `files`, and integration and verification responsibility. The task worker establishes the pattern before delegating, retains shared-file edits, integrates child results, runs the task's declared checks, and returns the final task result. Use `harness_repeater` for children; they may edit only their assigned files, must not delegate further or change task state, and report only to their parent. Do not use `harness_worker` for children, because its stop hook updates the whole task's state.
-
-Keep this breakdown in `plan.md` and `task-*.md`; children are not separate plan tasks and require no JSON fields or script changes.
-
-Use these document structures.
+Use the common rules for state JSON, role-specific worker inputs, and delegation. Keep the following plan/task structures sufficient for independent execution.
 
 `plan.md`:
 
@@ -50,6 +36,10 @@ Use these document structures.
 
 ## 목표
 {plan의 전체적인 내용}
+
+## 공통 계약
+### {contract-id}: {경계 이름}
+{정의 경로·export·담당 task·소비 task, 정확한 타입/시그니처, 입력 → 기대 결과, 테스트 경계·데이터·검증 기준. 해당하는 항목만 작성한다.}
 
 ## Task
 
@@ -87,7 +77,10 @@ Use these document structures.
 {작업 목표 요약}
 
 ### 역할과 완료 조건
-{테스트 작성 또는 소스 구현 역할, 해당 범위·비목표·승인된 계약, 선행 task, 수정 파일 범위, checks와 완료 조건. 테스트 작성 task는 동작 테스트 실행 없이 작성·정적 검사·계약 검토를 완료한다. 소스 task는 구현 후 작성된 테스트와 관련 회귀 검사를 통과해야 한다.}
+{미구현 기능 테스트 작성, 소스 구현, 기존 구현 테스트 전용 등의 역할과 범위·비목표·승인된 계약·선행 task·수정 파일·checks·완료 조건. 역할별 검사와 완료 조건은 플랜 공통 규칙을 따른다.}
+
+### 적용 계약
+{plan.md의 계약 ID와 이 task에 필요한 정확한 시그니처·동작 발췌. 다른 task의 타입·호출 예시와 일치해야 한다. 공유 경계 변경이 없으면 해당 없음을 명시한다.}
 
 {구현 지시}
 
@@ -100,47 +93,6 @@ Use these document structures.
 
 각 task 문서는 해당 worker에게 전달할 정확한 파일 범위, 검증 명령, 완료 조건을 `## 작업` 아래에 함께 명시한다.
 
-Before running `validate`, reopen every new `task-*.md` and check that substantive logic tasks include their main logic code, while small or non-code tasks state the exact edit and why no new logic is needed. Compare the content with the declared `files`, scope, and completion criteria. Check that test/source files are assigned separately, source tasks depend on their authored tests, behavioral checks belong to source tasks, authoring completion does not imply test success, and required reads are limited to the role. Verify that each task provides enough contract/scope context without a full-plan reread, and common-document references name a relevant section and consultation condition. For delegation, also verify repetitive-work eligibility, disjoint file assignments within the task scope, the concurrency budget, and the parent's integration and verification responsibility. Fix omissions before reporting the plan complete. `validate` checks the plan indexes, not task Markdown content; a passing result does not satisfy this review.
-
-The root `_docs/plans/index.json` entry uses this shape:
-
-```json
-{
-  "id": "plan-1-example",
-  "directory": "plan-1-example",
-  "title": "Example",
-  "status": "draft"
-}
-```
-
-The plan-local `_docs/plans/plan-1-example/index.json` uses this shape:
-
-```json
-{
-  "version": 1,
-  "plan_id": "plan-1-example",
-  "tasks": [{
-    "id": "task-1",
-    "name": "테스트 작성",
-    "status": "pending",
-    "depends_on": [],
-    "files": ["front/tests/unit/example.test.ts"],
-    "checks": []
-  }, {
-    "id": "task-2",
-    "name": "소스 구현 및 테스트 실행",
-    "status": "pending",
-    "depends_on": ["task-1"],
-    "files": ["front/src/example.ts"],
-    "checks": ["npm --prefix front run test -- tests/unit/example.test.ts"]
-  }]
-}
-```
-
-Never put `tasks` in the root plans index. The `plan_id` in the plan-local index must match its root plan entry.
-
-The empty authoring `checks` above assumes no suitable static command; the task Markdown must still require contract/scenario review and name the source task that executes the tests.
-
-Use only `pending`, `in_progress`, `completed`, `error`, or `blocked` for task status. Do not list `web-prototype/`. Test files may only be in `front/tests/**/*.test.ts(x)`, `back/test/api/**/*.postman_collection.json`, `back/test/unit/**/*.spec.ts`, or `tools/harness/**/*.test.mjs`.
+Before `validate`, reopen each new task document and review its exact edits/main logic, files, role, checks, and completion criteria against the common rules. Existing-implementation test-only tasks must execute their tests; unimplemented-feature authoring tasks defer behavioral execution to their dependent source task. Compare every contract excerpt and code example against the authoritative plan section. Resolve mismatched names, exports, types, defaults, callback payloads, or behavior before approval. Verify conditional reading references, dependency/parallel conditions, and any child file/slot assignments and integration responsibility. `validate` checks indexes, not task Markdown; passing it does not replace this review.
 
 Run `node tools/harness/cli.mjs validate --plan <id>` after writing the plan. Report the plan ID and that the user can explicitly invoke `$harness` next.

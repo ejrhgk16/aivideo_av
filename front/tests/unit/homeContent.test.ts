@@ -1,9 +1,14 @@
-/// <reference types="node" />
+import type { HomeCollection } from '../../src/features/home/homeContent';
 
-import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import { getHomeCollection, type HomeCollection } from '../../src/features/home/homeContent';
-import { configureSessionClient } from '../../src/features/user/sessionClient';
+let homeApi: typeof import('../../src/features/home/homeContent');
+let configureSessionClient: typeof import('../../src/features/user/sessionClient').configureSessionClient;
+
+beforeEach(() => {
+  jest.isolateModules(() => {
+    homeApi = require('../../src/features/home/homeContent');
+    ({ configureSessionClient } = require('../../src/features/user/sessionClient'));
+  });
+});
 
 function configureApiClient() {
   return configureSessionClient({
@@ -60,19 +65,19 @@ test('home collection requests use the configured API base URL', async () => {
 
   try {
     configureApiClient();
-    const result = await getHomeCollection('/HOME_FEATURED');
-    await getHomeCollection('EDITORIAL_TOP_3');
-    await getHomeCollection('RECOMMENDATION_DAILY');
-    await getHomeCollection('HOME_CAMPAIGN');
+    const result = await homeApi.getHomeCollection('/HOME_FEATURED');
+    await homeApi.getHomeCollection('EDITORIAL_TOP_3');
+    await homeApi.getHomeCollection('RECOMMENDATION_DAILY');
+    await homeApi.getHomeCollection('HOME_CAMPAIGN');
 
-    assert.deepEqual(requestedUrls, [
+    expect(requestedUrls).toEqual([
       'http://localhost:3000/collections/HOME_FEATURED',
       'http://localhost:3000/collections/EDITORIAL_TOP_3',
       'http://localhost:3000/collections/RECOMMENDATION_DAILY',
       'http://localhost:3000/collections/HOME_CAMPAIGN',
     ]);
-    assert.equal(requestedInit.every((init) => !(init?.headers as Record<string, string>).Authorization), true);
-    assert.deepEqual(result, responseBody);
+    expect(requestedInit.every((init) => !(init?.headers as Record<string, string>).Authorization)).toBe(true);
+    expect(result).toEqual(responseBody);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -93,8 +98,8 @@ test('home collection sends an optional Access token when signed in', async () =
   try {
     const client = configureApiClient();
     await client.login({ loginId: 'test', password: 'test' });
-    await getHomeCollection('HOME_FEATURED');
-    assert.equal((headers[0] as Record<string, string>).Authorization, 'Bearer access-token');
+    await homeApi.getHomeCollection('HOME_FEATURED');
+    expect((headers[0] as Record<string, string>).Authorization).toBe('Bearer access-token');
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;

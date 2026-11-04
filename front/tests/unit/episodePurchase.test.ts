@@ -1,10 +1,14 @@
-/// <reference types="node" />
+let purchaseEpisode: typeof import('../../src/features/economy/episodePurchase').purchaseEpisode;
+let ApiError: typeof import('../../src/common/http/api').ApiError;
+let configureSessionClient: typeof import('../../src/features/user/sessionClient').configureSessionClient;
 
-import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import { ApiError } from '../../src/common/http/api';
-import { purchaseEpisode } from '../../src/features/economy/episodePurchase';
-import { configureSessionClient } from '../../src/features/user/sessionClient';
+beforeEach(() => {
+  jest.isolateModules(() => {
+    ({ ApiError } = require('../../src/common/http/api'));
+    ({ purchaseEpisode } = require('../../src/features/economy/episodePurchase'));
+    ({ configureSessionClient } = require('../../src/features/user/sessionClient'));
+  });
+});
 
 const responseBody = {
   episodeUuid: 'episode-uuid',
@@ -37,14 +41,13 @@ test('purchaseEpisode sends an encoded bodyless POST and returns the purchase re
     await configureApiClient();
     const result = await purchaseEpisode('episode /+?');
 
-    assert.equal(
-      String(requested[0].input),
+    expect(String(requested[0].input)).toBe(
       'http://localhost:3000/me/episodes/episode%20%2F%2B%3F/purchaseSingle',
     );
-    assert.equal(requested[0].init?.method, 'POST');
-    assert.equal(requested[0].init?.body, undefined);
-    assert.equal((requested[0].init?.headers as Record<string, string>).Authorization, 'Bearer access-token');
-    assert.deepEqual(result, responseBody);
+    expect(requested[0].init?.method).toBe('POST');
+    expect(requested[0].init?.body).toBeUndefined();
+    expect((requested[0].init?.headers as Record<string, string>).Authorization).toBe('Bearer access-token');
+    expect(result).toEqual(responseBody);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -64,12 +67,9 @@ test('purchaseEpisode preserves the insufficient-balance error code', async () =
 
   try {
     await configureApiClient();
-    await assert.rejects(
-      purchaseEpisode('episode-uuid'),
-      (error) => error instanceof ApiError
-        && error.status === 409
-        && error.errorCode === 'POINT_INSUFFICIENT_BALANCE',
-    );
+    const request = purchaseEpisode('episode-uuid');
+    await expect(request).rejects.toBeInstanceOf(ApiError);
+    await expect(request).rejects.toMatchObject({ status: 409, errorCode: 'POINT_INSUFFICIENT_BALANCE' });
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -77,40 +77,26 @@ test('purchaseEpisode preserves the insufficient-balance error code', async () =
   }
 });
 
-test('purchaseEpisode preserves HTTP status for other and non-JSON errors', async (t) => {
+test.each([
+  ['404 response', 404, { errorCode: 'POINT_EPISODE_NOT_FOUND' }],
+  ['non-JSON error response', 502, null],
+] as const)('purchaseEpisode preserves HTTP status for %s', async (_name, status, body) => {
   const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   const originalFetch = globalThis.fetch;
   process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
 
   try {
-    await t.test('404 response', async () => {
-      globalThis.fetch = (async () => ({
-        ok: false,
-        status: 404,
-        json: async () => ({ errorCode: 'POINT_EPISODE_NOT_FOUND' }),
-      }) as unknown as Response) as typeof fetch;
-      await configureApiClient();
-      await assert.rejects(
-        purchaseEpisode('episode-uuid'),
-        (error) => error instanceof ApiError
-          && error.status === 404
-          && error.errorCode === 'POINT_EPISODE_NOT_FOUND',
-      );
-    });
-
-    await t.test('non-JSON error response', async () => {
-      globalThis.fetch = (async () => ({
-        ok: false,
-        status: 502,
-        json: async () => { throw new SyntaxError('invalid JSON'); },
-      }) as unknown as Response) as typeof fetch;
-      await configureApiClient();
-      await assert.rejects(
-        purchaseEpisode('episode-uuid'),
-        (error) => error instanceof ApiError
-          && error.status === 502
-          && error.errorCode === null,
-      );
+    globalThis.fetch = (async () => ({
+      ok: false,
+      status,
+      json: async () => { if (body === null) throw new SyntaxError('invalid JSON'); return body; },
+    }) as unknown as Response) as typeof fetch;
+    await configureApiClient();
+    const request = purchaseEpisode('episode-uuid');
+    await expect(request).rejects.toBeInstanceOf(ApiError);
+    await expect(request).rejects.toMatchObject({
+      status,
+      errorCode: body?.errorCode ?? null,
     });
   } finally {
     globalThis.fetch = originalFetch;
@@ -130,10 +116,7 @@ test('purchaseEpisode propagates network errors', async () => {
 
   try {
     await configureApiClient();
-    await assert.rejects(
-      purchaseEpisode('episode-uuid'),
-      (error) => error === networkError,
-    );
+    await expect(purchaseEpisode('episode-uuid')).rejects.toBe(networkError);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;

@@ -1,12 +1,18 @@
-/// <reference types="node" />
+import type { WatchHistoryItem } from '../../src/features/playback/playbackResponses';
 
-import assert from 'node:assert/strict';
-import test from 'node:test';
-import { ApiError } from '../../src/common/http/api';
-import { getWatchHistory, type WatchHistoryItem } from '../../src/features/playback/watchHistory';
-import { configureSessionClient } from '../../src/features/user/sessionClient';
+let ApiError: typeof import('../../src/common/http/api').ApiError;
+let watchHistoryApi: typeof import('../../src/features/playback/watchHistory');
+let configureSessionClient: typeof import('../../src/features/user/sessionClient').configureSessionClient;
 
-test('watch history uses required auth, page URLs, and preserves the history response shape', async () => {
+beforeEach(() => {
+  jest.isolateModules(() => {
+    ({ ApiError } = require('../../src/common/http/api'));
+    watchHistoryApi = require('../../src/features/playback/watchHistory');
+    ({ configureSessionClient } = require('../../src/features/user/sessionClient'));
+  });
+});
+
+test('watch history uses required auth, preserves pages and response fields, and makes no mutations', async () => {
   const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   const originalFetch = globalThis.fetch;
   const requests: Array<{ url: string; init?: RequestInit }> = [];
@@ -52,26 +58,27 @@ test('watch history uses required auth, page URLs, and preserves the history res
       }),
     });
 
-    await assert.rejects(getWatchHistory(), (error) => error instanceof ApiError && error.status === 401);
+    const anonymousHistory = watchHistoryApi.getWatchHistory();
+    await expect(anonymousHistory).rejects.toBeInstanceOf(ApiError);
+    await expect(anonymousHistory).rejects.toMatchObject({ status: 401 });
     await client.login({ loginId: 'test', password: 'test' });
-    const first = await getWatchHistory();
-    const second = await getWatchHistory(2);
+    const first = await watchHistoryApi.getWatchHistory();
+    const second = await watchHistoryApi.getWatchHistory(2);
 
-    assert.deepEqual(requests.map(({ url }) => url), [
+    expect(requests.map(({ url }) => url)).toEqual([
       'http://localhost:3000/me/watch-history?page=1',
       'http://localhost:3000/me/watch-history?page=2',
     ]);
-    assert.equal((requests[0].init?.headers as Record<string, string>).Authorization, 'Bearer access-token');
-    assert.deepEqual(first, { items: [episode, preview], page: 1, hasNext: true });
-    assert.deepEqual(second, { items: [episode, preview], page: 2, hasNext: false });
-    assert.deepEqual(Object.keys(first.items[0]).sort(), [
+    expect((requests[0].init?.headers as Record<string, string>).Authorization).toBe('Bearer access-token');
+    expect(first).toEqual({ items: [episode, preview], page: 1, hasNext: true });
+    expect(second).toEqual({ items: [episode, preview], page: 2, hasNext: false });
+    expect(Object.keys(first.items[0]).sort()).toEqual([
       'contentType', 'dramaTitle', 'dramaUuid', 'durationMs', 'episodeNumber', 'episodeTitle',
       'episodeUuid', 'imageUrl', 'lastPlayedAt', 'videoUuid',
     ].sort());
-    assert.equal(first.items[0].lastPlayedAt, '2026-11-03T00:00:00.000Z');
-    assert.equal(first.items[1].episodeUuid, null);
-    assert.equal(requests.some(({ init }) => ['PUT', 'POST', 'DELETE'].includes(init?.method ?? 'GET')), false,
-      'reading history does not record progress or change saved videos');
+    expect(first.items[0].lastPlayedAt).toBe('2026-11-03T00:00:00.000Z');
+    expect(first.items[1].episodeUuid).toBeNull();
+    expect(requests.some(({ init }) => ['PUT', 'POST', 'DELETE'].includes(init?.method ?? 'GET'))).toBe(false);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;

@@ -373,8 +373,27 @@ function isCurrentDev(repoRoot) {
   return git(repoRoot, ['branch', '--show-current']).trim() === 'dev';
 }
 
-function isProductPath(file) {
-  return file.startsWith('front/') || file.startsWith('back/');
+function isStandardProductCheck(command) {
+  const match = /^npm --prefix (front|back) (?:run )?([\w:]+)(?: -- (.+))?$/.exec(command);
+  if (!match) return false;
+  const [, product, script, args] = match;
+  const scripts = product === 'front' ? ['typecheck', 'test', 'export'] : ['lint', 'test', 'test:unit', 'test:api', 'build'];
+  if (!scripts.includes(script)) return false;
+  if (args === undefined) return true;
+  if (product === 'front' && script === 'test') return /^tests\/[\w./-]+\.test\.tsx?(?: tests\/[\w./-]+\.test\.tsx?)*$/.test(args);
+  if (product === 'back' && script === 'test:unit') return /^test\/unit\/[\w./-]+\.spec\.ts(?: test\/unit\/[\w./-]+\.spec\.ts)*$/.test(args);
+  if (product === 'back' && script === 'test:api') return /^--suite [a-z0-9-]+(?: --suite [a-z0-9-]+)*$/.test(args);
+  return false;
+}
+
+export function collectFinishChecks(plan, dirty) {
+  const checks = new Set();
+  if (dirty.some((file) => file.startsWith('front/'))) ['npm --prefix front run typecheck', 'npm --prefix front run test', 'npm --prefix front run export'].forEach((check) => checks.add(check));
+  if (dirty.some((file) => file.startsWith('back/'))) ['npm --prefix back run lint', 'npm --prefix back run test', 'npm --prefix back run build'].forEach((check) => checks.add(check));
+  for (const check of plan.tasks.flatMap((task) => task.checks)) {
+    if (!isStandardProductCheck(check)) checks.add(check);
+  }
+  return [...checks];
 }
 
 function runCheck(repoRoot, command) {
@@ -402,14 +421,7 @@ export function finishPlan(repoRoot = process.cwd(), planId, message, { exclude 
   if (stagedExcluded) error(`Excluded file is already staged; unstage it before finish: ${stagedExcluded}`);
   const dirty = dirtyPaths(repoRoot).filter((file) => !isExcluded(file));
 
-  const changedFront = dirty.some((file) => file.startsWith('front/'));
-  const changedBack = dirty.some((file) => file.startsWith('back/'));
-  const checks = new Set(plan.tasks
-    .filter((task) => task.files.some(isProductPath))
-    .flatMap((task) => task.checks));
-  if (changedFront) ['npm --prefix front run typecheck', 'npm --prefix front run test', 'npm --prefix front run export'].forEach((check) => checks.add(check));
-  if (changedBack) ['npm --prefix back run lint', 'npm --prefix back run test', 'npm --prefix back run build'].forEach((check) => checks.add(check));
-  for (const check of checks) runCheck(repoRoot, check);
+  for (const check of collectFinishChecks(plan, dirty)) runCheck(repoRoot, check);
 
   if (dirty.length > 0) {
     git(repoRoot, ['--literal-pathspecs', 'add', '--all', '--', ...dirty]);

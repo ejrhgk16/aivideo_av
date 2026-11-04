@@ -1,11 +1,17 @@
-/// <reference types="node" />
-
-import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import { ApiError } from '../../src/common/http/api';
 import type { WatchHistoryItem } from '../../src/features/playback/playbackResponses';
-import { getSavedVideos, removeSavedVideo, saveVideo, savedVideoRoute, type SavedVideoItem } from '../../src/features/playback/savedVideos';
-import { configureSessionClient } from '../../src/features/user/sessionClient';
+import type { SavedVideoItem } from '../../src/features/playback/savedVideos';
+
+let ApiError: typeof import('../../src/common/http/api').ApiError;
+let savedVideosApi: typeof import('../../src/features/playback/savedVideos');
+let configureSessionClient: typeof import('../../src/features/user/sessionClient').configureSessionClient;
+
+beforeEach(() => {
+  jest.isolateModules(() => {
+    ({ ApiError } = require('../../src/common/http/api'));
+    savedVideosApi = require('../../src/features/playback/savedVideos');
+    ({ configureSessionClient } = require('../../src/features/user/sessionClient'));
+  });
+});
 
 test('saved-video requests use required auth, the existing endpoints, and type-specific routes', async () => {
   const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -56,36 +62,37 @@ test('saved-video requests use required auth, the existing endpoints, and type-s
       }),
     });
 
-    await assert.rejects(saveVideo('preview-video', 'PREVIEW'), (error) =>
-      error instanceof ApiError && error.status === 401);
+    const anonymousSave = savedVideosApi.saveVideo('preview-video', 'PREVIEW');
+    await expect(anonymousSave).rejects.toBeInstanceOf(ApiError);
+    await expect(anonymousSave).rejects.toMatchObject({ status: 401 });
     await client.login({ loginId: 'test', password: 'test' });
-    await saveVideo('episode/video', 'EPISODE');
-    await saveVideo('preview-video', 'PREVIEW');
-    await removeSavedVideo('episode/video');
-    const page = await getSavedVideos(2);
+    await savedVideosApi.saveVideo('episode/video', 'EPISODE');
+    await savedVideosApi.saveVideo('preview-video', 'PREVIEW');
+    await savedVideosApi.removeSavedVideo('episode/video');
+    const page = await savedVideosApi.getSavedVideos(2);
 
-    assert.deepEqual(requests.map(({ url }) => url), [
+    expect(requests.map(({ url }) => url)).toEqual([
       'http://localhost:3000/me/saved-videos/episode%2Fvideo',
       'http://localhost:3000/me/saved-videos/preview-video',
       'http://localhost:3000/me/saved-videos/episode%2Fvideo',
       'http://localhost:3000/me/saved-videos?page=2',
     ]);
-    assert.deepEqual(requests.slice(0, 2).map(({ init }) => ({
+    expect(requests.slice(0, 2).map(({ init }) => ({
       method: init?.method,
       body: init?.body,
-    })), [
+    }))).toEqual([
       { method: 'PUT', body: JSON.stringify({ contentType: 'EPISODE' }) },
       { method: 'PUT', body: JSON.stringify({ contentType: 'PREVIEW' }) },
     ]);
-    assert.equal(requests[2].init?.method, 'DELETE');
-    assert.equal(requests[2].init?.body, undefined);
-    assert.equal((requests[0].init?.headers as Record<string, string>).Authorization, 'Bearer access-token');
-    assert.deepEqual(page, { items: [episode, preview], page: 2, hasNext: false });
-    assert.deepEqual(savedVideoRoute(episode), {
+    expect(requests[2].init?.method).toBe('DELETE');
+    expect(requests[2].init?.body).toBeUndefined();
+    expect((requests[0].init?.headers as Record<string, string>).Authorization).toBe('Bearer access-token');
+    expect(page).toEqual({ items: [episode, preview], page: 2, hasNext: false });
+    expect(savedVideosApi.savedVideoRoute(episode)).toEqual({
       pathname: '/episode/[id]',
       params: { id: 'episode-1', dramaId: 'drama-1' },
     });
-    assert.deepEqual(savedVideoRoute(preview), {
+    expect(savedVideosApi.savedVideoRoute(preview)).toEqual({
       pathname: '/preview/[dramaId]/[videoId]',
       params: { dramaId: 'drama-1', videoId: 'preview-video' },
     });
@@ -113,9 +120,9 @@ test('saved-video requests use required auth, the existing endpoints, and type-s
       episodeNumber: preview.episodeNumber,
       episodeTitle: preview.episodeTitle,
     };
-    assert.deepEqual(savedVideoRoute(historyEpisode), savedVideoRoute(episode));
-    assert.deepEqual(savedVideoRoute(historyPreview), savedVideoRoute(preview));
-    assert.equal(requests.length, 4, 'routing history-shaped items does not issue another API request');
+    expect(savedVideosApi.savedVideoRoute(historyEpisode)).toEqual(savedVideosApi.savedVideoRoute(episode));
+    expect(savedVideosApi.savedVideoRoute(historyPreview)).toEqual(savedVideosApi.savedVideoRoute(preview));
+    expect(requests).toHaveLength(4);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;

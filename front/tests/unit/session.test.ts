@@ -1,9 +1,4 @@
-/// <reference types="node" />
-
-import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import { ApiError } from '../../src/common/http/api';
-import { SessionChangedError } from '../../src/common/http/api';
+import { ApiError, SessionChangedError } from '../../src/common/http/api';
 import { createSessionClient } from '../../src/features/user/sessionClient';
 import type { LoginResponse } from '../../src/features/user/login';
 import {
@@ -24,6 +19,15 @@ const responseBody: LoginResponse = {
   refreshToken: 'refresh-1',
   expiresIn: 900,
 };
+
+function setApiBaseUrl(value: string) {
+  const original = process.env.EXPO_PUBLIC_API_BASE_URL;
+  process.env.EXPO_PUBLIC_API_BASE_URL = value;
+  return () => {
+    if (original === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    else process.env.EXPO_PUBLIC_API_BASE_URL = original;
+  };
+}
 
 function fakeStorage(initial: string | null = 'refresh-old') {
   let token = initial;
@@ -57,25 +61,25 @@ test('login response is not returned until its Refresh Token has been stored', a
   let completed = false;
   void operation.then(() => { completed = true; });
   await Promise.resolve();
-  assert.equal(completed, false);
+  expect(completed).toBe(false);
   pendingWrite.resolve(undefined);
-  assert.equal(await operation, responseBody);
-  assert.deepEqual(persisted, ['refresh-1']);
+  await expect(operation).resolves.toBe(responseBody);
+  expect(persisted).toEqual(['refresh-1']);
 });
 
 test('native login responses without a Refresh Token are rejected before storage', async () => {
   const missingRefresh = { ...responseBody, refreshToken: undefined } as LoginResponse;
   const { storage, calls } = fakeStorage(null);
-  await assert.rejects(storeLoginResponse(missingRefresh, storage), /Refresh token is missing/);
-  assert.deepEqual(calls, []);
+  await expect(storeLoginResponse(missingRefresh, storage)).rejects.toThrow('Refresh token is missing');
+  expect(calls).toEqual([]);
 });
 
 test('restore without a stored token does not make a request', async () => {
   const { storage, calls } = fakeStorage(null);
   let requests = 0;
-  assert.equal(await restoreSession(storage, (async () => { requests++; return response(responseBody); }) as typeof fetch), null);
-  assert.equal(requests, 0);
-  assert.deepEqual(calls, ['read']);
+  await expect(restoreSession(storage, (async () => { requests++; return response(responseBody); }) as typeof fetch)).resolves.toBeNull();
+  expect(requests).toBe(0);
+  expect(calls).toEqual(['read']);
 });
 
 test('cookie restore calls refresh without reading or writing storage and treats 204 as anonymous', async () => {
@@ -85,117 +89,112 @@ test('cookie restore calls refresh without reading or writing storage and treats
     requested = { url: String(url), init };
     return response(null, 204);
   }) as typeof fetch, 'http://localhost:3000', 'cookie');
-  assert.equal(restored, null);
-  assert.equal(requested?.url, 'http://localhost:3000/auth/refresh');
-  assert.equal(requested?.init?.method, 'POST');
-  assert.equal(requested?.init?.credentials, 'include');
-  assert.deepEqual(requested?.init?.headers, { 'Content-Type': 'application/json', 'X-Auth-Transport': 'cookie' });
-  assert.equal(requested?.init?.body, '{}');
-  assert.deepEqual(calls, []);
+  expect(restored).toBeNull();
+  expect(requested?.url).toBe('http://localhost:3000/auth/refresh');
+  expect(requested?.init?.method).toBe('POST');
+  expect(requested?.init?.credentials).toBe('include');
+  expect(requested?.init?.headers).toEqual({ 'Content-Type': 'application/json', 'X-Auth-Transport': 'cookie' });
+  expect(requested?.init?.body).toBe('{}');
+  expect(calls).toEqual([]);
 });
 
 test('cookie restore parses web sessions without Refresh and preserves the cookie on server errors', async () => {
   const { storage, calls } = fakeStorage('unused-native-token');
   const webResponse = { ...responseBody } as Partial<LoginResponse>;
   delete webResponse.refreshToken;
-  assert.deepEqual(await restoreSession(storage, (async () => response(webResponse)) as typeof fetch, 'http://localhost:3000', 'cookie'), webResponse);
-  assert.deepEqual(calls, []);
+  await expect(restoreSession(storage, (async () => response(webResponse)) as typeof fetch, 'http://localhost:3000', 'cookie')).resolves.toEqual(webResponse);
+  expect(calls).toEqual([]);
 
   for (const [name, fetcher] of [
     ['401', async () => response({ errorCode: 'AUTH_INVALID_TOKEN' }, 401)],
     ['503', async () => response({}, 503)],
     ['network', async () => { throw new Error('offline'); }],
   ] as const) {
-    await assert.rejects(restoreSession(storage, fetcher as typeof fetch, 'http://localhost:3000', 'cookie'));
-    assert.deepEqual(calls, [], `${name} must not read or remove a JS Refresh token`);
+    await expect(restoreSession(storage, fetcher as typeof fetch, 'http://localhost:3000', 'cookie')).rejects.toBeDefined();
+    expect(calls).toEqual([]);
   }
 });
 
 test('successful restore sends the old token and saves the rotated token', async () => {
   const { storage, calls, token } = fakeStorage();
   let request: { url: string; init?: RequestInit } | undefined;
-  process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000/';
+  const restoreBaseUrl = setApiBaseUrl('http://localhost:3000/');
   try {
-    assert.deepEqual(await restoreSession(storage, (async (url, init) => {
+    await expect(restoreSession(storage, (async (url, init) => {
       request = { url: String(url), init };
       return response(responseBody);
-    }) as typeof fetch), responseBody);
-    assert.equal(request?.url, 'http://localhost:3000/auth/refresh');
-    assert.equal(request?.init?.method, 'POST');
-    assert.equal(request?.init?.body, JSON.stringify({ refreshToken: 'refresh-old' }));
-    assert.equal(token(), 'refresh-1');
-    assert.deepEqual(calls, ['read', 'write:refresh-1']);
+    }) as typeof fetch)).resolves.toEqual(responseBody);
+    expect(request?.url).toBe('http://localhost:3000/auth/refresh');
+    expect(request?.init?.method).toBe('POST');
+    expect(request?.init?.body).toBe(JSON.stringify({ refreshToken: 'refresh-old' }));
+    expect(token()).toBe('refresh-1');
+    expect(calls).toEqual(['read', 'write:refresh-1']);
   } finally {
-    delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    restoreBaseUrl();
   }
 });
 
 test('refresh 401 removes the stored token and does not retry it', async () => {
   const { storage, calls, token } = fakeStorage();
   let requests = 0;
-  process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
+  const restoreBaseUrl = setApiBaseUrl('http://localhost:3000');
   try {
-    await assert.rejects(restoreSession(storage, (async () => { requests++; return response({}, 401); }) as typeof fetch), /401/);
-    assert.equal(requests, 1);
-    assert.equal(token(), null);
-    assert.deepEqual(calls, ['read', 'remove']);
+    await expect(restoreSession(storage, (async () => { requests++; return response({}, 401); }) as typeof fetch)).rejects.toThrow('401');
+    expect(requests).toBe(1);
+    expect(token()).toBeNull();
+    expect(calls).toEqual(['read', 'remove']);
   } finally {
-    delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    restoreBaseUrl();
   }
 });
 
-test('refresh errors use the shared parser and preserve HTTP status for common errors', async (t) => {
+test.each([
+  ['forbidden', 403, 'HTTP_FORBIDDEN', 401],
+  ['server failure', 503, 'HTTP_SERVICE_UNAVAILABLE', 500],
+] as const)('refresh errors preserve status for %s', async (_name, status, errorCode, bodyStatus) => {
   const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
   try {
-    for (const [name, status, errorCode, bodyStatus] of [
-      ['forbidden', 403, 'HTTP_FORBIDDEN', 401],
-      ['server failure', 503, 'HTTP_SERVICE_UNAVAILABLE', 500],
-    ] as const) {
-      await t.test(name, async () => {
-        const { storage, calls, token } = fakeStorage();
-        await assert.rejects(
-          restoreSession(storage, (async () => response({ errorCode, statusCode: bodyStatus }, status)) as typeof fetch),
-          (error) => error instanceof ApiError && error.status === status && error.errorCode === errorCode,
-        );
-        assert.equal(token(), 'refresh-old');
-        assert.deepEqual(calls, ['read']);
-      });
-    }
-
-    await t.test('malformed JSON', async () => {
-      const { storage, calls, token } = fakeStorage();
-      await assert.rejects(
-        restoreSession(storage, (async () => ({
-          ok: false, status: 503, json: async () => { throw new SyntaxError('invalid JSON'); },
-        }) as unknown as Response) as typeof fetch),
-        (error) => error instanceof ApiError && error.status === 503 && error.errorCode === null,
-      );
-      assert.equal(token(), 'refresh-old');
-      assert.deepEqual(calls, ['read']);
-    });
+    const { storage, calls, token } = fakeStorage();
+    const request = restoreSession(storage, (async () => response({ errorCode, statusCode: bodyStatus }, status)) as typeof fetch);
+    await expect(request).rejects.toBeInstanceOf(ApiError);
+    await expect(request).rejects.toMatchObject({ status, errorCode });
+    expect(token()).toBe('refresh-old');
+    expect(calls).toEqual(['read']);
   } finally {
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
     else process.env.EXPO_PUBLIC_API_BASE_URL = originalBaseUrl;
   }
 });
 
-test('network and server errors preserve the stored token for the next explicit restore', async (t) => {
-  process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
+test('refresh error parsing tolerates malformed JSON and preserves the HTTP status', async () => {
+  const { storage, calls, token } = fakeStorage();
+  const restoreBaseUrl = setApiBaseUrl('http://localhost:3000');
   try {
-    for (const [name, fetcher] of [
-      ['network failure', async () => { throw new Error('offline'); }],
-      ['server failure', async () => response({}, 503)],
-    ] as const) {
-      await t.test(name, async () => {
-        const { storage, calls, token } = fakeStorage();
-        await assert.rejects(restoreSession(storage, fetcher as typeof fetch));
-        assert.equal(token(), 'refresh-old');
-        assert.deepEqual(calls, ['read']);
-      });
-    }
+    const request = restoreSession(storage, (async () => ({
+      ok: false, status: 503, json: async () => { throw new SyntaxError('invalid JSON'); },
+    }) as unknown as Response) as typeof fetch);
+    await expect(request).rejects.toBeInstanceOf(ApiError);
+    await expect(request).rejects.toMatchObject({ status: 503, errorCode: null });
+    expect(token()).toBe('refresh-old');
+    expect(calls).toEqual(['read']);
   } finally {
-    delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    restoreBaseUrl();
+  }
+});
+
+test.each([
+  ['network failure', async () => { throw new Error('offline'); }],
+  ['server failure', async () => response({}, 503)],
+] as const)('%s preserves the stored token for the next explicit restore', async (_name, fetcher) => {
+  const restoreBaseUrl = setApiBaseUrl('http://localhost:3000');
+  try {
+    const { storage, calls, token } = fakeStorage();
+    await expect(restoreSession(storage, fetcher as typeof fetch)).rejects.toBeDefined();
+    expect(token()).toBe('refresh-old');
+    expect(calls).toEqual(['read']);
+  } finally {
+    restoreBaseUrl();
   }
 });
 
@@ -205,35 +204,31 @@ test('storage write failure rejects login and restore rather than publishing suc
     async write() { throw new Error('storage unavailable'); },
     async remove() {},
   };
-  await assert.rejects(storeLoginResponse(responseBody, storage), /storage unavailable/);
-  process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
+  await expect(storeLoginResponse(responseBody, storage)).rejects.toThrow('storage unavailable');
+  const restoreBaseUrl = setApiBaseUrl('http://localhost:3000');
   try {
-    await assert.rejects(restoreSession(storage, (async () => response(responseBody)) as typeof fetch), /storage unavailable/);
+    await expect(restoreSession(storage, (async () => response(responseBody)) as typeof fetch)).rejects.toThrow('storage unavailable');
   } finally {
-    delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    restoreBaseUrl();
   }
 });
 
-test('logout sends the stored token and removes it after success or server failure', async (t) => {
-  process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
+test.each([['success', 204], ['failure', 503]] as const)('logout %s sends the stored token and removes it', async (_name, status) => {
+  const restoreBaseUrl = setApiBaseUrl('http://localhost:3000');
   try {
-    for (const [name, status] of [['success', 204], ['failure', 503]] as const) {
-      await t.test(name, async () => {
-        const { storage, calls, token } = fakeStorage();
-        let requestBody: string | undefined;
-        const fetcher = (async (_url, init) => {
-          requestBody = String(init?.body);
-          return response(null, status);
-        }) as typeof fetch;
-        if (status === 204) await logoutSession(storage, fetcher);
-        else await assert.rejects(logoutSession(storage, fetcher), /503/);
-        assert.equal(requestBody, JSON.stringify({ refreshToken: 'refresh-old' }));
-        assert.equal(token(), null);
-        assert.deepEqual(calls, ['read', 'remove']);
-      });
-    }
+    const { storage, calls, token } = fakeStorage();
+    let requestBody: string | undefined;
+    const fetcher = (async (_url, init) => {
+      requestBody = String(init?.body);
+      return response(null, status);
+    }) as typeof fetch;
+    if (status === 204) await logoutSession(storage, fetcher);
+    else await expect(logoutSession(storage, fetcher)).rejects.toThrow('503');
+    expect(requestBody).toBe(JSON.stringify({ refreshToken: 'refresh-old' }));
+    expect(token()).toBeNull();
+    expect(calls).toEqual(['read', 'remove']);
   } finally {
-    delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    restoreBaseUrl();
   }
 });
 
@@ -244,31 +239,28 @@ test('cookie logout always calls the server and never touches Refresh storage', 
     requested = { url: String(url), init };
     return response(null, 204);
   }) as typeof fetch, 'http://localhost:3000', 'cookie');
-  assert.equal(requested?.url, 'http://localhost:3000/auth/logout');
-  assert.equal(requested?.init?.credentials, 'include');
-  assert.equal(requested?.init?.body, '{}');
-  assert.deepEqual(requested?.init?.headers, { 'Content-Type': 'application/json', 'X-Auth-Transport': 'cookie' });
-  assert.deepEqual(calls, []);
+  expect(requested?.url).toBe('http://localhost:3000/auth/logout');
+  expect(requested?.init?.credentials).toBe('include');
+  expect(requested?.init?.body).toBe('{}');
+  expect(requested?.init?.headers).toEqual({ 'Content-Type': 'application/json', 'X-Auth-Transport': 'cookie' });
+  expect(calls).toEqual([]);
 });
 
 test('storage deletion failure keeps refresh 401 classification and remains visible; logout still surfaces deletion errors', async () => {
-  process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
+  const restoreBaseUrl = setApiBaseUrl('http://localhost:3000');
   const storage: RefreshTokenStorage = {
     async read() { return 'refresh-old'; },
     async write() {},
     async remove() { throw new Error('cannot delete'); },
   };
   try {
-    await assert.rejects(restoreSession(storage, (async () => response({}, 401)) as typeof fetch), (error) => {
-      assert.ok(error instanceof ApiError);
-      assert.equal(error.status, 401);
-      assert.equal(error.errorCode, null);
-      assert.match(String((error as ApiError & { storageError?: unknown }).storageError), /cannot delete/);
-      return true;
-    });
-    await assert.rejects(logoutSession(storage, (async () => response(null, 204)) as typeof fetch), /cannot delete/);
+    const restoreError = await restoreSession(storage, (async () => response({}, 401)) as typeof fetch).catch((error) => error);
+    expect(restoreError).toBeInstanceOf(ApiError);
+    expect(restoreError).toMatchObject({ status: 401, errorCode: null });
+    expect(String((restoreError as ApiError & { storageError?: unknown }).storageError)).toMatch(/cannot delete/);
+    await expect(logoutSession(storage, (async () => response(null, 204)) as typeof fetch)).rejects.toThrow('cannot delete');
   } finally {
-    delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    restoreBaseUrl();
   }
 });
 
@@ -279,7 +271,7 @@ test('Strict Mode restoration shares one in-flight refresh, then queued logout w
   let refreshRequests = 0;
   let localUser: string | null = null;
   let localAccess: string | null = null;
-  process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
+  const restoreBaseUrl = setApiBaseUrl('http://localhost:3000');
   try {
     const restore = createRestoreOnce(() => queue.enqueue(async () => {
       const result = await restoreSession(storage, (async () => {
@@ -292,7 +284,7 @@ test('Strict Mode restoration shares one in-flight refresh, then queued logout w
     }));
     const firstMount = restore();
     const strictModeRemount = restore();
-    assert.equal(firstMount, strictModeRemount);
+    expect(firstMount).toBe(strictModeRemount);
     const login = queue.enqueue(async () => {
       const result = await storeLoginResponse(responseBody, storage);
       localUser = result.uuid;
@@ -308,16 +300,16 @@ test('Strict Mode restoration shares one in-flight refresh, then queued logout w
     });
     await Promise.resolve();
     await Promise.resolve();
-    assert.equal(refreshRequests, 1);
+    expect(refreshRequests).toBe(1);
     pendingResponse.resolve(response({ ...responseBody, refreshToken: 'refresh-2' }));
     await firstMount;
     await Promise.all([login, logout]);
-    assert.equal(token(), null);
-    assert.equal(localUser, null);
-    assert.equal(localAccess, null);
-    assert.equal(refreshRequests, 1);
+    expect(token()).toBeNull();
+    expect(localUser).toBeNull();
+    expect(localAccess).toBeNull();
+    expect(refreshRequests).toBe(1);
   } finally {
-    delete process.env.EXPO_PUBLIC_API_BASE_URL;
+    restoreBaseUrl();
   }
 });
 
@@ -332,10 +324,10 @@ test('session queue serializes login and logout state application despite a late
   });
   const logout = queue.enqueue(async () => { order.push('logout-state'); });
   await Promise.resolve();
-  assert.deepEqual(order, ['login-start']);
+  expect(order).toEqual(['login-start']);
   pendingLogin.resolve(undefined);
   await Promise.all([login, logout]);
-  assert.deepEqual(order, ['login-start', 'login-state', 'logout-state']);
+  expect(order).toEqual(['login-start', 'login-state', 'logout-state']);
 });
 
 test('the session client shares concurrent refreshes and publishes the rotated token', async () => {
@@ -356,10 +348,10 @@ test('the session client shares concurrent refreshes and publishes the rotated t
     client.apiRequest('/one', { auth: 'required' }),
     client.apiRequest('/two', { auth: 'required' }),
   ]);
-  assert.deepEqual(results, [{ ok: true }, { ok: true }]);
-  assert.equal(rotations, 1);
-  assert.equal(token(), 'refresh-2');
-  assert.equal(client.getSessionState().accessToken, 'access-2');
+  expect(results).toEqual([{ ok: true }, { ok: true }]);
+  expect(rotations).toBe(1);
+  expect(token()).toBe('refresh-2');
+  expect(client.getSessionState().accessToken).toBe('access-2');
 });
 
 test('cookie clients restore across fresh instances and logout leaves later instances anonymous', async () => {
@@ -382,33 +374,33 @@ test('cookie clients restore across fresh instances and logout leaves later inst
   const client1 = createSessionClient({
     baseUrl: 'http://localhost:3000', storage, fetcher, refreshTransport: 'cookie',
     loginRequest: async (_input, _fetcher, transport) => {
-      assert.equal(transport, 'cookie');
+      expect(transport).toBe('cookie');
       cookieSession = webSession as LoginResponse;
       return webSession as LoginResponse;
     },
   });
   await client1.initialize();
-  assert.equal(client1.getUserSessionState().sessionExpired, false);
-  assert.equal(client1.getUserSessionState().restoreError, null);
+  expect(client1.getUserSessionState().sessionExpired).toBe(false);
+  expect(client1.getUserSessionState().restoreError).toBeNull();
   await client1.login({ loginId: 'admin', password: 'admin' });
-  assert.equal(client1.getUserSessionState().user?.uuid, 'user-uuid');
+  expect(client1.getUserSessionState().user?.uuid).toBe('user-uuid');
 
   const client2 = createSessionClient({ baseUrl: 'http://localhost:3000', storage, fetcher, refreshTransport: 'cookie' });
   await client2.initialize();
-  assert.equal(client2.getUserSessionState().user?.uuid, 'user-uuid');
-  assert.equal(client2.getUserSessionState().points, 12);
-  assert.equal(client2.getSessionState().accessToken, 'access-1');
+  expect(client2.getUserSessionState().user?.uuid).toBe('user-uuid');
+  expect(client2.getUserSessionState().points).toBe(12);
+  expect(client2.getSessionState().accessToken).toBe('access-1');
   await client2.logout();
 
   const client3 = createSessionClient({ baseUrl: 'http://localhost:3000', storage, fetcher, refreshTransport: 'cookie' });
   await client3.initialize();
-  assert.equal(client3.getUserSessionState().user, null);
-  assert.equal(client3.getUserSessionState().points, null);
-  assert.equal(client3.getUserSessionState().sessionExpired, false);
-  assert.equal(client3.getUserSessionState().restoreError, null);
-  assert.ok(calls.filter(({ path }) => path.startsWith('/auth/')).every(({ init }) => init?.credentials === 'include'));
-  assert.ok(calls.filter(({ path }) => path.startsWith('/auth/')).every(({ init }) => (init?.headers as Record<string, string>)['X-Auth-Transport'] === 'cookie'));
-  assert.ok(calls.filter(({ path }) => path.startsWith('/auth/')).every(({ init }) => init?.body === '{}'));
+  expect(client3.getUserSessionState().user).toBeNull();
+  expect(client3.getUserSessionState().points).toBeNull();
+  expect(client3.getUserSessionState().sessionExpired).toBe(false);
+  expect(client3.getUserSessionState().restoreError).toBeNull();
+  expect(calls.filter(({ path }) => path.startsWith('/auth/')).every(({ init }) => init?.credentials === 'include')).toBe(true);
+  expect(calls.filter(({ path }) => path.startsWith('/auth/')).every(({ init }) => (init?.headers as Record<string, string>)['X-Auth-Transport'] === 'cookie')).toBe(true);
+  expect(calls.filter(({ path }) => path.startsWith('/auth/')).every(({ init }) => init?.body === '{}')).toBe(true);
 });
 
 test('cookie session expiry calls server logout after clearing memory', async () => {
@@ -432,12 +424,12 @@ test('cookie session expiry calls server logout after clearing memory', async ()
   });
   await client.initialize();
   await client.login({ loginId: 'admin', password: 'admin' });
-  await assert.rejects(client.apiRequest('/private', { auth: 'required' }), (error) => error instanceof ApiError && error.status === 401);
-  assert.equal(apiCalls, 2);
-  assert.equal(logoutCalls, 1);
-  assert.equal(client.getSessionState().accessToken, null);
-  assert.equal(client.getUserSessionState().user, null);
-  assert.equal(client.getUserSessionState().sessionExpired, true);
+  await expect(client.apiRequest('/private', { auth: 'required' })).rejects.toMatchObject({ status: 401 });
+  expect(apiCalls).toBe(2);
+  expect(logoutCalls).toBe(1);
+  expect(client.getSessionState().accessToken).toBeNull();
+  expect(client.getUserSessionState().user).toBeNull();
+  expect(client.getUserSessionState().sessionExpired).toBe(true);
 });
 
 test('concurrent cookie-mode 401s share one refresh and retry each product request once', async () => {
@@ -469,12 +461,12 @@ test('concurrent cookie-mode 401s share one refresh and retry each product reque
   });
   await client.initialize();
   await client.login({ loginId: 'admin', password: 'admin' });
-  assert.deepEqual(await Promise.all([
+  await expect(Promise.all([
     client.apiRequest('/first', { auth: 'required' }),
     client.apiRequest('/second', { auth: 'required' }),
-  ]), [{ path: '/first' }, { path: '/second' }]);
-  assert.equal(refreshCalls, 1);
-  assert.deepEqual([...counts.values()], [2, 2]);
+  ])).resolves.toEqual([{ path: '/first' }, { path: '/second' }]);
+  expect(refreshCalls).toBe(1);
+  expect([...counts.values()]).toEqual([2, 2]);
 });
 
 test('cookie refresh rejects an account change and never retries the original mutation as the other user', async () => {
@@ -511,18 +503,17 @@ test('cookie refresh rejects an account change and never retries the original mu
   refreshCalls = 0;
   sharedCookieUser = 'account-b-uuid';
 
-  await assert.rejects(
+  await expect(
     client.apiRequest('/me/episodes/episode-uuid/purchaseSingle', { auth: 'required', method: 'POST', json: {} }),
-    SessionChangedError,
-  );
+  ).rejects.toBeInstanceOf(SessionChangedError);
 
-  assert.equal(mutationCalls, 1);
-  assert.equal(refreshCalls, 1);
-  assert.equal(logoutCalls, 0);
-  assert.deepEqual(calls, []);
-  assert.equal(client.getSessionState().version, beforeVersion + 1);
-  assert.equal(client.getSessionState().accessToken, null);
-  assert.deepEqual(client.getUserSessionState(), {
+  expect(mutationCalls).toBe(1);
+  expect(refreshCalls).toBe(1);
+  expect(logoutCalls).toBe(0);
+  expect(calls).toEqual([]);
+  expect(client.getSessionState().version).toBe(beforeVersion + 1);
+  expect(client.getSessionState().accessToken).toBeNull();
+  expect(client.getUserSessionState()).toEqual({
     version: beforeVersion + 1,
     accessToken: null,
     user: null,
@@ -531,7 +522,7 @@ test('cookie refresh rejects an account change and never retries the original mu
     restoreError: null,
     sessionExpired: true,
   });
-  assert.equal(sharedCookieUser, 'account-b-uuid');
+  expect(sharedCookieUser).toBe('account-b-uuid');
 });
 
 test('cookie-mode concurrent requests share an account-switch refresh and both stop', async () => {
@@ -568,13 +559,13 @@ test('cookie-mode concurrent requests share an account-switch refresh and both s
     client.apiRequest('/me/videos/video-two/watch-progress', { auth: 'required', method: 'PUT', json: {} }),
   ]);
 
-  assert.equal(refreshCalls, 1);
-  assert.deepEqual(results.map((result) => result.status), ['rejected', 'rejected']);
+  expect(refreshCalls).toBe(1);
+  expect(results.map((result) => result.status)).toEqual(['rejected', 'rejected']);
   for (const result of results) {
-    if (result.status === 'rejected') assert.ok(result.reason instanceof SessionChangedError);
+    if (result.status === 'rejected') expect(result.reason).toBeInstanceOf(SessionChangedError);
   }
-  assert.deepEqual([...mutationCalls.values()], [1, 1]);
-  assert.equal(client.getUserSessionState().user, null);
+  expect([...mutationCalls.values()]).toEqual([1, 1]);
+  expect(client.getUserSessionState().user).toBeNull();
 });
 
 test('explicit cookie session restore clears the previous account when the shared cookie belongs to another user', async () => {
@@ -597,18 +588,18 @@ test('explicit cookie session restore clears the previous account when the share
     loginRequest: async () => ({ ...responseBody, refreshToken: undefined }),
   });
   await client.initialize();
-  assert.equal(client.getUserSessionState().user?.uuid, 'user-uuid');
+  expect(client.getUserSessionState().user?.uuid).toBe('user-uuid');
   await client.login({ loginId: 'account-a', password: 'password' });
   const beforeVersion = client.getSessionState().version;
 
   restoredUser = 'account-b-uuid';
   await client.initialize();
 
-  assert.equal(client.getSessionState().version, beforeVersion + 1);
-  assert.equal(client.getSessionState().accessToken, null);
-  assert.equal(client.getUserSessionState().user, null);
-  assert.equal(client.getUserSessionState().points, null);
-  assert.equal(client.getUserSessionState().sessionExpired, true);
+  expect(client.getSessionState().version).toBe(beforeVersion + 1);
+  expect(client.getSessionState().accessToken).toBeNull();
+  expect(client.getUserSessionState().user).toBeNull();
+  expect(client.getUserSessionState().points).toBeNull();
+  expect(client.getUserSessionState().sessionExpired).toBe(true);
 });
 
 test('anonymous cookie initialization accepts the available account and same-user refresh keeps its session', async () => {
@@ -637,11 +628,11 @@ test('anonymous cookie initialization accepts the available account and same-use
   await client.login({ loginId: 'account-a', password: 'password' });
   const beforeVersion = client.getSessionState().version;
 
-  assert.deepEqual(await client.apiRequest('/private', { auth: 'required' }), { ok: true });
-  assert.equal(refreshCalls, 2);
-  assert.equal(client.getSessionState().version, beforeVersion);
-  assert.equal(client.getSessionState().accessToken, 'access-2');
-  assert.equal(client.getUserSessionState().user?.uuid, 'user-uuid');
+  await expect(client.apiRequest('/private', { auth: 'required' })).resolves.toEqual({ ok: true });
+  expect(refreshCalls).toBe(2);
+  expect(client.getSessionState().version).toBe(beforeVersion);
+  expect(client.getSessionState().accessToken).toBe('access-2');
+  expect(client.getUserSessionState().user?.uuid).toBe('user-uuid');
 });
 
 test('cookie logout queued behind refresh wins over the late refreshed session', async () => {
@@ -675,11 +666,11 @@ test('cookie logout queued behind refresh wins over the late refreshed session',
   await started;
   const logout = client.logout();
   finishRefresh(response({ ...responseBody, accessToken: 'access-2', refreshToken: undefined }));
-  await assert.rejects(request, SessionChangedError);
+  await expect(request).rejects.toBeInstanceOf(SessionChangedError);
   await logout;
-  assert.equal(logoutBody, '{}');
-  assert.equal(client.getSessionState().accessToken, null);
-  assert.equal(client.getUserSessionState().user, null);
+  expect(logoutBody).toBe('{}');
+  expect(client.getSessionState().accessToken).toBeNull();
+  expect(client.getUserSessionState().user).toBeNull();
 });
 
 test('Refresh 401 still clears memory and preserves its error when secure storage removal fails', async () => {
@@ -694,16 +685,13 @@ test('Refresh 401 still clears memory and preserves its error when secure storag
   const client = createSessionClient({ baseUrl: 'http://localhost:3000', storage, fetcher, loginRequest: async () => responseBody });
   await client.initialize();
   await client.login({ loginId: 'admin', password: 'admin' });
-  await assert.rejects(client.apiRequest('/private', { auth: 'required' }), (error) => {
-    assert.ok(error instanceof ApiError);
-    assert.equal(error.status, 401);
-    assert.equal(error.errorCode, 'AUTH_INVALID_TOKEN');
-    assert.match(String((error as ApiError & { storageError?: unknown }).storageError), /secure storage remove failed/);
-    return true;
-  });
-  assert.equal(client.getSessionState().accessToken, null);
-  assert.equal(client.getUserSessionState().user, null);
-  assert.equal(client.getUserSessionState().sessionExpired, true);
+  const error = await client.apiRequest('/private', { auth: 'required' }).catch((reason) => reason);
+  expect(error).toBeInstanceOf(ApiError);
+  expect(error).toMatchObject({ status: 401, errorCode: 'AUTH_INVALID_TOKEN' });
+  expect(String((error as ApiError & { storageError?: unknown }).storageError)).toMatch(/secure storage remove failed/);
+  expect(client.getSessionState().accessToken).toBeNull();
+  expect(client.getUserSessionState().user).toBeNull();
+  expect(client.getUserSessionState().sessionExpired).toBe(true);
 });
 
 test('ambiguous refresh failure blocks automatic reuse and preserves the stored token', async () => {
@@ -719,10 +707,10 @@ test('ambiguous refresh failure blocks automatic reuse and preserves the stored 
   const client = createSessionClient({ baseUrl: 'http://localhost:3000', storage, fetcher, loginRequest: async () => responseBody });
   await client.initialize();
   await client.login({ loginId: 'admin', password: 'admin' });
-  await assert.rejects(client.apiRequest('/first', { auth: 'required' }), /connection lost/);
-  await assert.rejects(client.apiRequest('/second', { auth: 'required' }), /unavailable until a new login/);
-  assert.equal(rotations, 1);
-  assert.equal(token(), 'refresh-1');
+  await expect(client.apiRequest('/first', { auth: 'required' })).rejects.toThrow('connection lost');
+  await expect(client.apiRequest('/second', { auth: 'required' })).rejects.toThrow('unavailable until a new login');
+  expect(rotations).toBe(1);
+  expect(token()).toBe('refresh-1');
 });
 
 test('logout during token rotation revokes the rotated token without restoring user state', async () => {
@@ -749,12 +737,12 @@ test('logout during token rotation revokes the rotated token without restoring u
   await started;
   const logout = client.logout();
   finishRefresh(response({ ...responseBody, accessToken: 'access-2', refreshToken: 'refresh-2' }));
-  await assert.rejects(request, SessionChangedError);
+  await expect(request).rejects.toBeInstanceOf(SessionChangedError);
   await logout;
-  assert.equal(logoutBody, JSON.stringify({ refreshToken: 'refresh-2' }));
-  assert.equal(token(), null);
-  assert.equal(client.getSessionState().accessToken, null);
-  assert.equal(client.getUserSessionState().user, null);
+  expect(logoutBody).toBe(JSON.stringify({ refreshToken: 'refresh-2' }));
+  expect(token()).toBeNull();
+  expect(client.getSessionState().accessToken).toBeNull();
+  expect(client.getUserSessionState().user).toBeNull();
 });
 
 test('a failed retried request preserves its 401 when secure storage cleanup also fails', async () => {
@@ -774,14 +762,11 @@ test('a failed retried request preserves its 401 when secure storage cleanup als
   const client = createSessionClient({ baseUrl: 'http://localhost:3000', storage, fetcher, loginRequest: async () => responseBody });
   await client.initialize();
   await client.login({ loginId: 'admin', password: 'admin' });
-  await assert.rejects(client.apiRequest('/private', { auth: 'required' }), (error) => {
-    assert.ok(error instanceof ApiError);
-    assert.equal(error.status, 401);
-    assert.equal(error.errorCode, 'AUTH_INVALID_TOKEN');
-    assert.match(String((error as ApiError & { storageError?: unknown }).storageError), /secure store unavailable/);
-    return true;
-  });
-  assert.equal(apiRequests, 2);
-  assert.equal(client.getSessionState().accessToken, null);
-  assert.equal(client.getUserSessionState().sessionExpired, true);
+  const error = await client.apiRequest('/private', { auth: 'required' }).catch((reason) => reason);
+  expect(error).toBeInstanceOf(ApiError);
+  expect(error).toMatchObject({ status: 401, errorCode: 'AUTH_INVALID_TOKEN' });
+  expect(String((error as ApiError & { storageError?: unknown }).storageError)).toMatch(/secure store unavailable/);
+  expect(apiRequests).toBe(2);
+  expect(client.getSessionState().accessToken).toBeNull();
+  expect(client.getUserSessionState().sessionExpired).toBe(true);
 });

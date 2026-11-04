@@ -29,7 +29,15 @@
 
 `sub`는 사용자 UUID, `iat`는 발급 시각, `exp`는 만료 시각이다. Refresh의 `jti`는 발급마다 새로 생성하는 UUID로, 같은 초에 발급해도 토큰이 달라지게 한다. 별도 `sessionUuid`/`sid`, DB 내부 숫자 ID, 비밀번호·이름·포인트는 payload에 넣지 않는다. JWT payload는 암호화된 개인정보 저장소가 아니다.
 
-두 시크릿 키는 백엔드의 Git-ignored 환경 파일에서 관리하고 ConfigService로 읽는다. 개발 파일은 `back/.env.development`이며, 키 누락·공백·동일 값은 시작 오류다. 프론트 환경 변수나 저장소에 키를 넣지 않는다. 키 교체 절차는 [백엔드 README](../../../back/README.md)를 따른다.
+두 시크릿 키는 백엔드의 Git-ignored 환경 파일에서 관리하고 ConfigService로 읽는다. 개발 파일은 `back/.env.development`이며, 키 누락·공백·동일 값은 시작 오류다. 프론트 환경 변수나 저장소에 키를 넣지 않는다.
+
+각 키는 다음 명령으로 64 random bytes에서 서로 독립적으로 생성한다. 출력은 환경 파일에만 저장하고 로그·소스 관리·대화에 남기지 않는다.
+
+```powershell
+node -e "const c=require('node:crypto');console.log(c.randomBytes(64).toString('base64url'))"
+```
+
+키 교체 시 두 값을 새로 생성해 바꾸고 모든 백엔드 인스턴스를 같은 키 쌍으로 재시작한다. 기존 Access·Refresh JWT가 무효화되므로 재로그인이 필요하다. DB의 Refresh 해시 이력은 보존하며 원문 토큰은 저장하지 않는다.
 
 ## 로그인
 
@@ -48,6 +56,7 @@
 - 성공하면 새 Refresh를 저장한 뒤 Access·사용자·최신 포인트를 메모리에 반영한다. 복원 중에는 `/login`의 로그인 요청이나 redirect를 보류한다.
 - 갱신 401이면 Refresh와 메모리 인증 상태를 정리한다. 통신 오류·5xx는 Refresh를 유지하되 미로그인 상태와 복원 오류를 표시한다. 저장 실패도 복원 성공으로 처리하지 않는다.
 - 복원 Promise는 중복 effect 실행에서도 공유한다. 복원·로그인·갱신·로그아웃은 저장과 상태 반영까지 직렬화한다. 사용자별 화면 요청은 복원이 끝날 때까지 기다리고, 계정 세대가 바뀐 뒤 도착한 응답을 무시한다.
+- 다른 웹 탭에서 계정이 바뀌면 다음 Refresh 응답의 사용자 UUID와 현재 계정을 비교한다. 다르면 현재 탭의 인증 상태를 비우고 진행 요청을 중단해 이전 계정 요청이 새 계정으로 재전송되지 않게 한다. 별도 탭 동기화 없이 Refresh 시점에 감지한다.
 
 ## 갱신과 재사용 탐지
 
@@ -103,3 +112,9 @@ DB의 `auth_sessions`는 로그인별 사용자와 폐기 시각을 관리한다
 네이티브 실기기에서는 SecureStore와 시스템 Modal을 아직 검증하지 않았다. 웹은 HttpOnly Refresh 쿠키로 페이지 새로고침 뒤 세션을 복원한다. Refresh 통신 오류·5xx 또는 저장 실패는 기존 Refresh를 자동 재사용하지 않도록 막으며 새 로그인이나 명시적 복원이 필요하다.
 
 인증 API의 웹 응답은 `Cache-Control: no-store`다. 운영 쿠키는 HTTPS의 Secure 속성을 사용한다. 프론트와 API가 `app.example.com` 및 `api.example.com`처럼 같은 사이트에 있거나 동일 origin 프록시를 사용해야 한다. 각 서버리스 인스턴스는 같은 JWT 시크릿과 기존 공유 MySQL을 사용하며 인스턴스 메모리에 Refresh 상태를 보관하지 않는다. `*.vercel.app` 프로젝트 간 도메인 쿠키 공유나 별도 사이트의 third-party cookie는 지원하지 않는다.
+
+## 웹 환경 설정과 수동 확인
+
+`WEB_CORS_ORIGINS`는 정확한 프론트 origin을 쉼표로 구분한다. 공백·빈 항목은 무시하며 와일드카드·부분 일치는 지원하지 않는다. 미설정 개발 기본값은 `http://localhost:8081`, 운영 기본값은 빈 목록이므로 운영 origin을 명시해야 한다. 허용 origin에는 credentials와 `content-type`, `authorization`, `x-auth-transport` 헤더를 허용한다. 프론트의 `EXPO_PUBLIC_API_BASE_URL`은 API 주소를 가리켜야 한다.
+
+브라우저에서 개발 사이트 쿠키를 지운 뒤 `http://localhost:8081`을 열어 익명 진입을 확인한다. 로그인 응답 JSON에 Refresh가 없고 `auth.refreshToken` 쿠키에 HttpOnly·Path `/auth`·SameSite=Lax가 설정되는지 Network에서 확인한다. 로컬 HTTP에서는 Secure가 꺼지고 운영에서는 켜진다. 새로고침 시 세션이 복원되고, 로그아웃 뒤 새로고침하면 익명으로 남아야 한다. 쿠키 값은 복사하거나 공유하지 않는다.

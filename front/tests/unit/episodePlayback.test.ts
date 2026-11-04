@@ -1,10 +1,14 @@
-/// <reference types="node" />
+let getEpisodePlayback: typeof import('../../src/features/playback/episodePlayback').getEpisodePlayback;
+let ApiError: typeof import('../../src/common/http/api').ApiError;
+let configureSessionClient: typeof import('../../src/features/user/sessionClient').configureSessionClient;
 
-import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import { ApiError } from '../../src/common/http/api';
-import { getEpisodePlayback } from '../../src/features/playback/episodePlayback';
-import { configureSessionClient } from '../../src/features/user/sessionClient';
+beforeEach(() => {
+  jest.isolateModules(() => {
+    ({ ApiError } = require('../../src/common/http/api'));
+    ({ getEpisodePlayback } = require('../../src/features/playback/episodePlayback'));
+    ({ configureSessionClient } = require('../../src/features/user/sessionClient'));
+  });
+});
 
 function configureApiClient() {
   configureSessionClient({
@@ -27,11 +31,11 @@ test('episode playback encodes the id and resolves relative video URLs', async (
 
   try {
     configureApiClient();
-    assert.deepEqual(await getEpisodePlayback('episode/1'), {
+    expect(await getEpisodePlayback('episode/1')).toEqual({
       ...body,
       url: 'http://localhost:3000/media/video.mp4',
     });
-    assert.deepEqual(urls, ['http://localhost:3000/api/episodes/episode%2F1/playback']);
+    expect(urls).toEqual(['http://localhost:3000/api/episodes/episode%2F1/playback']);
   } finally {
     globalThis.fetch = originalFetch;
     if (baseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -53,8 +57,8 @@ test('episode playback requests anonymously without adding an empty user query',
   try {
     configureApiClient();
     await getEpisodePlayback('episode-1');
-    assert.deepEqual(urls, ['http://localhost:3000/api/episodes/episode-1/playback']);
-    assert.equal(urls[0].includes('undefined'), false);
+    expect(urls).toEqual(['http://localhost:3000/api/episodes/episode-1/playback']);
+    expect(urls[0].includes('undefined')).toBe(false);
   } finally {
     globalThis.fetch = originalFetch;
     if (baseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -76,7 +80,7 @@ test('episode playback cannot select a caller-provided user UUID', async () => {
   try {
     configureApiClient();
     await getEpisodePlayback('episode-1');
-    assert.deepEqual(urls, [
+    expect(urls).toEqual([
       'http://localhost:3000/api/episodes/episode-1/playback',
     ]);
   } finally {
@@ -95,7 +99,7 @@ test('episode playback preserves absolute URLs', async () => {
 
   try {
     configureApiClient();
-    assert.deepEqual(await getEpisodePlayback('episode-2'), body);
+    expect(await getEpisodePlayback('episode-2')).toEqual(body);
   } finally {
     globalThis.fetch = originalFetch;
     if (baseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -111,7 +115,9 @@ test('episode playback reports failed responses', async () => {
 
   try {
     configureApiClient();
-    await assert.rejects(getEpisodePlayback('unknown'), (error) => error instanceof ApiError && error.status === 404);
+    const request = getEpisodePlayback('unknown');
+    await expect(request).rejects.toBeInstanceOf(ApiError);
+    await expect(request).rejects.toMatchObject({ status: 404 });
   } finally {
     globalThis.fetch = originalFetch;
     if (baseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;

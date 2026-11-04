@@ -1,7 +1,3 @@
-/// <reference types="node" />
-
-import assert from 'node:assert/strict';
-import { test } from 'node:test';
 import { ApiError } from '../../src/common/http/api';
 import { login } from '../../src/features/user/login';
 
@@ -29,11 +25,11 @@ test('login sends the supplied credentials to the configured endpoint and return
     const input = { loginId: 'admin', password: ' pass ' };
     const result = await login(input);
 
-    assert.equal(String(requested[0].input), 'http://localhost:3000/auth/login');
-    assert.equal(requested[0].init?.method, 'POST');
-    assert.deepEqual(requested[0].init?.headers, { 'Content-Type': 'application/json' });
-    assert.equal(requested[0].init?.body, JSON.stringify(input));
-    assert.deepEqual(result, responseBody);
+    expect(String(requested[0].input)).toBe('http://localhost:3000/auth/login');
+    expect(requested[0].init?.method).toBe('POST');
+    expect(requested[0].init?.headers).toEqual({ 'Content-Type': 'application/json' });
+    expect(requested[0].init?.body).toBe(JSON.stringify(input));
+    expect(result).toEqual(responseBody);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -55,12 +51,12 @@ test('cookie login includes credentials and transport mode without requiring a R
 
   try {
     const result = await login({ loginId: 'admin', password: 'admin' }, undefined, 'cookie');
-    assert.equal(String(requested[0].input), 'http://localhost:3000/auth/login');
-    assert.equal(requested[0].init?.method, 'POST');
-    assert.equal(requested[0].init?.credentials, 'include');
-    assert.deepEqual(requested[0].init?.headers, { 'Content-Type': 'application/json', 'X-Auth-Transport': 'cookie' });
-    assert.equal(requested[0].init?.body, JSON.stringify({ loginId: 'admin', password: 'admin' }));
-    assert.equal(result.refreshToken, undefined);
+    expect(String(requested[0].input)).toBe('http://localhost:3000/auth/login');
+    expect(requested[0].init?.method).toBe('POST');
+    expect(requested[0].init?.credentials).toBe('include');
+    expect(requested[0].init?.headers).toEqual({ 'Content-Type': 'application/json', 'X-Auth-Transport': 'cookie' });
+    expect(requested[0].init?.body).toBe(JSON.stringify({ loginId: 'admin', password: 'admin' }));
+    expect(result.refreshToken).toBeUndefined();
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -79,8 +75,8 @@ test('login rejects a missing API base URL without making a request', async () =
   }) as typeof fetch;
 
   try {
-    await assert.rejects(login({ loginId: 'admin', password: 'admin' }), /EXPO_PUBLIC_API_BASE_URL/);
-    assert.equal(requestCount, 0);
+    await expect(login({ loginId: 'admin', password: 'admin' })).rejects.toThrow('EXPO_PUBLIC_API_BASE_URL');
+    expect(requestCount).toBe(0);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -88,21 +84,16 @@ test('login rejects a missing API base URL without making a request', async () =
   }
 });
 
-test('login propagates HTTP errors', async (t) => {
+test.each([400, 401, 404])('login propagates HTTP %s errors', async (status) => {
   const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   const originalFetch = globalThis.fetch;
   process.env.EXPO_PUBLIC_API_BASE_URL = 'http://localhost:3000';
 
   try {
-    for (const status of [400, 401, 404]) {
-      await t.test(String(status), async () => {
-        globalThis.fetch = (async () => ({ ok: false, status, json: async () => ({ errorCode: status === 401 ? 'AUTH_LOGIN_FAILED' : 'AUTH_INVALID_LOGIN_INPUT' }) }) as Response) as typeof fetch;
-        await assert.rejects(
-          login({ loginId: 'admin', password: 'admin' }),
-          (error) => error instanceof ApiError && error.status === status && error.errorCode !== null,
-        );
-      });
-    }
+    globalThis.fetch = (async () => ({ ok: false, status, json: async () => ({ errorCode: status === 401 ? 'AUTH_LOGIN_FAILED' : 'AUTH_INVALID_LOGIN_INPUT' }) }) as Response) as typeof fetch;
+    const request = login({ loginId: 'admin', password: 'admin' });
+    await expect(request).rejects.toBeInstanceOf(ApiError);
+    await expect(request).rejects.toMatchObject({ status, errorCode: status === 401 ? 'AUTH_LOGIN_FAILED' : 'AUTH_INVALID_LOGIN_INPUT' });
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -120,7 +111,7 @@ test('login propagates network errors', async () => {
   }) as typeof fetch;
 
   try {
-    await assert.rejects(login({ loginId: 'admin', password: 'admin' }), (error) => error === networkError);
+    await expect(login({ loginId: 'admin', password: 'admin' })).rejects.toBe(networkError);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;

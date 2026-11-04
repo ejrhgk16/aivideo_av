@@ -1,10 +1,16 @@
-/// <reference types="node" />
+import type { DramaContent } from '../../src/features/drama/dramaContent';
 
-import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import { ApiError } from '../../src/common/http/api';
-import { getDramaContent, getDramaList, type DramaContent } from '../../src/features/drama/dramaContent';
-import { configureSessionClient } from '../../src/features/user/sessionClient';
+let ApiError: typeof import('../../src/common/http/api').ApiError;
+let dramaApi: typeof import('../../src/features/drama/dramaContent');
+let configureSessionClient: typeof import('../../src/features/user/sessionClient').configureSessionClient;
+
+beforeEach(() => {
+  jest.isolateModules(() => {
+    ({ ApiError } = require('../../src/common/http/api'));
+    dramaApi = require('../../src/features/drama/dramaContent');
+    ({ configureSessionClient } = require('../../src/features/user/sessionClient'));
+  });
+});
 
 function configureApiClient() {
   return configureSessionClient({
@@ -40,10 +46,10 @@ test('drama list requests the latest public catalog and returns the API response
 
   try {
     configureApiClient();
-    const result = await getDramaList();
+    const result = await dramaApi.getDramaList();
 
-    assert.deepEqual(requestedUrls, ['http://localhost:3000/dramas?sort=latest']);
-    assert.deepEqual(result, responseBody);
+    expect(requestedUrls).toEqual(['http://localhost:3000/dramas?sort=latest']);
+    expect(result).toEqual(responseBody);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -59,7 +65,9 @@ test('drama list request reports an unsuccessful response', async () => {
 
   try {
     configureApiClient();
-    await assert.rejects(getDramaList(), (error) => error instanceof ApiError && error.status === 503);
+    const request = dramaApi.getDramaList();
+    await expect(request).rejects.toBeInstanceOf(ApiError);
+    await expect(request).rejects.toMatchObject({ status: 503 });
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -125,10 +133,11 @@ test('drama detail requests use the configured API base URL and return the API c
   }) as typeof fetch;
 
   try {
-    const result = await getDramaContent(responseBody.uuid);
+    configureApiClient();
+    const result = await dramaApi.getDramaContent(responseBody.uuid);
 
-    assert.deepEqual(requestedUrls, ['http://localhost:3000/dramas/00000002-0000-4000-8000-000000000001']);
-    assert.deepEqual(result, responseBody);
+    expect(requestedUrls).toEqual(['http://localhost:3000/dramas/00000002-0000-4000-8000-000000000001']);
+    expect(result).toEqual(responseBody);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -148,9 +157,9 @@ test('drama detail does not accept a caller-selected user UUID', async () => {
 
   try {
     configureApiClient();
-    const result = await getDramaContent('drama id');
-    assert.deepEqual(requestedUrls, ['http://localhost:3000/dramas/drama%20id']);
-    assert.equal(result.episodes[0].isUnlocked, true);
+    const result = await dramaApi.getDramaContent('drama id');
+    expect(requestedUrls).toEqual(['http://localhost:3000/dramas/drama%20id']);
+    expect(result.episodes[0].isUnlocked).toBe(true);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -171,9 +180,9 @@ test('optional drama detail sends the current Access token without a user UUID q
   try {
     const client = configureApiClient();
     await client.login({ loginId: 'test', password: 'test' });
-    await getDramaContent('drama-1');
-    assert.equal(requests[0].url, 'http://localhost:3000/dramas/drama-1');
-    assert.equal((requests[0].headers as Record<string, string>).Authorization, 'Bearer access-token');
+    await dramaApi.getDramaContent('drama-1');
+    expect(requests[0].url).toBe('http://localhost:3000/dramas/drama-1');
+    expect((requests[0].headers as Record<string, string>).Authorization).toBe('Bearer access-token');
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -194,9 +203,9 @@ test('drama list sends the optional Access token when signed in', async () => {
   try {
     const client = configureApiClient();
     await client.login({ loginId: 'test', password: 'test' });
-    await getDramaList();
-    assert.equal(requests[0].url, 'http://localhost:3000/dramas?sort=latest');
-    assert.equal((requests[0].headers as Record<string, string>).Authorization, 'Bearer access-token');
+    await dramaApi.getDramaList();
+    expect(requests[0].url).toBe('http://localhost:3000/dramas?sort=latest');
+    expect((requests[0].headers as Record<string, string>).Authorization).toBe('Bearer access-token');
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -212,7 +221,9 @@ test('drama detail request reports an unsuccessful response', async () => {
 
   try {
     configureApiClient();
-    await assert.rejects(getDramaContent('unknown'), (error) => error instanceof ApiError && error.status === 404);
+    const request = dramaApi.getDramaContent('unknown');
+    await expect(request).rejects.toBeInstanceOf(ApiError);
+    await expect(request).rejects.toMatchObject({ status: 404 });
   } finally {
     globalThis.fetch = originalFetch;
     if (originalBaseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;

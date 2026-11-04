@@ -1,10 +1,14 @@
-/// <reference types="node" />
+let getPreviewPlayback: typeof import('../../src/features/playback/previewPlayback').getPreviewPlayback;
+let ApiError: typeof import('../../src/common/http/api').ApiError;
+let configureSessionClient: typeof import('../../src/features/user/sessionClient').configureSessionClient;
 
-import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import { ApiError } from '../../src/common/http/api';
-import { getPreviewPlayback } from '../../src/features/playback/previewPlayback';
-import { configureSessionClient } from '../../src/features/user/sessionClient';
+beforeEach(() => {
+  jest.isolateModules(() => {
+    ({ ApiError } = require('../../src/common/http/api'));
+    ({ getPreviewPlayback } = require('../../src/features/playback/previewPlayback'));
+    ({ configureSessionClient } = require('../../src/features/user/sessionClient'));
+  });
+});
 
 function configureApiClient() {
   return configureSessionClient({
@@ -28,8 +32,8 @@ test('preview playback encodes both ids and returns the signed URL unchanged', a
 
   try {
     configureApiClient();
-    assert.deepEqual(await getPreviewPlayback('drama/1', 'video/2'), body);
-    assert.deepEqual(urls, [
+    expect(await getPreviewPlayback('drama/1', 'video/2')).toEqual(body);
+    expect(urls).toEqual([
       'http://localhost:3000/api/dramas/drama%2F1/previews/video%2F2/playback',
     ]);
   } finally {
@@ -53,8 +57,8 @@ test('preview playback sends an optional Access token when signed in', async () 
     const client = configureApiClient();
     await client.login({ loginId: 'test', password: 'test' });
     await getPreviewPlayback('drama-1', 'video-2');
-    assert.equal(requests[0].url, 'http://localhost:3000/api/dramas/drama-1/previews/video-2/playback');
-    assert.equal((requests[0].headers as Record<string, string>).Authorization, 'Bearer access-token');
+    expect(requests[0].url).toBe('http://localhost:3000/dramas/drama-1/previews/video-2/playback');
+    expect((requests[0].headers as Record<string, string>).Authorization).toBe('Bearer access-token');
   } finally {
     globalThis.fetch = originalFetch;
     if (baseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;
@@ -70,10 +74,9 @@ test('preview playback reports failed responses', async () => {
 
   try {
     configureApiClient();
-    await assert.rejects(
-      getPreviewPlayback('unknown-drama', 'unknown-video'),
-      (error) => error instanceof ApiError && error.status === 404,
-    );
+    const request = getPreviewPlayback('unknown-drama', 'unknown-video');
+    await expect(request).rejects.toBeInstanceOf(ApiError);
+    await expect(request).rejects.toMatchObject({ status: 404 });
   } finally {
     globalThis.fetch = originalFetch;
     if (baseUrl === undefined) delete process.env.EXPO_PUBLIC_API_BASE_URL;

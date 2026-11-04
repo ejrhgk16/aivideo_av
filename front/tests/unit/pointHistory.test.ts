@@ -1,12 +1,18 @@
-/// <reference types="node" />
+import type { PointHistoryItem } from '../../src/features/economy/pointHistory';
 
-import assert from 'node:assert/strict';
-import test from 'node:test';
-import { ApiError } from '../../src/common/http/api';
-import { getPointHistory, type PointHistoryItem } from '../../src/features/economy/pointHistory';
-import { configureSessionClient } from '../../src/features/user/sessionClient';
+let ApiError: typeof import('../../src/common/http/api').ApiError;
+let pointHistoryApi: typeof import('../../src/features/economy/pointHistory');
+let configureSessionClient: typeof import('../../src/features/user/sessionClient').configureSessionClient;
 
-test('point history requires auth and preserves every signed ledger field', async () => {
+beforeEach(() => {
+  jest.isolateModules(() => {
+    ({ ApiError } = require('../../src/common/http/api'));
+    pointHistoryApi = require('../../src/features/economy/pointHistory');
+    ({ configureSessionClient } = require('../../src/features/user/sessionClient'));
+  });
+});
+
+test('point history requires auth, preserves every signed ledger field, and does not change balance', async () => {
   const originalBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   const originalFetch = globalThis.fetch;
   const requests: Array<{ url: string; init?: RequestInit }> = [];
@@ -34,28 +40,30 @@ test('point history requires auth and preserves every signed ledger field', asyn
   });
 
   try {
-    await assert.rejects(getPointHistory(), (error) => error instanceof ApiError && error.status === 401);
+    const anonymousHistory = pointHistoryApi.getPointHistory();
+    await expect(anonymousHistory).rejects.toBeInstanceOf(ApiError);
+    await expect(anonymousHistory).rejects.toMatchObject({ status: 401 });
     await client.login({ loginId: 'fixture', password: 'fixture' });
 
-    const first = await getPointHistory();
-    const second = await getPointHistory(2);
-    assert.deepEqual(requests.map(({ url }) => url), [
+    const first = await pointHistoryApi.getPointHistory();
+    const second = await pointHistoryApi.getPointHistory(2);
+    expect(requests.map(({ url }) => url)).toEqual([
       'http://localhost:3000/me/points/transactions?page=1',
       'http://localhost:3000/me/points/transactions?page=2',
     ]);
-    assert.equal(requests.every(({ init }) => (init?.method ?? 'GET') === 'GET'), true);
-    assert.equal((requests[0].init?.headers as Record<string, string>).Authorization, 'Bearer access-token');
-    assert.deepEqual(first, { items, page: 1, hasNext: true });
-    assert.deepEqual(second, { items, page: 2, hasNext: false });
-    assert.deepEqual(first.items.map((item) => item.transactionType), [
+    expect(requests.every(({ init }) => (init?.method ?? 'GET') === 'GET')).toBe(true);
+    expect((requests[0].init?.headers as Record<string, string>).Authorization).toBe('Bearer access-token');
+    expect(first).toEqual({ items, page: 1, hasNext: true });
+    expect(second).toEqual({ items, page: 2, hasNext: false });
+    expect(first.items.map((item) => item.transactionType)).toEqual([
       'PURCHASE', 'AD_REWARD', 'EPISODE_UNLOCK', 'ADMIN_ADJUSTMENT', 'REFUND',
     ]);
-    assert.equal(first.items[2].amount, -30);
-    assert.equal(first.items[2].balanceAfter, 980);
-    assert.equal(first.items[2].createdAt, '2026-11-03T18:06:00.000Z');
-    assert.deepEqual(first.items[2].episode, { dramaTitle: '테스트 작품', episodeNumber: 2 });
-    assert.equal(first.items[0].episode, null);
-    assert.equal(client.getUserSessionState().points, 777, 'history reads do not change the current balance');
+    expect(first.items[2].amount).toBe(-30);
+    expect(first.items[2].balanceAfter).toBe(980);
+    expect(first.items[2].createdAt).toBe('2026-11-03T18:06:00.000Z');
+    expect(first.items[2].episode).toEqual({ dramaTitle: '테스트 작품', episodeNumber: 2 });
+    expect(first.items[0].episode).toBeNull();
+    expect(client.getUserSessionState().points).toBe(777);
   } finally {
     client.setUser(null);
     globalThis.fetch = originalFetch;
@@ -82,8 +90,9 @@ test('point history surfaces API errors using the shared ApiError parser', async
   });
   try {
     await client.login({ loginId: 'fixture', password: 'fixture' });
-    await assert.rejects(getPointHistory(), (error) => error instanceof ApiError && error.status === 503
-      && error.errorCode === 'HTTP_SERVICE_UNAVAILABLE');
+    const historyRequest = pointHistoryApi.getPointHistory();
+    await expect(historyRequest).rejects.toBeInstanceOf(ApiError);
+    await expect(historyRequest).rejects.toMatchObject({ status: 503, errorCode: 'HTTP_SERVICE_UNAVAILABLE' });
   } finally {
     client.setUser(null);
     globalThis.fetch = originalFetch;

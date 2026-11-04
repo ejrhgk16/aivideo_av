@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, test } from 'node:test';
-import { completeTask, failTask, finishPlan, getNext, readIndex, resetTask, retryTask, startTask, validateIndex, validatePlansIndex } from './cli.mjs';
+import { collectFinishChecks, completeTask, failTask, finishPlan, getNext, readIndex, resetTask, retryTask, startTask, validateIndex, validatePlansIndex } from './cli.mjs';
 
 const temporaryDirectories = [];
 
@@ -88,27 +88,72 @@ test('task transitions respect dependencies, retry errors, and reset a blocked t
   assert.equal(readIndex(repo).plans[0].status, 'active');
 });
 
-test('finish checks product paths but commits all non-ignored dirty files', () => {
+test('finish replaces focused product checks with full checks and retains separate verification', () => {
+  const plan = { tasks: [task('front', { checks: [
+    'npm --prefix front run test -- tests/unit/example.test.ts tests/unit/screen.test.tsx',
+    'npm --prefix front test -- tests/unit/example.test.ts',
+    'npm --prefix front run typecheck',
+    'npm --prefix front run export',
+    'node --check front/jest.config.cjs',
+  ] }), task('back', { checks: [
+    'npm --prefix back run test:api -- --suite content --suite playback',
+    'npm --prefix back run test:unit -- test/unit/example.spec.ts',
+    'npm --prefix back run test',
+    'npm --prefix back run lint',
+    'npm --prefix back run build',
+    'npm --prefix back run test:api:parallel',
+    'npm --prefix back run test:unit -- --coverage',
+  ] }), task('harness', { checks: ['node --test tools/harness/cli.test.mjs'] })] };
+  assert.deepEqual(collectFinishChecks(plan, ['front/src/example.ts', 'back/src/example.ts']), [
+    'npm --prefix front run typecheck',
+    'npm --prefix front run test',
+    'npm --prefix front run export',
+    'npm --prefix back run lint',
+    'npm --prefix back run test',
+    'npm --prefix back run build',
+    'node --check front/jest.config.cjs',
+    'npm --prefix back run test:api:parallel',
+    'npm --prefix back run test:unit -- --coverage',
+    'node --test tools/harness/cli.test.mjs',
+  ]);
+});
+
+test('finish keeps separate checks without product changes and deduplicates them', () => {
+  const plan = { tasks: [task('one', { checks: [
+    'npm --prefix front run test -- tests/unit/example.test.ts',
+    'node --test tools/harness/cli.test.mjs',
+    'node --test tools/harness/cli.test.mjs',
+  ] })] };
+  assert.deepEqual(collectFinishChecks(plan, ['tools/harness/cli.mjs']), [
+    'node --test tools/harness/cli.test.mjs',
+  ]);
+});
+
+test('finish runs full product checks and separate checks before publishing all non-ignored dirty files', () => {
   const repo = temporaryDirectory();
+  const separateCheck = 'node -e "const fs=require(\'node:fs\');if(fs.existsSync(\'verification-fails\'))process.exit(1);fs.appendFileSync(\'checks.log\',\'separate\\n\')"';
   git(repo, 'init', '--initial-branch=dev');
   git(repo, 'config', 'user.email', 'test@example.com');
   git(repo, 'config', 'user.name', 'Harness Test');
   writePlan(repo, [task('complete', {
     status: 'completed',
     files: ['back/src/complete.mjs'],
+    checks: ['npm --prefix back run test:unit -- test/unit/focused.spec.ts'],
   }), task('docs', {
     status: 'completed',
     files: ['tools/harness/docs.mjs'],
-    checks: ['node -e "process.exit(1)"'],
+    checks: [separateCheck],
   })], 'completed');
   mkdirSync(join(repo, 'back', 'src'), { recursive: true });
   writeFileSync(join(repo, 'back', 'package.json'), JSON.stringify({
     scripts: {
-      lint: 'node -e "process.exit(0)"',
-      test: 'node -e "process.exit(0)"',
-      build: 'node -e "process.exit(0)"',
+      lint: 'node -e "require(\'node:fs\').appendFileSync(\'../checks.log\',\'lint\\n\')"',
+      test: 'node -e "require(\'node:fs\').appendFileSync(\'../checks.log\',\'test\\n\')"',
+      build: 'node -e "require(\'node:fs\').appendFileSync(\'../checks.log\',\'build\\n\')"',
+      'test:unit': 'node -e "process.exit(1)"',
     },
   }, null, 2));
+  writeFileSync(join(repo, '.gitignore'), 'checks.log\n');
   writeFileSync(join(repo, 'back', 'src', 'complete.mjs'), 'export const value = 1;\n');
   const remote = temporaryDirectory();
   git(remote, 'init', '--bare');
@@ -117,7 +162,7 @@ test('finish checks product paths but commits all non-ignored dirty files', () =
   git(repo, 'remote', 'add', 'origin', remote);
   git(repo, 'push', '-u', 'origin', 'dev');
 
-  writeFileSync(join(repo, '.gitignore'), '/_docs/AI_DRAMA_data_model/\n');
+  writeFileSync(join(repo, '.gitignore'), 'checks.log\n/_docs/AI_DRAMA_data_model/\n');
   mkdirSync(join(repo, '_docs', 'AI_DRAMA_data_model'), { recursive: true });
   writeFileSync(join(repo, '_docs', 'AI_DRAMA_data_model', 'ignored.md'), 'leave me out\n');
   writeFileSync(join(repo, 'outside.txt'), 'ignore me\n');
@@ -125,6 +170,7 @@ test('finish checks product paths but commits all non-ignored dirty files', () =
   writeFileSync(join(repo, '_docs', 'plans', 'plan-1-test', 'plan.md'), '# Updated test plan\n');
   writeFileSync(join(repo, 'back', 'src', 'complete.mjs'), 'export const value = 2;\n');
   assert.deepEqual(finishPlan(repo, 'plan-1-test'), { plan: 'plan-1-test', committed: true, pushed: true });
+  assert.equal(readFileSync(join(repo, 'checks.log'), 'utf8'), 'lint\ntest\nbuild\nseparate\n');
   assert.doesNotMatch(git(repo, 'status', '--short', '--untracked-files=all'), /outside\.txt|undeclared\.mjs/);
   assert.match(git(repo, 'show', '--format=', '--name-only', 'HEAD'), /\.gitignore/);
   assert.match(git(repo, 'show', '--format=', '--name-only', 'HEAD'), /outside\.txt/);
@@ -132,6 +178,12 @@ test('finish checks product paths but commits all non-ignored dirty files', () =
   assert.match(git(repo, 'check-ignore', '-v', '_docs/AI_DRAMA_data_model/ignored.md'), /AI_DRAMA_data_model/);
   assert.equal(git(remote, 'log', '-1', '--format=%s', 'dev'), 'finish plan-1-test');
   assert.deepEqual(finishPlan(repo, 'plan-1-test'), { plan: 'plan-1-test', committed: false, pushed: true });
+  assert.equal(readFileSync(join(repo, 'checks.log'), 'utf8'), 'lint\ntest\nbuild\nseparate\nseparate\n');
+  writeFileSync(join(repo, 'verification-fails'), 'fail the separate check\n');
+  const beforeFailure = git(repo, 'rev-parse', 'HEAD');
+  assert.throws(() => finishPlan(repo, 'plan-1-test'), /Check failed:/);
+  assert.equal(git(repo, 'rev-parse', 'HEAD'), beforeFailure);
+  assert.equal(git(remote, 'rev-parse', 'dev'), beforeFailure);
 });
 
 test('CLI executable validates an index from the working directory', () => {

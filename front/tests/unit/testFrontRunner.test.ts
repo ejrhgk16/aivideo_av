@@ -1,11 +1,7 @@
-/// <reference types="node" />
-
-import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
-import { test } from 'node:test';
+import { join } from 'node:path';
 
 const projectRoot = process.cwd();
 const runnerPath = join(projectRoot, 'scripts/test-front.cjs');
@@ -14,10 +10,10 @@ const { resolveTests } = require(runnerPath) as {
 };
 
 test('selection resolves exact test files, sorts, and removes duplicates', () => {
-  assert.deepEqual(
-    resolveTests(['tests/unit/media.test.ts', 'tests/unit/savedVideos.test.ts', 'tests/unit/media.test.ts'], projectRoot),
-    ['tests/unit/media.test.ts', 'tests/unit/savedVideos.test.ts'],
-  );
+  expect(resolveTests(
+    ['tests/unit/media.test.ts', 'tests/unit/savedVideos.test.ts', 'tests/unit/media.test.ts'],
+    projectRoot,
+  )).toEqual(['tests/unit/media.test.ts', 'tests/unit/savedVideos.test.ts']);
 });
 
 test('selection rejects paths outside tests, missing files, and options', () => {
@@ -27,7 +23,7 @@ test('selection rejects paths outside tests, missing files, and options', () => 
     'tests/unit/missing.test.ts',
     '--help',
   ]) {
-    assert.throws(() => resolveTests([argument], projectRoot));
+    expect(() => resolveTests([argument], projectRoot)).toThrow();
   }
 });
 
@@ -38,10 +34,10 @@ test('no arguments discovers nested TypeScript tests and rejects an empty tree',
     writeFileSync(join(root, 'tests', 'b.test.tsx'), '');
     writeFileSync(join(root, 'tests', 'nested', 'a.test.ts'), '');
     writeFileSync(join(root, 'tests', 'ignored.ts'), '');
-    assert.deepEqual(resolveTests([], root), ['tests/b.test.tsx', 'tests/nested/a.test.ts']);
+    expect(resolveTests([], root)).toEqual(['tests/b.test.tsx', 'tests/nested/a.test.ts']);
     rmSync(join(root, 'tests', 'b.test.tsx'));
     rmSync(join(root, 'tests', 'nested', 'a.test.ts'));
-    assert.throws(() => resolveTests([], root), /No test files found/);
+    expect(() => resolveTests([], root)).toThrow('No test files found');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -49,9 +45,7 @@ test('no arguments discovers nested TypeScript tests and rejects an empty tree',
 
 function runSelected(file: string): Promise<{ code: number | null; output: string }> {
   return new Promise((resolveResult, reject) => {
-    const env = { ...process.env };
-    delete env.NODE_TEST_CONTEXT;
-    const child = spawn(process.execPath, [runnerPath, file], { cwd: projectRoot, env });
+    const child = spawn(process.execPath, [runnerPath, file], { cwd: projectRoot });
     let output = '';
     child.stdout.on('data', (chunk) => { output += chunk; });
     child.stderr.on('data', (chunk) => { output += chunk; });
@@ -60,15 +54,44 @@ function runSelected(file: string): Promise<{ code: number | null; output: strin
   });
 }
 
-test('selected subprocesses run only their requested tests and isolate concurrent outputs', async () => {
+test('selected Jest subprocesses run only their requested tests and isolate concurrent outputs', async () => {
   const [media, savedVideos] = await Promise.all([
     runSelected('tests/unit/media.test.ts'),
     runSelected('tests/unit/savedVideos.test.ts'),
   ]);
-  assert.equal(media.code, 0, media.output);
-  assert.match(media.output, /relative API image paths resolve/);
-  assert.doesNotMatch(media.output, /saved-video requests/);
-  assert.equal(savedVideos.code, 0, savedVideos.output);
-  assert.match(savedVideos.output, /saved-video requests use required auth/);
-  assert.doesNotMatch(savedVideos.output, /relative API image paths resolve/);
+  expect(media.code).toBe(0);
+  expect(media.output).toMatch(/media\.test\.ts/);
+  expect(media.output).not.toMatch(/savedVideos\.test\.ts/);
+  expect(savedVideos.code).toBe(0);
+  expect(savedVideos.output).toMatch(/savedVideos\.test\.ts/);
+  expect(savedVideos.output).not.toMatch(/media\.test\.ts/);
+}, 60000);
+
+test('Jest nonzero, signal, and spawn failures return a failure code', () => {
+  const spawnSync = jest.fn();
+  jest.doMock('node:child_process', () => ({ spawnSync }));
+  try {
+    let run: (files: string[], root: string) => number;
+    jest.isolateModules(() => {
+      run = (require('../../scripts/test-front.cjs') as {
+        run(files: string[], root: string): number;
+      }).run;
+    });
+
+    spawnSync.mockReturnValueOnce({ status: 7, signal: null });
+    expect(run!(['tests/unit/media.test.ts'], projectRoot)).toBe(7);
+    expect(spawnSync).toHaveBeenLastCalledWith(
+      process.execPath,
+      expect.arrayContaining(['--runInBand', '--runTestsByPath', 'tests/unit/media.test.ts']),
+      expect.objectContaining({ cwd: projectRoot, stdio: 'inherit' }),
+    );
+
+    spawnSync.mockReturnValueOnce({ status: null, signal: 'SIGTERM' });
+    expect(run!(['tests/unit/media.test.ts'], projectRoot)).toBe(1);
+
+    spawnSync.mockReturnValueOnce({ status: null, signal: null, error: new Error('spawn failed') });
+    expect(run!(['tests/unit/media.test.ts'], projectRoot)).toBe(1);
+  } finally {
+    jest.dontMock('node:child_process');
+  }
 });

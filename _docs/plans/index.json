@@ -306,6 +306,12 @@
       "directory": "plan-51-point-history",
       "title": "포인트 전체 이용 내역 조회 API와 프론트 연결",
       "status": "completed"
+    },
+    {
+      "id": "plan-52-front-rntl-tests",
+      "directory": "plan-52-front-rntl-tests",
+      "title": "프론트 Jest·React Native Testing Library 전체 전환과 테스트 규약",
+      "status": "completed"
     }
   ]
 }

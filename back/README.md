@@ -1,235 +1,138 @@
-## JWT development keys
+# Backend
 
-Development uses separate `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` values in the Git-ignored `.env.development`. Generate each independently from 64 random bytes and keep the values out of source control and logs:
+NestJS API와 MySQL. 명령은 저장소 루트에서 실행한다. 기준 환경·작업 지침은 [AGENTS.md](../AGENTS.md), 구조는 [아키텍처](../_docs/ARCHITECTURE.md), 요청·응답은 [API 문서](../_docs/api/README.md)를 따른다.
+
+## 환경·실행
 
 ```powershell
-node -e "const c=require('node:crypto');console.log(c.randomBytes(64).toString('base64url'))"
+npm --prefix back ci
+npm --prefix back run start:dev
 ```
 
-To rotate keys, generate two new values, replace both settings in `.env.development`, and restart every backend instance so all instances use the same pair. Rotation invalidates existing access and refresh JWTs; users must sign in again. The retained refresh-token hash history remains in the database and contains no raw token values.
+개발 API는 `http://localhost:3000`이다. `.env.development`·`.env.production`을 분리하고 공통 `.env`는 사용하지 않는다. 환경 파일·자격 증명은 Git과 로그에 남기지 않는다.
 
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+| 설정 | 기준 |
+| --- | --- |
+| `NODE_ENV` | 실행 전에 지정. 미지정은 `development`. 파일 내부 값만으로 읽을 파일이 선택되지는 않음 |
+| `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE` | 대상 MySQL 연결 |
+| `DB_SYNCHRONIZE` | 로컬 개발만 `true` 허용·기본값. 마이그레이션 리허설·운영은 `false` |
+| `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `WEB_CORS_ORIGINS` | 운영 값 입력. 키 생성·교체와 쿠키·origin 조건은 [인증 문서](../_docs/api/00-overview/authentication.md) 참고 |
+| `AWS_REGION`, `S3_BUCKET` | 이미지 URL·개발 영상 서명 설정 |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | 개발 액세스 키 사용 시 `.env.development`에 설정. SDK 기본 자격 증명 체인 사용 |
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+운영 실행·마이그레이션 전 PowerShell에서 `$env:NODE_ENV = 'production'`을 설정하고 `.env.production`의 실제 값을 채운다.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+이미지는 공개 S3 URL, FULL·PREVIEW 영상과 자막은 비공개다. 영상 서명 URL은 개발 환경에서만 발급하며 1시간 후 만료된다. 재생 권한은 [회차 계약](../_docs/api/04-playback/episodes.md), URL 노출은 [공통 규칙](../_docs/api/00-overview/conventions.md#미디어와-인증)을 따른다.
 
-## Description
+이미지 키는 `src/content/mediaStorage.ts`로 생성하고 public ACL 없이 업로드한다. 허용 패턴은 `dramas/*/images/*/*.webp`, `dramas/*/episodes/*/images/*.webp`, `genres/*/images/*.webp`다. 로컬 이미지 API는 없다.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+DB 저장·비교와 API 전달은 UTC다. 세션 시간대·드라이버·기존 기본값 확인은 [DB 시간 규칙](../_docs/AI_DRAMA_data_model/00-overview/common-rules.md#시간-저장비교-기준)을 따른다.
 
-## Project setup
+## Seed·마이그레이션
 
-```bash
-$ npm install
+```powershell
+npm --prefix back run db:seed
 ```
 
-## Database environment
+seed는 수동 개발 명령이며 서버 시작·빌드·마이그레이션·API 테스트가 자동 실행하지 않는다. 운영 배포에 포함하지 않는다. 카탈로그는 고정 UUID로 upsert한다. 개발 `admin`(`00000010-0000-4000-8000-000000000001`, `OPERATOR`)·지갑·최초 100포인트는 없을 때만 생성하고 기존 잔액·지급은 보존한다. 지급 원장 키는 `seed:admin:initial-points:v1`이다.
 
-Use `DB_SYNCHRONIZE=true` only for local development. Development defaults to `true` when the variable is omitted. Set `DB_SYNCHRONIZE=false` for migration rehearsals and keep it `false` in production; enabling it in production is rejected by the database configuration. Apply schema changes through migrations.
+키·관계 변경 전 복원 가능한 백업을 만들고, 별도 복원 DB에서 up·down·up을 리허설한다. 행 수·UUID·관계·미디어 `storage_key` 보존을 비교한 뒤 대상 DB에 적용하고 스키마·애플리케이션을 확인한다. 백업·자격 증명은 저장소 밖에 둔다.
 
-Never commit database passwords, credentials, or the actual `.env.development` and `.env.production` files.
+**MySQL DDL은 암묵적으로 커밋된다.** 실패 시 실제 스키마를 조사하고 필요하면 검증된 백업을 복원한다. 부분 적용을 전체 롤백으로 간주하거나 재실행·down이 안전하다고 가정하지 않는다.
 
-## Web authentication cookies
-
-Configure `WEB_CORS_ORIGINS` as a comma-separated list of exact frontend origins, for example `https://app.example.com`. Development defaults to `http://localhost:8081` when unset; production defaults to an empty allowlist, so configure the production web origin explicitly. Whitespace and empty entries are ignored. Wildcards and partial-origin matching are not supported. Allowed origins receive credentialed CORS responses for `content-type`, `authorization`, and `x-auth-transport`.
-
-Web auth requests use `X-Auth-Transport: cookie` and the browser `Origin`. The backend sets the `auth.refreshToken` cookie as HttpOnly, SameSite=Lax, host-only, Path `/auth`, with a 14 day lifetime. `Secure` is enabled when `NODE_ENV=production`; production must use HTTPS. Keep the frontend and API on the same site, such as `app.example.com` and `api.example.com`, or use a same-origin proxy. Separate `*.vercel.app` projects have unrelated host-only cookies; do not set `Domain=vercel.app`.
-
-Vercel/serverless instances do not need in-memory auth state. All instances must use the same `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, and shared MySQL database so existing Refresh rotation and revocation records remain authoritative. Refresh-cookie responses are not cacheable. Web Refresh is omitted from JSON; native requests continue to use the JSON token contract.
-
-## Video playback
-
-In development, FULL episode videos and DRAMA PREVIEW videos are returned as S3 presigned GET URLs. Configure `AWS_REGION`, `S3_BUCKET`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` in the Git-ignored `.env.development` file. The AWS SDK uses its default credential provider chain, which reads the configured access key from environment variables. Keep the actual key values only in `.env.development`; never commit them. URLs expire after one hour. This playback API does not check purchase entitlement and is unavailable outside development.
-
-## Public image storage
-
-Image `storageKey` values are S3 object keys. The `imageUrls` fields return direct URLs for the public image key patterns configured on the development bucket. Keep `AWS_REGION` and `S3_BUCKET` configured in `.env.development`; image objects must use the key generators in `src/content/mediaStorage.ts` so only image paths match the bucket's public read policy.
-
-The allowed public image keys are `dramas/*/images/*/*.webp`, `dramas/*/episodes/*/images/*.webp`, and `genres/*/images/*.webp`. Videos and subtitles remain private; video playback uses one-hour presigned URLs. Upload image objects without public ACLs.
-
-## Database migrations
-
-Before applying a migration that changes primary or relationship keys, create a restorable database backup and verify that it can be restored. Rehearse the migration on a separate MySQL test database restored from that backup. Before and after migration, compare row counts and preserved UUID values for every affected table, verify that parent-child relationships still resolve to the same records, and confirm that media `storage_key` values are unchanged. Also rehearse rollback and reapplication on the test database.
-
-MySQL DDL statements implicitly commit, so a failed migration is not guaranteed to roll back as one transaction. Do not treat a partially applied migration as rolled back: stop, inspect the schema, and restore the verified backup if recovery is needed. Run the migration only after the isolated rehearsal and data comparisons succeed, then verify the migrated schema and application against the target database.
-
-### Watch-progress key migration
-
-`ReplaceWatchProgressEpisodeWithVideo20261103000000` changes
-`user_watch_progress` from `(user_id, episode_id)` to `(user_id, video_id)`,
-where `video_id` is `content_videos.id`. Before `up`, the migration requires
-the old key, the existing user/recent-played index, and the position check. It
-checks the named CHECK through MySQL `information_schema`; TypeORM's MySQL
-`getTable()` metadata does not expose CHECK constraints. A missing or changed
-database constraint is a schema mismatch even if the Entity decorator exists.
-It maps each row to the `EPISODE`/`FULL` video with the lowest `display_order`,
-regardless of publication status. A missing episode or matching full video
-stops the migration before its first DDL statement. The backfill changes only
-the key; position, completion, and `last_played_at`, `created_at`, and
-`updated_at` are preserved. The
-migration keeps the user/recent-played index and position check, adds an index
-on `video_id`, and does not create a physical foreign key.
-
-Before applying it, stop watch-progress writes and confirm that the already
-running backend has `DB_SYNCHRONIZE=false`; the development default is
-`true`, which can alter the schema independently of migration history. Compare
-the TypeORM migration history with the actual schema, and do not run older
-pending migrations automatically against a schema already changed by
-`synchronize`. Create a restorable backup, restore it to a separate MySQL test
-database, and rehearse migration up, down, and up there. Compare row counts and
-each user's episode-to-representative-video mapping, including position,
-completion, and `last_played_at`, `created_at`, and `updated_at`, before and
-after both directions.
-
-The `down` migration accepts only existing `EPISODE`/`FULL` videos whose parent
-episodes still exist. It refuses preview rows, missing references, and any
-user with multiple video rows for one episode, since converting those rows to
-the former episode key would discard data. After a failed DDL step, inspect the
-actual columns, indexes, and primary key before proceeding. MySQL may have
-committed earlier statements; restore the verified backup if the schema is
-partially converted. Do not assume that rerunning the migration or invoking
-`down` is safe on a mixed schema. Store backups and credentials outside the
-repository.
-
-When rehearsing against another database, construct a fresh TypeORM `DataSource`
-with that database name. After initialization and before any DDL, verify that
-`SELECT DATABASE()`, `dataSource.options.database`, and
-`dataSource.driver.database` all identify the rehearsal database. Changing
-`database` with `setOptions()` on an initialized source does not retarget its
-MySQL driver connection. If the live schema already matches the migration's
-intended result and backup values match exactly, while the migration is the
-only pending history entry, record it with TypeORM fake migration mode; never
-rerun its DDL against an already converted schema.
-
-After building the application and setting `NODE_ENV=production` with the production environment variables, inspect and apply pending migrations during deployment:
-
-```bash
-$ npm run build
-$ npm run db:migration:show
-$ npm run db:migration:run
-$ npm run start:prod
+```powershell
+npm --prefix back run build
+npm --prefix back run db:migration:show
+npm --prefix back run db:migration:run
+npm --prefix back run start:prod
 ```
 
-## Development seed data
+### 시청 진행률 키 이관
 
-The seed CLI inserts the fixed development catalog data and can be run manually
-after configuring the database environment variables (`NODE_ENV`, `DB_HOST`,
-`DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_DATABASE`, and `DB_SYNCHRONIZE`):
+`ReplaceWatchProgressEpisodeWithVideo20261103000000`: `user_watch_progress`의 `(user_id, episode_id)`를 `(user_id, video_id)`로 변경하며 `video_id`는 `content_videos.id`다.
 
-```bash
-$ npm run db:seed
+- 쓰기를 중단하고 실행 중인 백엔드의 `DB_SYNCHRONIZE=false`를 확인한다. 실제 스키마와 이력을 대조하며 synchronize가 이미 바꾼 스키마에 과거 pending 마이그레이션을 자동 실행하지 않는다.
+- up은 기존 키·사용자별 최근 재생 인덱스·위치 CHECK를 검사한다. MySQL TypeORM `getTable()`은 CHECK를 노출하지 않아 `information_schema`로 실제 제약을 확인한다. Entity 선언만으로 충분하지 않다.
+- 공개 상태와 관계없이 회차의 `display_order`가 가장 낮은 `EPISODE`/`FULL` 영상으로 매핑한다. 회차·영상 누락은 첫 DDL 전에 실패한다.
+- 위치·완료 여부·`last_played_at`·`created_at`·`updated_at`과 기존 인덱스·CHECK를 보존한다. `video_id` 인덱스를 추가하며 물리 외래 키는 만들지 않는다. 양방향 리허설에서 사용자별 매핑·행 수·보존 값을 비교한다.
+- down은 부모 회차가 있는 `EPISODE`/`FULL`만 허용한다. PREVIEW·누락 참조·사용자별 한 회차의 여러 영상 행은 데이터 손실 때문에 거부한다. DDL 실패 후 열·인덱스·기본 키를 확인한다.
+- 리허설 DB 이름으로 새 DataSource를 만들고 DDL 전 `SELECT DATABASE()`, `dataSource.options.database`, `dataSource.driver.database`가 모두 해당 DB인지 확인한다. 초기화된 source의 `setOptions()`만으로 MySQL 연결 대상은 바뀌지 않는다.
+- 실제 스키마·백업 값이 이관 결과와 정확히 일치하고 해당 마이그레이션만 이력에 누락됐을 때만 TypeORM fake migration으로 이력을 맞춘다. 변환된 스키마에 DDL을 재실행하지 않는다.
+
+## 검증
+
+```powershell
+npm --prefix back run lint
+npm --prefix back run test
+npm --prefix back run test:unit
+npm --prefix back run test:api -- --suite saved-videos
+npm --prefix back run test:api -- --suite content --suite playback
+npm --prefix back run test:api:parallel
+npm --prefix back run build
 ```
 
-The command is not invoked by server startup, builds, or migration commands. It
-creates the development `admin` user (`00000010-0000-4000-8000-000000000001`)
-with the `OPERATOR` role and an initial wallet balance of 100 points. The grant
-uses the ledger key `seed:admin:initial-points:v1`. On later runs, an existing
-grant and any changed wallet balance are preserved. Catalog rows continue to
-be upserted by their fixed UUIDs; the admin, wallet, and initial grant are only
-inserted when absent. Do not run it automatically as part of a production
-deployment.
+test는 단위 테스트와 전체 HTTP suite를 실행한다. API 테스트는 **현재 코드를 반영한 기존 개발 서버와 같은 MySQL**을 사용한다. Postman CLI가 PATH에 필요하며 로컬 실행에 로그인은 필요 없다. 서버가 없으면 실패로 보고 사용자에게 실행을 안내한다. runner·에이전트는 서버를 자동 시작하거나 포트를 바꾸지 않는다.
 
-## Compile and run the project
+Harness의 작업별 검사·최종 전체 검증은 [플랜 규칙](../_docs/plans/README.md#finish-검증)을 따른다.
 
-```bash
-# development
-$ npm run start
+### API suite
 
-# watch mode
-$ npm run start:dev
+`test:api`에 `--suite`가 없으면 아래 순서대로 전체 실행한다. 중복 선택은 한 번만 실행하며 잘못된 이름·누락 인자·형식은 API/DB 변경 전에 실패한다.
 
-# production mode
-$ npm run start:prod
-```
+| 순서·suite | 검사 | Content lock |
+| --- | --- | --- |
+| 1. `http` | 루트·허용/거부 CORS·JWT preflight | shared |
+| 2. `identity` | 로그인 검증·Refresh 회전/재사용/동시성/폐기·로그아웃·웹 쿠키/CSRF/익명 | shared |
+| 3. `content` | 장르·목록 정렬·상세·소유권·`userUuid` 위조 | shared |
+| 4. `programming` | 홈 컬렉션 4종·정렬·없는 컬렉션 | shared |
+| 5. `playback` | 무료/유료/프리뷰·권한·잘못된 인증·미디어 누락·사용자 위조 | shared |
+| 6. `economy` | 포인트 지급·멱등성·잔액 부족·구매/재구매 | shared |
+| 7. `watch-progress` | 무료/유료 FULL의 영상 UUID 저장·입력·UTC·완료 임계값·기록 보존 | shared |
+| 8. `saved-videos` | 저장/해제·0/30/31 페이지·동일 시각·숨김·사용자 격리·FULL/PREVIEW 진행률·응답 flags | exclusive |
+| 9. `watch-history` | 본인 STARTED 기록·0/30/31 페이지·동일 시각·숨김/미래/종류 오류 제외·FULL/PREVIEW 분리 | exclusive |
+| 10. `point-history` | 본인 원장·0/30/31 페이지·동일 시각·전체 거래 유형·회차 공개·인증/페이지 | exclusive |
 
-## Run tests
+- 요청·assertion 원본은 suite별 컬렉션이며 `suites.mjs`가 선택·잠금을 관리한다. 기존 public 컬렉션은 사용하지 않는다. 응답·오류의 정확한 키를 검사하고 `pm.sendRequest` 응답은 collection event가 적용되지 않으므로 직접 assert한다.
+- 실행마다 컬렉션·환경을 전용 임시 디렉터리에 복사한다. credentials·JWT는 출력하거나 컬렉션에 저장하지 않는다. 서명 미디어는 URL metadata만 검사하며 다운로드하지 않는다.
+- catalog/detail/collection 일관성 검사 중 다른 테스트가 공유 콘텐츠를 바꾸면 안 된다. lock 대기는 완료가 아니며 획득 후 실행한다. 연결·필수 데이터·잠금 획득·timeout·assertion·cleanup 실패는 모두 실패다. 준비/검사 실패는 cleanup도 실패했다고 덮어쓰지 않는다.
+- 응답 계약 변경 전후 관련 suite로 성공·업무 오류 shape를 비교한다. 전역 오류 처리 변경은 전체 suite를 실행하고 문서화된 일반 Nest 오류만 공통 body로 전환한다. assertion을 약화하지 않으며 토큰·비밀번호·쿠키·서명 URL을 담은 응답 캡처는 저장하지 않는다.
 
-```bash
-# focused unit tests and real HTTP API tests
-$ npm run test
+### 기본 데이터·fixture
 
-# unit tests only
-$ npm run test:unit
+managed 모드는 `.env.development`를 읽고 명시적인 비어 있지 않은 `DB_HOST/DB_PORT/DB_USERNAME/DB_PASSWORD/DB_DATABASE`를 요구한다. 코드상 `.env` fallback도 지원한다. DB 초기화·seed는 하지 않는다.
 
-# Postman CLI against the running development API and MySQL
-$ npm run test:api
+필수 공개 데이터:
 
-# focused unit test coverage
-$ npm run test:cov
-```
+- 장르 1개 이상·공개 드라마 2개 이상. 한 드라마에 PREVIEW·무료 회차·FULL이 있는 유료 회차 2개 이상, 구매 검사용 별도 유료 회차까지 총 서로 다른 유료 회차 3개가 필요하다.
+- `HOME_FEATURED`, `EDITORIAL_TOP_3`, `RECOMMENDATION_DAILY`, `HOME_CAMPAIGN`이 모두 활성 상태여야 하며 배열은 비어 있어도 된다. 재생 검사는 개발 S3 서명 설정이 필요하다.
+- economy는 별도 유료 회차와 0포인트 사용자를 사용한다. watch-progress는 API에서 찾은 무료 회차·권한 있는 유료 회차를 사용한다.
 
-Start the backend with the current code and its existing development database before running API tests. See [API test instructions](test/api/README.md) for the target URL, data prerequisites, and coverage. The tests do not initialize or modify the database.
+기본 fixture는 실행별 UUID의 사용자 2명·자격 증명·지갑과 임시 유료 권한이다. identity는 사용자만, http/programming은 사용자·DB fixture 없이 실행한다. 공개 작품·회차·미디어 ID는 API에서 찾으며 기존 사용자·잔액·자격 증명·기록은 변경하지 않는다.
 
-## Deployment
+| suite | 추가 fixture·검증 |
+| --- | --- |
+| `content` | 유료 회차 대표 FULL의 기준 진행률 |
+| `saved-videos` | HOME_FEATURED에 연결한 실행 전용 공개 드라마·복제 이미지·PREVIEW·무료/유료 FULL. 무료 회차의 두 번째 FULL과 PREVIEW 진행률로 영상별 분리를 검증. 저장할 유료 FULL은 미구매인지 사전 확인 |
+| `watch-history` | 공개 드라마를 복제해 FULL 31개·PREVIEW·대체/유료 FULL·poster-only/image-less PREVIEW·숨김/미래/종류 오류 데이터 생성. PUT으로 0/30/31 경계를 검사한 뒤 해당 실행 기록만 같은 과거 UTC로 바꿔 두 번째 pass에서 `video_id DESC` 동률 순서·인증/입력 검증 |
+| `point-history` | 권한 사용자 31건·경계 사용자 30건·미권한 사용자 빈 원장. 동일/삽입순서와 다른 UTC·5가지 거래 유형·공개/숨김/미래 회차/드라마. 읽기 전후 지갑·원장·권한 snapshot 비교. 기존 공개 드라마의 제작사 ID만 읽기 전용 template으로 사용 |
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+UUID는 삽입 전에 기록한다. 정리는 소유한 user/video 쌍·콘텐츠만 제거하고 Refresh 이력·권한·저장·진행률·거래·지갑을 정리한 후 사용자를 삭제한다. 숨김 영상 DELETE 성공은 fixture 제거 전에 확인한다.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+`test:api:parallel`은 서로 다른 사용자/UUID의 watch-progress 두 실행이 HTTP 기록을 소유하고, 한쪽 정리가 다른 쪽을 보존하며 최종 잔여 데이터가 없는지 검사한다. content reader가 있는 동안 saved-videos writer가 exclusive lock을 기다리고 해제 후 완료하는지도 검사한다.
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+### 외부 Postman 환경
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+`API_TEST_ENVIRONMENT_FILE`로 선택한다. runner는 MySQL 연결·fixture 생성/수정/정리를 하지 않으며 Postman 옵션·credentials를 전달한다. 환경의 실제 `baseUrl`(`--env-var baseUrl=...` 포함)에 exclusive lock을 건다. 환경 파일은 Git 밖에 두고 비밀번호를 명령행 인자로 전달하지 않는다. 준비·정리와 실패 후 남은 저장/쓰기 제거는 외부 환경 소유자 책임이다.
 
-## Observability
+공통으로 권한/미권한 사용자 로그인 쌍과 해당 suite의 사용자 UUID를 준비한다. 추가 계약은 다음과 같다.
 
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
+| suite | 필수 변수·관계 |
+| --- | --- |
+| `saved-videos` 조회·유료 | `savedLookupEpisodeUuid`, `savedLookupEpisodeVideoUuid`는 무료 회차와 대표 FREE FULL. `savedPaidEpisodeUuid`, `savedPaidVideoUuid`는 유료 회차와 PAID FULL. 두 회차는 `savedOtherUserVideoUuid`가 식별하는 드라마에 속함 |
+| `saved-videos` 진행률 | `savedProgressDramaUuid`, `savedProgressEpisodeUuid`, `savedProgressPrimaryVideoUuid`, `savedProgressAlternateVideoUuid`, `savedProgressPreviewVideoUuid`, `savedProgressWrongKindVideoUuid`, `savedHiddenVideoUuid`: 공개 드라마·잠금 해제된 무료 회차·대표/대체 FULL·공개 PREVIEW·DRAMA/FULL 오류·숨김 PREVIEW. 대표 FULL/PREVIEW 60000ms, 대체 FULL 90000ms. 저장 전에 상세 응답으로 UUID·가격 관계 확인 |
+| `watch-history` | `entitledUserUuid`, `unentitledUserUuid`, `historyPhase=verify`, `historyDramaUuid`, `historyPreviewVideoUuid`, `historyVideoUuids`, `historyExpectedVideoUuids`, `historyHiddenVideoUuids`, `historyRecentVideoUuid`, `historyNoImageVideoUuid`, `historyPosterOnlyVideoUuid`, `historyPaidVideoUuid`, `historyAlternateVideoUuid` |
+| `point-history` | 권한/미권한 로그인·UUID, `pointHistoryBoundaryLoginId`, `pointHistoryBoundaryPassword`, `pointHistoryExpectedItems` 31건, `pointHistoryBoundaryExpectedItems` 30건. 정렬은 `created_at DESC, id DESC`, 각 item의 키는 `uuid/transactionType/amount/balanceAfter/createdAt/episode`만 허용 |
 
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
+watch-history는 사용자·공개 영상·권한 사용자의 유료 FULL 구매·진행률과 제외할 숨김/미래/종류 오류 기록을 미리 준비한다. `historyVideoUuids`는 최초 30개와 나머지를 생성한 순서, `historyExpectedVideoUuids`는 시각 동률 적용 후 전체 기대 순서다. `historyPreviewVideoUuid`는 대표 드라마 이미지 assertion에 쓴다. verify 모드는 준비된 기록을 검사하고 fixture를 생성·정리하지 않는다.
 
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observer](https://observer.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+point-history는 세 사용자의 원장과 회차 공개 조건을 미리 준비하며 페이지 경계·소유권·잘못된 JWT/페이지·비공개 내부 필드 누락을 검사한다.

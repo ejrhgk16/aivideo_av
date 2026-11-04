@@ -499,7 +499,7 @@ async function main() {
     const [savedRows] = await db.execute(
       'SELECT video_id FROM user_saved_videos WHERE user_id = ?', [unentitled.id],
     );
-    if (savedRows.length) throw new Error('Saved-video write fixture already contains saved rows. Inspect test/api/README.md.');
+    if (savedRows.length) throw new Error('Saved-video write fixture already contains saved rows. Inspect back/README.md (API tests).');
     const [selectedIds] = await db.execute('SELECT id FROM dramas WHERE uuid = ?', [selected.uuid]);
     const stateFixtures = { dramas: [], episodes: [], videos: [], images: [] };
     savedVideoFixture = { previewVideos: [], otherUserVideo: null, otherUserBaselineVideos: [], tieVideos: [], paidVideo: null, freeAlternateVideo: null, stateFixtures };
