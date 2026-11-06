@@ -32,6 +32,7 @@ npm --prefix front run start -- --port 8081
 - 저장 여부·현재 영상의 진행률 tracker·저장/시청 목록은 해당 화면에서 관리한다. feature의 API 호출은 `common/http/api.ts`를 통해 `features/user/sessionClient.ts`를 사용한다.
 - 포인트 체험 잔액·내역·광고 횟수는 `PointsScreen` 로컬 상태이며 탭 전환 동안 유지하고 화면 이탈·계정/세션 변경 시 초기화한다. 실제 `UserProvider` 포인트와 API 거래는 변경하지 않는다.
 - Access는 메모리, 네이티브 Refresh는 SecureStore, 웹 Refresh는 서버의 HttpOnly 쿠키에 둔다. 인증·복원·만료는 [인증 계약](../_docs/api/00-overview/authentication.md)·[오류 정의](../_docs/api/00-overview/error-code.md), 재생은 [재생 계약](../_docs/api/04-playback/README.md)을 따른다.
+- 관리자 시안의 로그인 여부·이메일은 웹 전용 `app/admin/_layout.web.tsx`가 `features/admin/adminSession.ts` context로 소유하고 탭 `sessionStorage`에만 둔다. `UserProvider`·API 인증과는 무관하다.
 
 ## 검증
 
