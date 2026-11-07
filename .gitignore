@@ -2,8 +2,6 @@
 node_modules/
 front/node_modules/
 back/node_modules/
-# Icon fonts and router images that the admin-prototype build serves.
-!admin-prototype/assets/node_modules/
 
 # Build output
 dist/
@@ -11,6 +9,9 @@ build/
 coverage/
 .next/
 *.tsbuildinfo
+# The admin-prototype build serves icon fonts and router images from these folders.
+!admin-prototype/assets/node_modules/
+!admin-prototype/**/build/
 
 # Expo / React Native
 .expo/
