@@ -58,3 +58,4 @@ Frontend state ownership is defined in the [frontend README](../front/README.md#
 
 - Frontend and backend own independent package.json/lockfiles and response types; neither imports the other's source.
 - `web-prototype/` is a preserved standalone reference, excluded from active app and Harness work.
+- `admin-prototype/` is a generated static web build of the front `/admin` prototype for review; regenerate it from `front/` per its [README](../admin-prototype/README.md) instead of editing it.
