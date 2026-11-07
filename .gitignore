@@ -2,6 +2,8 @@
 node_modules/
 front/node_modules/
 back/node_modules/
+# Icon fonts and router images that the admin-prototype build serves.
+!admin-prototype/assets/node_modules/
 
 # Build output
 dist/
