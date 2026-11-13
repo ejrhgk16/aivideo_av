@@ -36,9 +36,10 @@ const thisYear = kstToday(new Date()).year;
 describe('login', () => {
   test('lists Apple, Google and Kakao in order with the prototype notice and no implicit consent copy', () => {
     renderAuth('/auth/login');
-    expect(screen.getByRole('header', { name: '계정을 연결하면 포인트와 열어 둔 회차를 지킬 수 있어요' })).toBeOnTheScreen();
-    expect(screen.getAllByRole('button', { name: /로 계속하기$/ }).map((button) => button.props.accessibilityLabel))
-      .toEqual(['Apple로 계속하기', 'Google로 계속하기', '카카오로 계속하기']);
+    expect(screen.getByRole('header', { name: 'AI DRAMA 로그인' })).toBeOnTheScreen();
+    expect(screen.getByText('보던 드라마, 어디서든 이어서')).toBeOnTheScreen();
+    expect(screen.getAllByRole('button', { name: /로 로그인$/ }).map((button) => button.props.accessibilityLabel))
+      .toEqual(['Apple로 로그인', 'Google로 로그인', '카카오로 로그인']);
     expect(screen.getByText('카카오 로그인은 도입을 검토 중이에요.')).toBeOnTheScreen();
     expect(screen.getByText('시안 화면이에요. 실제 로그인은 연결 전이에요.')).toBeOnTheScreen();
     expect(screen.queryByText(/동의한 것으로/)).not.toBeOnTheScreen();
@@ -47,9 +48,9 @@ describe('login', () => {
   test('a provider press shows a simulated result and 확인 returns to the previous screen', async () => {
     const user = userEvent.setup();
     const view = await openFrom('/away', '/auth/login');
-    await user.press(screen.getByRole('button', { name: 'Google로 계속하기' }));
+    await user.press(screen.getByRole('button', { name: 'Google로 로그인' }));
     expect(screen.getByText('Google 계정으로 연결했어요 (시안)')).toBeOnTheScreen();
-    expect(screen.queryByRole('button', { name: 'Apple로 계속하기' })).not.toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Apple로 로그인' })).not.toBeOnTheScreen();
     expect(screen.queryByRole('header')).not.toBeOnTheScreen();
     expect(screen.queryByRole('link', { name: '처음이라면 시작하기' })).not.toBeOnTheScreen();
     expect(screen.getByText('시안 화면이에요. 실제 로그인은 연결 전이에요.')).toBeOnTheScreen();
@@ -203,7 +204,7 @@ describe('signup', () => {
     const user = userEvent.setup();
     const view = renderAuth('/auth/signup');
     await user.press(screen.getByRole('link', { name: '이미 계정이 있나요? 로그인' }));
-    expect(await screen.findByRole('button', { name: 'Apple로 계속하기' })).toBeOnTheScreen();
+    expect(await screen.findByRole('button', { name: 'Apple로 로그인' })).toBeOnTheScreen();
     expect(view.getPathname()).toBe('/auth/login');
   });
 
