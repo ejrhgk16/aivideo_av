@@ -41,6 +41,8 @@ Frontend state ownership is defined in the [frontend README](../front/README.md#
 
 ## Documentation and tooling
 
+`auth-prototype/` preserves the `front/` source from `ai/app-auth` at commit `0f10df4c180a8b613cb4dd07d3d85d616e2d3ea7` as a standalone reference. It is separate from the active `front/` application; usage is documented in `front/README.md`.
+
 | Path | Responsibility |
 | --- | --- |
 | `AGENTS.md` | Project-wide agent instructions. |

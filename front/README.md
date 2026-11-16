@@ -26,6 +26,14 @@ npm --prefix front run start -- --port 8081
 - 이미지·영상 URL은 API 응답을 사용한다. `media/`는 Git에서 제외된 로컬 작업 공간이며 앱 번들·공개 자산과 별개다.
 - 한국 시각 표시는 [API 시간 기준](../_docs/api/00-overview/conventions.md#시간과-공개-콘텐츠)에 맞춰 클라이언트에서 변환한다.
 
+## 인증 시안 소스
+
+`auth-prototype/`은 `ai/app-auth`의 `0f10df4c180a8b613cb4dd07d3d85d616e2d3ea7` 커밋에서 `front/`를 복사한 별도 프로젝트다. 원본의 실행 안내(`README.md`)와 에이전트 지침(`CLAUDE.md`)은 복사하지 않았다. 현재 `front/`와 자동으로 동기화되지 않는다.
+
+의존성 설치는 `npm --prefix auth-prototype ci`, 검증은 `npm --prefix auth-prototype run typecheck`와 `npm --prefix auth-prototype run test`를 사용한다. 환경 파일은 복사되지 않으므로 위 환경 설정을 별도로 적용한다.
+
+시안을 실행하려면 기존 프론트 서버를 먼저 종료한 뒤 `npm --prefix auth-prototype run start -- --port 8081`을 실행하고 `http://localhost:8081/auth/login` 또는 `/auth/signup`을 연다. 인증 화면은 시안이며 실제 인증 연동을 의미하지 않는다.
+
 ## 전역 상태
 
 - 루트의 단일 `UserProvider`가 사용자·포인트·Access/세션·재생 설정(`subtitlesEnabled`, `preferredSubtitleLanguage`, `autoplayNext`)을 소유한다. 자막 표시와 선호 언어는 메모리 상태로 로그인·화면 전환 뒤에도 유지하며 Provider가 새로 만들어지면 각각 `true`와 `'ko'`로 시작한다. `SafeAreaProvider`도 루트에 하나만 두며 세션 변경 시 내비게이션을 재마운트하지 않는다.
