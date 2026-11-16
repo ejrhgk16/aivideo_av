@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { AppText, Button, EmptyState, Page, SectionTitle } from '@/components/ui';
+import { AppText, Button, EmptyState, LoadingState, Page, SectionTitle } from '@/components/ui';
 import { AppTopBar } from '@/components/AppTopBar';
 import { colors } from '@/common/theme/tokens';
 import { getErrorMessage } from '@/common/http/errorMessages';
@@ -128,9 +128,9 @@ export function LibraryScreen() {
     <View style={styles.tabs} accessibilityRole="tablist">
       {(['저장한 작품', '시청 기록'] as const).map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} style={[styles.tab, tab === item && styles.activeTab]} onPress={() => setSelectedTab(item)}><AppText weight={tab === item ? 'semibold' : 'regular'} style={[styles.tabLabel, tab === item && styles.activeLabel]}>{item}</AppText></Pressable>)}
     </View>
-    {isRestoring ? <EmptyState title="로그인 상태를 확인하고 있어요" description="잠시만 기다려 주세요." />
+    {isRestoring ? <LoadingState />
       : !owner ? <EmptyState title="로그인이 필요해요" description={tab === '시청 기록' ? '시청 기록을 보려면 로그인해 주세요.' : '저장한 영상을 보려면 로그인해 주세요.'} action="로그인" onAction={() => router.push('/auth/login')} />
-      : status === 'loading' || status === 'idle' || (status === 'loaded' && !ownsCurrentList) ? <EmptyState title={tab === '시청 기록' ? '시청 기록을 불러오는 중이에요' : '저장한 영상을 불러오는 중이에요'} description="잠시만 기다려 주세요." />
+      : status === 'loading' || status === 'idle' || (status === 'loaded' && !ownsCurrentList) ? <LoadingState />
       : status === 'error' ? <EmptyState title={tab === '시청 기록' ? '시청 기록을 불러오지 못했어요' : '저장한 영상을 불러오지 못했어요'} description={getErrorMessage(error)} action="다시 시도" onAction={retry} />
       : visibleItems.length === 0 ? <EmptyState title={tab === '시청 기록' ? '시청 기록이 없어요' : '저장한 영상이 없어요'} description={tab === '시청 기록' ? '영상을 시청하면 이곳에 표시돼요.' : '마음에 드는 영상을 저장해 보세요.'} />
       : <FlatList data={visibleItems} showsVerticalScrollIndicator={false} keyExtractor={(item) => item.videoUuid} renderItem={({ item }) => {
@@ -139,7 +139,7 @@ export function LibraryScreen() {
           {item.imageUrl ? <Image source={{ uri: resolveApiImageUrl(item.imageUrl) ?? undefined }} contentFit="cover" style={styles.image} /> : <View style={[styles.image, styles.imagePlaceholder]} />}
           <View style={styles.cardText}><AppText weight="semibold" numberOfLines={1} style={styles.cardTitle}>{item.dramaTitle}</AppText><AppText style={styles.meta}>{videoLabel}</AppText><AppText style={styles.meta}>{formatSavedDuration(item.durationMs)}</AppText></View>
         </Pressable>;
-      }} onEndReached={loadNextPage} onEndReachedThreshold={0.4} ListFooterComponent={nextLoading ? <AppText style={styles.footer}>더 불러오는 중이에요</AppText> : nextError ? <View style={styles.footer}><AppText>{getErrorMessage(nextError)}</AppText><Button label="다시 시도" onPress={loadNextPage} variant="secondary" /></View> : hasNext ? <Button label="더 보기" onPress={loadNextPage} variant="secondary" /> : null} style={styles.list} contentContainerStyle={styles.listContent} />}
+      }} onEndReached={loadNextPage} onEndReachedThreshold={0.4} ListFooterComponent={nextLoading ? <LoadingState compact /> : nextError ? <View style={styles.footer}><AppText>{getErrorMessage(nextError)}</AppText><Button label="다시 시도" onPress={loadNextPage} variant="secondary" /></View> : hasNext ? <Button label="더 보기" onPress={loadNextPage} variant="secondary" /> : null} style={styles.list} contentContainerStyle={styles.listContent} />}
   </Page>;
 }
 

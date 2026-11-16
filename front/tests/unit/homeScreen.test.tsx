@@ -101,6 +101,69 @@ test('prefetches catalog and genres on the home focus, then appends unique pages
   view.unmount();
 });
 
+test('shows one loader for the selected Home tab and releases Recommendation after its three collections settle', async () => {
+  const requests = setupRequests();
+  const collections = new Map<string, Deferred<HomeCollection>>();
+  jest.mocked(getHomeCollection).mockImplementation((code) => {
+    const request = deferred<HomeCollection>();
+    collections.set(code, request);
+    return request.promise;
+  });
+  const genreRequest = deferred<GenreSummary[]>();
+  jest.mocked(getGenres).mockReturnValue(genreRequest.promise);
+  const view = renderHome();
+  await waitFor(() => expect(requests).toHaveLength(1));
+
+  expect(screen.getByRole('button', { name: '홈으로 이동' })).toBeOnTheScreen();
+  expect(screen.getByRole('tab', { name: '추천', selected: true })).toBeOnTheScreen();
+  expect(screen.getAllByRole('progressbar', { name: '로딩 중' })).toHaveLength(1);
+  expect(screen.queryByText('추천 작품 불러오는 중')).toBeNull();
+
+  await userEvent.setup().press(screen.getByRole('tab', { name: '최신' }));
+  expect(screen.getByRole('button', { name: '홈으로 이동' })).toBeOnTheScreen();
+  expect(screen.getAllByRole('progressbar', { name: '로딩 중' })).toHaveLength(1);
+  expect(screen.queryByText('최신 작품 불러오는 중')).toBeNull();
+  await resolvePage(requests[0], page([], 1, false));
+  expect(await screen.findByText('최신 작품이 없어요')).toBeOnTheScreen();
+  expect(screen.queryByRole('progressbar', { name: '로딩 중' })).toBeNull();
+
+  await userEvent.setup().press(screen.getByRole('tab', { name: '랭킹' }));
+  expect(screen.getAllByRole('progressbar', { name: '로딩 중' })).toHaveLength(1);
+  await act(async () => {
+    collections.get('EDITORIAL_TOP_3')!.resolve(emptyCollection('EDITORIAL_TOP_3'));
+    await collections.get('EDITORIAL_TOP_3')!.promise;
+  });
+  expect(await screen.findByText('TOP 3 작품이 없어요')).toBeOnTheScreen();
+  expect(screen.queryByRole('progressbar', { name: '로딩 중' })).toBeNull();
+
+  await userEvent.setup().press(screen.getByRole('tab', { name: '장르' }));
+  expect(screen.getAllByRole('progressbar', { name: '로딩 중' })).toHaveLength(1);
+  await act(async () => { genreRequest.resolve([]); await genreRequest.promise; });
+  expect(await screen.findByText('장르가 없어요')).toBeOnTheScreen();
+  expect(screen.queryByRole('progressbar', { name: '로딩 중' })).toBeNull();
+
+  await userEvent.setup().press(screen.getByRole('tab', { name: '추천' }));
+  expect(screen.getAllByRole('progressbar', { name: '로딩 중' })).toHaveLength(1);
+  await act(async () => {
+    collections.get('HOME_FEATURED')!.resolve(emptyCollection('HOME_FEATURED'));
+    await collections.get('HOME_FEATURED')!.promise;
+  });
+  expect(screen.getAllByRole('progressbar', { name: '로딩 중' })).toHaveLength(1);
+  await act(async () => {
+    collections.get('RECOMMENDATION_DAILY')!.reject(new Error('offline'));
+    try { await collections.get('RECOMMENDATION_DAILY')!.promise; } catch {}
+  });
+  expect(await screen.findByText('오늘의 추천을 불러오지 못했어요')).toBeOnTheScreen();
+  expect(screen.queryByRole('progressbar', { name: '로딩 중' })).toBeNull();
+  expect(getHomeCollection).toHaveBeenCalledTimes(4);
+
+  await act(async () => {
+    collections.get('HOME_CAMPAIGN')!.resolve(emptyCollection('HOME_CAMPAIGN'));
+    await collections.get('HOME_CAMPAIGN')!.promise;
+  });
+  view.unmount();
+});
+
 test('keeps the genre catalog independent of the loaded drama page and opens its code', async () => {
   const requests = setupRequests();
   const view = renderHome();
@@ -181,7 +244,8 @@ test('a failed next page keeps the first page, blocks duplicate loads, and retri
   const moreButton = screen.queryByRole('button', { name: '더 보기' });
   if (moreButton) await user.press(moreButton);
   expect(getDramaList).toHaveBeenCalledTimes(2);
-  expect(screen.getByText('더 불러오는 중이에요')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '첫 작품 작품 소개' })).toBeOnTheScreen();
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   await act(async () => { requests[1].reject(new Error('offline')); try { await requests[1].promise; } catch {} });
   expect(screen.getByRole('button', { name: '첫 작품 작품 소개' })).toBeOnTheScreen();
   await user.press(await screen.findByRole('button', { name: '다시 시도' }));

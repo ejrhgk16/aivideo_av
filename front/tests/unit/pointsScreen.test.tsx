@@ -170,7 +170,8 @@ test('demo balance and rows stay local across tabs and remain separate from real
   await input.press(screen.getByRole('tab', { name: '이용 내역' }));
   expect(screen.getByText('체험 내역')).toBeOnTheScreen();
   expect(screen.getByText('실제 이용 내역')).toBeOnTheScreen();
-  expect(screen.getByText('이용 내역을 불러오는 중이에요')).toBeOnTheScreen();
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
+  expect(screen.getByText('1,344 P')).toBeOnTheScreen();
   await act(async () => {
     requests.requests[0].resolve(page([
       transaction('real-1', 'EPISODE_UNLOCK', -30, 970, { dramaTitle: '작품', episodeNumber: 1 }),
@@ -201,7 +202,8 @@ test('demo rows remain visible with actual history loading, failure and empty st
   await input.press(screen.getByRole('button', { name: '체험 완료' }));
   await input.press(screen.getByRole('tab', { name: '이용 내역' }));
   expect(screen.getByText('체험 내역')).toBeOnTheScreen();
-  expect(screen.getByText('이용 내역을 불러오는 중이에요')).toBeOnTheScreen();
+  expect(screen.getByText('실제 이용 내역')).toBeOnTheScreen();
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
 
   await act(async () => {
     requests.requests[0].reject(new Error('offline'));
@@ -278,7 +280,9 @@ test('history waits for session restoration and routes anonymous users to login 
   const requests = installRequests();
   const view = renderPoints(makeSession(makeUser('user-a'), 2000, 1, true));
   expect(getPointHistory).not.toHaveBeenCalled();
-  expect(screen.getByText('로그인 상태를 확인하고 있어요')).toBeOnTheScreen();
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
+  expect(screen.getByRole('button', { name: '뒤로 가기' })).toBeOnTheScreen();
+  expect(screen.getByRole('tab', { name: '이용 내역' })).toBeOnTheScreen();
   view.setSession(makeSession(null, null, 2));
   expect(getPointHistory).not.toHaveBeenCalled();
   expect(screen.getByText('로그인이 필요해요')).toBeOnTheScreen();
@@ -296,7 +300,9 @@ test('history waits for session restoration and routes anonymous users to login 
 test('history shows transaction labels, signed amounts, after-balances, episode details and Seoul time', async () => {
   const { requests } = installRequests();
   const view = renderPoints(makeSession(makeUser('user-a'), 2000, 1));
-  expect(screen.getByText('이용 내역을 불러오는 중이에요')).toBeOnTheScreen();
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
+  expect(screen.getByRole('button', { name: '뒤로 가기' })).toBeOnTheScreen();
+  expect(screen.getByText('2,000 P')).toBeOnTheScreen();
   const items = [
     transaction('purchase', 'PURCHASE', 1000, 1000),
     transaction('ad', 'AD_REWARD', 10, 1010),
@@ -350,6 +356,8 @@ test('pagination prevents duplicate loads, retries the same page, deduplicates U
   fireEvent.press(more);
   fireEvent.press(more);
   expect(pages).toEqual([1, 2]);
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
+  expect(screen.getByText('작품 · 1화')).toBeOnTheScreen();
   await act(async () => { requests[1].reject(new Error('offline')); try { await requests[1].promise; } catch {} });
   expect(screen.getByText('작품 · 1화')).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '다시 시도' })).toBeOnTheScreen();
@@ -394,7 +402,7 @@ test('tab changes, blur and unmount discard stale work, while refocus reloads pa
   testRouter.back();
   expect(blurRequests.pages).toEqual([1, 1]);
   await act(async () => { blurRequests.requests[0].resolve(page([transaction('late', 'PURCHASE', 10, 10)])); await blurRequests.requests[0].promise; });
-  expect(screen.getByText('이용 내역을 불러오는 중이에요')).toBeOnTheScreen();
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   await act(async () => { blurRequests.requests[1].resolve(page([transaction('fresh', 'REFUND', 30, 40)])); await blurRequests.requests[1].promise; });
   expect(await screen.findByText('환불')).toBeOnTheScreen();
   blurred.unmount();

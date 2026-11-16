@@ -432,6 +432,51 @@ afterEach(() => {
   apiBaseUrlWasOverridden = false;
 });
 
+test('recommendation shows one accessible spinner while pending, then shows the empty state', async () => {
+  renderRecommendation();
+  await waitFor(() => expect(mockHomeRequests).toHaveLength(1));
+
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
+  expect(screen.getAllByRole('progressbar', { name: '로딩 중' })).toHaveLength(1);
+  expect(screen.queryByText('추천 작품 불러오는 중')).toBeNull();
+  expect(screen.queryByText('잠시만 기다려 주세요.')).toBeNull();
+
+  await act(async () => {
+    mockHomeRequests[0].resolve(homeCollection([]));
+    await mockHomeRequests[0].promise;
+  });
+
+  expect(await screen.findByText('오늘의 추천 작품이 없어요')).toBeOnTheScreen();
+  expect(screen.queryByRole('progressbar', { name: '로딩 중' })).toBeNull();
+});
+
+test('recommendation removes the collection spinner when feed data arrives even while preview URLs are pending', async () => {
+  renderRecommendation();
+  await waitFor(() => expect(mockHomeRequests).toHaveLength(1));
+
+  await act(async () => {
+    mockHomeRequests[0].resolve(homeCollection([homeDrama('drama-1', 1)]));
+    await mockHomeRequests[0].promise;
+  });
+
+  await waitFor(() => expect(feedInstance()).toBeTruthy());
+  await waitFor(() => expect(mockPreviewRequests.length).toBeGreaterThan(0));
+  expect(screen.queryByRole('progressbar', { name: '로딩 중' })).toBeNull();
+});
+
+test('recommendation replaces the collection spinner with its error state', async () => {
+  renderRecommendation();
+  await waitFor(() => expect(mockHomeRequests).toHaveLength(1));
+
+  await act(async () => {
+    mockHomeRequests[0].reject(new Error('offline'));
+    await mockHomeRequests[0].promise.catch(() => undefined);
+  });
+
+  expect(await screen.findByText('추천 작품을 불러오지 못했어요')).toBeOnTheScreen();
+  expect(screen.queryByRole('progressbar', { name: '로딩 중' })).toBeNull();
+});
+
 test('recommendation buffer retains and reuses only the previous, current, and next players', async () => {
   const load = jest.fn(async (_dramaId: string, videoId: string) => ({ url: `url-${videoId}` }));
   const create = jest.fn((url: string) => createMockVideoPlayer(url));

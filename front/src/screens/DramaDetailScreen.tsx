@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { AppText, EmptyState, Icon, Page } from '@/components/ui';
+import { AppText, EmptyState, Icon, LoadingState, Page } from '@/components/ui';
 import { EpisodeUnlockDialog } from '@/components/EpisodeUnlockDialog';
 import { ApiError, SessionChangedError } from '@/common/http/api';
 import { resolveApiImageUrl } from '@/common/media';
@@ -56,7 +56,7 @@ export function DramaDetailScreen({ id }: { id: string }) {
 
   const back = () => router.canGoBack() ? router.back() : router.replace('/');
   if (isRestoring || loadState === 'loading') {
-    return <Page><EmptyState title="작품 정보를 불러오는 중이에요" description="잠시만 기다려 주세요." /></Page>;
+    return <Page scroll={false}><LoadingState /></Page>;
   }
   if (loadState === 'not-found') {
     return <Page><EmptyState title="작품을 찾을 수 없어요" description="공개된 작품이 아니거나 삭제되었어요." action="홈으로" onAction={() => router.replace('/')} /></Page>;

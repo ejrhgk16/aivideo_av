@@ -91,7 +91,10 @@ async function resolveDrama(request: Deferred<DramaContent>, value = drama) {
 test('drama detail distinguishes free, purchased and locked episodes and routes playable records', async () => {
   const view = renderDetail();
   expect(getDramaContent).toHaveBeenCalledWith('drama-1');
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
+  expect(screen.queryByText('작품 정보를 불러오는 중이에요')).not.toBeOnTheScreen();
   await resolveDrama(view.request);
+  expect(screen.queryByRole('progressbar', { name: '로딩 중' })).not.toBeOnTheScreen();
   expect(screen.getByRole('tab', { name: /전체 회차/ })).toBeOnTheScreen();
   fireEvent.press(screen.getByRole('tab', { name: /전체 회차/ }));
 
@@ -141,10 +144,11 @@ test('drama detail reloads entitlements on account changes and ignores stale res
   const view = renderRouter({ _layout: () => <Stack screenOptions={{ animation: 'none' }} />, index: AccountScreen, 'episode/[id]': () => <Text>회차 플레이어</Text> }, { initialUrl: '/?tab=episodes' });
   await act(async () => update(makeSession(makeUser('account-b'), 2)));
   expect(getDramaContent).toHaveBeenCalledTimes(2);
-  expect(screen.getByText('작품 정보를 불러오는 중이에요')).toBeOnTheScreen();
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   await act(async () => { first.resolve(drama); await first.promise; });
-  expect(screen.getByText('작품 정보를 불러오는 중이에요')).toBeOnTheScreen();
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   await act(async () => { second.resolve({ ...drama, episodes: drama.episodes.map((item) => item.uuid === 'locked' ? { ...item, isUnlocked: true } : item) }); await second.promise; });
+  expect(screen.queryByRole('progressbar', { name: '로딩 중' })).not.toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '3화' })).toBeOnTheScreen();
   view.unmount();
 });
@@ -178,7 +182,8 @@ test('detail waits for restoration, shows a 404 as missing, and retries other fa
   jest.mocked(useUser).mockReturnValue(makeSession(null, 1, true));
   jest.mocked(getDramaContent).mockReturnValue(restoring.promise);
   const waiting = renderRouter({ _layout: () => <Stack screenOptions={{ animation: 'none' }} />, index: () => <DramaDetailScreen id="drama-1" /> }, { initialUrl: '/?tab=episodes' });
-  expect(screen.getByText('작품 정보를 불러오는 중이에요')).toBeOnTheScreen();
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
+  expect(screen.queryByText('작품 정보를 불러오는 중이에요')).not.toBeOnTheScreen();
   expect(getDramaContent).not.toHaveBeenCalled();
   waiting.unmount();
 
@@ -186,16 +191,20 @@ test('detail waits for restoration, shows a 404 as missing, and retries other fa
   jest.mocked(useUser).mockReturnValue(makeSession(null, 2));
   jest.mocked(getDramaContent).mockReturnValueOnce(missingRequest.promise);
   const missing = renderRouter({ _layout: () => <Stack screenOptions={{ animation: 'none' }} />, index: () => <DramaDetailScreen id="drama-1" /> }, { initialUrl: '/?tab=episodes' });
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   await act(async () => { missingRequest.reject(new ApiError(404, null)); try { await missingRequest.promise; } catch {} });
   expect(await screen.findByText('작품을 찾을 수 없어요')).toBeOnTheScreen();
+  expect(screen.queryByRole('progressbar', { name: '로딩 중' })).not.toBeOnTheScreen();
   missing.unmount();
 
   const failed = deferred<DramaContent>();
   const retry = deferred<DramaContent>();
   jest.mocked(getDramaContent).mockReturnValueOnce(failed.promise).mockReturnValueOnce(retry.promise);
   const error = renderRouter({ _layout: () => <Stack screenOptions={{ animation: 'none' }} />, index: () => <DramaDetailScreen id="drama-1" /> }, { initialUrl: '/?tab=episodes' });
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   await act(async () => { failed.reject(new Error('offline')); try { await failed.promise; } catch {} });
   expect(await screen.findByText('작품 정보를 불러오지 못했어요')).toBeOnTheScreen();
+  expect(screen.queryByRole('progressbar', { name: '로딩 중' })).not.toBeOnTheScreen();
   fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
   expect(getDramaContent).toHaveBeenCalledTimes(3);
   await resolveDrama(retry);

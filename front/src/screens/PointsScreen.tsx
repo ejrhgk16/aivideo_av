@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { FlatList, Modal, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { AppText, Button, EmptyState, Icon, Page } from '@/components/ui';
+import { AppText, Button, EmptyState, Icon, LoadingState, Page } from '@/components/ui';
 import { colors } from '@/common/theme/tokens';
 import { getErrorMessage } from '@/common/http/errorMessages';
 import { getPointHistory, type PointHistoryItem, type PointTransactionType } from '@/features/economy/pointHistory';
@@ -247,12 +247,12 @@ export function PointsScreen() {
   ), []);
 
   const historyEmpty = isRestoring
-    ? <EmptyState title="로그인 상태를 확인하고 있어요" description="잠시만 기다려 주세요." />
+    ? <LoadingState />
     : !user?.uuid
       ? <EmptyState title="로그인이 필요해요" description="포인트 이용 내역을 보려면 로그인해 주세요."
           action="로그인" onAction={() => router.push('/auth/login')} />
       : !visibleHistory || visibleHistory.status === 'loading'
-        ? <EmptyState title="이용 내역을 불러오는 중이에요" description="잠시만 기다려 주세요." />
+        ? <LoadingState />
         : visibleHistory.status === 'error'
           ? <EmptyState title="이용 내역을 불러오지 못했어요" description={getErrorMessage(visibleHistory.error)}
               action="다시 시도" onAction={retryFirstPage} />
@@ -344,7 +344,7 @@ export function PointsScreen() {
       ListEmptyComponent={historyEmpty}
       ListFooterComponent={visibleHistory?.status === 'loaded'
         ? visibleHistory.nextLoading
-          ? <AppText style={styles.historyFooter}>더 불러오는 중이에요</AppText>
+          ? <LoadingState compact />
           : visibleHistory.nextError
             ? <View style={styles.historyFooter}>
                 <AppText>{getErrorMessage(visibleHistory.nextError)}</AppText>

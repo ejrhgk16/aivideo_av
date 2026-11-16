@@ -336,6 +336,12 @@
       "directory": "plan-56-front-auth-prototype",
       "title": "구글·카카오·네이버 로그인 및 회원가입 화면 시안 연결",
       "status": "completed"
+    },
+    {
+      "id": "plan-57-front-loading-detail-transition",
+      "directory": "plan-57-front-loading-detail-transition",
+      "title": "프론트 원형 로딩 통일과 드라마 상세 슬라이드 전환",
+      "status": "completed"
     }
   ]
 }

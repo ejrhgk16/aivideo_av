@@ -7,7 +7,7 @@ import Slider from '@react-native-community/slider';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Modal, Pressable, Share, StyleSheet, View } from 'react-native';
-import { AppText, Button, EmptyState, Icon, Page } from '@/components/ui';
+import { AppText, Button, EmptyState, Icon, LoadingState, Page } from '@/components/ui';
 import { EpisodeUnlockDialog } from '@/components/EpisodeUnlockDialog';
 import { ApiError, SessionChangedError } from '@/common/http/api';
 import { resolveApiImageUrl } from '@/common/media';
@@ -76,7 +76,7 @@ export function PlaybackScreenPreview({ dramaId, videoId }: { dramaId: string; v
   }, [dramaId, videoId, isRestoring, sessionVersion, user?.uuid, isCurrentSession]));
 
   if (isRestoring || state.kind === 'loading' || stateSessionVersion !== sessionVersion || stateOwnerUuid !== (user?.uuid ?? null)) {
-    return <Page><EmptyState title="영상을 불러오는 중이에요" description="잠시만 기다려 주세요." /></Page>;
+    return <Page scroll={false}><LoadingState /></Page>;
   }
   if (state.kind === 'error') {
     return <Page><EmptyState title="영상을 재생할 수 없어요" description="잠시 후 다시 확인해 주세요." action="뒤로 가기" onAction={back} /></Page>;

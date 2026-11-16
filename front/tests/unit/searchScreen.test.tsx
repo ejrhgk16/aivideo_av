@@ -84,13 +84,22 @@ test('waits for session restoration and genre loading before requesting the firs
 
   expect(getGenres).not.toHaveBeenCalled();
   expect(getDramaList).not.toHaveBeenCalled();
+  expect(screen.getByText('어떤 이야기를 찾으세요?')).toBeOnTheScreen();
+  expect(screen.getByLabelText('작품 제목이나 장르 검색')).toBeOnTheScreen();
+  expect(screen.getAllByRole('progressbar', { name: '로딩 중' })).toHaveLength(1);
+  expect(screen.queryByText('작품을 불러오는 중')).toBeNull();
   view.setSession(makeSession(null, 1, false));
   expect(getGenres).toHaveBeenCalledTimes(1);
   expect(getDramaList).not.toHaveBeenCalled();
+  expect(screen.getByLabelText('작품 제목이나 장르 검색')).toBeOnTheScreen();
+  expect(screen.getAllByRole('progressbar', { name: '로딩 중' })).toHaveLength(1);
   await act(async () => { genreRequest.resolve(genres); await genreRequest.promise; });
   expect(getDramaList).toHaveBeenCalledWith(expect.objectContaining({ page: 1 }));
+  expect(screen.getByLabelText('작품 제목이나 장르 검색')).toBeOnTheScreen();
+  expect(screen.getAllByRole('progressbar', { name: '로딩 중' })).toHaveLength(1);
   await resolvePage(pageRequest, page(dramas));
   expect(await screen.findByRole('button', { name: '첫 작품 작품 소개' })).toBeOnTheScreen();
+  expect(screen.queryByRole('progressbar', { name: '로딩 중' })).toBeNull();
   view.unmount();
 });
 
@@ -125,12 +134,18 @@ test('debounces search for 300ms and sends server conditions without locally fil
   const before = jest.mocked(getDramaList).mock.calls.length;
   await user.type(screen.getByLabelText('작품 제목이나 장르 검색'), '봄');
   expect(screen.queryByRole('button', { name: '첫 작품 작품 소개' })).toBeNull();
+  expect(screen.getByLabelText('작품 제목이나 장르 검색')).toHaveProp('value', '봄');
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
+  expect(screen.queryByText('작품을 불러오는 중')).toBeNull();
   await act(async () => { jest.advanceTimersByTime(299); });
   expect(getDramaList).toHaveBeenCalledTimes(before);
   await act(async () => { jest.advanceTimersByTime(1); });
   expect(getDramaList).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, q: '봄' }));
+  expect(screen.getByLabelText('작품 제목이나 장르 검색')).toHaveProp('value', '봄');
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   await resolvePage(requests[1], page([makeDrama('server-result', '서버가 찾은 결과')], 1, false));
   expect(await screen.findByRole('button', { name: '서버가 찾은 결과 작품 소개' })).toBeOnTheScreen();
+  expect(screen.queryByRole('progressbar', { name: '로딩 중' })).toBeNull();
   expect(screen.getByText('불러온 작품 1개')).toBeOnTheScreen();
   const completedSearchCalls = jest.mocked(getDramaList).mock.calls.length;
   await user.type(screen.getByLabelText('작품 제목이나 장르 검색'), ' ');
@@ -267,6 +282,8 @@ test('failed next page keeps current items and retries that same page', async ()
   const user = userEvent.setup();
   await user.press(screen.getByRole('button', { name: '더 보기' }));
   await waitFor(() => expect(requests).toHaveLength(2));
+  expect(screen.getByRole('button', { name: '첫 작품 작품 소개' })).toBeOnTheScreen();
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   await act(async () => { requests[1].reject(new Error('offline')); try { await requests[1].promise; } catch {} });
   expect(screen.getByRole('button', { name: '첫 작품 작품 소개' })).toBeOnTheScreen();
   expect(await screen.findByRole('button', { name: '다시 시도' })).toBeOnTheScreen();
@@ -348,6 +365,7 @@ test('genre load error has an independent retry action', async () => {
   jest.mocked(getGenres).mockRejectedValueOnce(new Error('offline')).mockResolvedValue(genres);
   const view = renderSearch();
   expect(await screen.findByText('장르를 불러오지 못했어요')).toBeOnTheScreen();
+  expect(screen.queryByRole('progressbar', { name: '로딩 중' })).toBeNull();
   expect(getDramaList).not.toHaveBeenCalled();
   await userEvent.setup().press(screen.getByRole('button', { name: '다시 시도' }));
   await waitFor(() => expect(getDramaList).toHaveBeenCalledWith(expect.objectContaining({ page: 1 })));

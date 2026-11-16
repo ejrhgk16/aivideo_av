@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image } from 'expo-image';
 import { Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { AppText, Button, EmptyState, Icon, Page, SectionTitle } from '@/components/ui';
+import { AppText, Button, EmptyState, Icon, LoadingState, Page, SectionTitle } from '@/components/ui';
 import { AppTopBar } from '@/components/AppTopBar';
 import { getDramaList, getGenres, type DramaSummary, type GenreSummary } from '@/features/drama/dramaContent';
 import { SessionChangedError } from '@/common/http/api';
@@ -226,6 +226,8 @@ export function SearchScreen() {
   const posterWidth = Math.min(Math.max((Math.min(width, 960) - 58) / 2, 140), 230);
   const term = query.trim();
 
+  const contentLoading = genresStatus === 'loading' || (genresStatus === 'loaded' && status === 'loading');
+
   return (
     <Page header={<AppTopBar />} contentStyle={styles.page}>
       <SectionTitle eyebrow="FIND YOUR NEXT STORY" title="어떤 이야기를 찾으세요?" />
@@ -238,20 +240,20 @@ export function SearchScreen() {
         {[{ code: 'all', name: '전체' }, ...genres].map((item) => <Pressable key={item.code} accessibilityRole="button" accessibilityState={{ disabled: !genresReady.current, selected: selectedGenre === item.code }} disabled={!genresReady.current} style={[styles.filter, selectedGenre === item.code && styles.activeFilter]} onPress={() => applyGenre(item.code)}><AppText weight={selectedGenre === item.code ? 'semibold' : 'regular'} style={[styles.filterLabel, selectedGenre === item.code && styles.activeFilterLabel]}>{item.name}</AppText></Pressable>)}
       </ScrollView>
       <View style={styles.resultHeading}><AppText weight="semibold" style={styles.resultTitle}>{term ? `'${term}' 검색 결과` : selectedGenre === 'all' ? '모든 이야기' : `${currentGenre?.name ?? ''} 이야기`}</AppText><AppText style={styles.count}>{status === 'loaded' ? `불러온 작품 ${dramas.length}개` : ''}</AppText></View>
-      {genresStatus === 'loading' ? <EmptyState title="작품을 불러오는 중" description="잠시만 기다려 주세요." />
+      {contentLoading ? <LoadingState />
         : genresStatus === 'error' ? <EmptyState title="장르를 불러오지 못했어요" description="잠시 후 다시 확인해 주세요." action="다시 시도" onAction={retryGenres} />
-          : status === 'loading' ? <EmptyState title="작품을 불러오는 중" description="잠시만 기다려 주세요." />
+          : status === 'loading' ? <LoadingState />
             : status === 'error' ? <EmptyState title="작품을 불러오지 못했어요" description={getErrorMessage(listError)} action="다시 시도" onAction={retryList} />
               : dramas.length > 0 ? <>
                 <View style={styles.grid}>{dramas.map((drama) => <Pressable key={drama.uuid} accessibilityRole="button" accessibilityLabel={drama.title + ' 작품 소개'} style={{ width: posterWidth, gap: 10 }} onPress={() => router.push({ pathname: '/drama/[id]', params: { id: drama.uuid } })}><View style={[styles.poster, { height: posterWidth * 1.48 }]}>{drama.imageUrls.poster ? <Image source={{ uri: resolveApiImageUrl(drama.imageUrls.poster) ?? undefined }} accessibilityLabel={drama.title + ' 표지'} contentFit="cover" style={StyleSheet.absoluteFill} /> : <View accessibilityLabel={drama.title + ' 표지 없음'} style={[StyleSheet.absoluteFill, styles.placeholder]} />}</View><AppText weight="semibold" numberOfLines={1}>{drama.title}</AppText><AppText style={styles.genreText}>{drama.genres.map((item) => item.name).join(' · ') || '장르 정보 없음'}</AppText></Pressable>)}</View>
-                {nextLoading ? <AppText style={styles.footer}>더 불러오는 중이에요</AppText> : nextError ? <View style={styles.footer}><AppText>작품을 더 불러오지 못했어요</AppText><Button label="다시 시도" variant="secondary" onPress={loadNextPage} /></View> : hasNext ? <Button label="더 보기" variant="secondary" onPress={loadNextPage} /> : null}
+                {nextLoading ? <LoadingState compact /> : nextError ? <View style={styles.footer}><AppText>작품을 더 불러오지 못했어요</AppText><Button label="다시 시도" variant="secondary" onPress={loadNextPage} /></View> : hasNext ? <Button label="더 보기" variant="secondary" onPress={loadNextPage} /> : null}
               </> : <EmptyState title="아직 찾는 이야기가 없어요" description="다른 제목을 검색하거나 장르를 바꿔보세요." action="모든 작품 보기" onAction={() => { setQuery(''); applyGenre('all', ''); }} />}
     </Page>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { paddingHorizontal: 22, paddingTop: 26, paddingBottom: 30, gap: 0 },
+  page: { flexGrow: 1, paddingHorizontal: 22, paddingTop: 26, paddingBottom: 30, gap: 0 },
   searchField: { marginTop: 25, minHeight: 54, paddingLeft: 15, paddingRight: 7, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, borderCurve: 'continuous', flexDirection: 'row', alignItems: 'center', gap: 10 },
   input: { flex: 1, fontFamily: typography.regular, color: colors.text, fontSize: 14, paddingVertical: 14, minWidth: 0 },
   clear: { width: 40, height: 44, justifyContent: 'center', alignItems: 'center' },

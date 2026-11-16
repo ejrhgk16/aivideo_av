@@ -5,7 +5,7 @@ import { VideoView, useVideoPlayer } from 'expo-video';
 import Slider from '@react-native-community/slider';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AppText, Button, EmptyState, Icon, Page } from '@/components/ui';
+import { AppText, Button, EmptyState, Icon, LoadingState, Page } from '@/components/ui';
 import { EpisodeUnlockDialog } from '@/components/EpisodeUnlockDialog';
 import { ApiError, SessionChangedError } from '@/common/http/api';
 import { colors } from '@/common/theme/tokens';
@@ -57,7 +57,7 @@ export function PlaybackScreenEpisode({ id, dramaId }: Props) {
 
   const back = () => router.canGoBack() ? router.back() : router.replace('/');
   if (isRestoring || loadState === 'loading' || playbackOwner?.version !== sessionVersion || playbackOwner.uuid !== (user?.uuid ?? null)) {
-    return <Page><EmptyState title="영상을 불러오는 중이에요" description="잠시만 기다려 주세요." /></Page>;
+    return <Page scroll={false}><LoadingState /></Page>;
   }
   if (loadState === 'not-found') {
     return <Page><EmptyState title="재생할 영상을 찾을 수 없어요" description="공개된 회차가 아니거나 영상이 없어요." action="뒤로 가기" onAction={back} /></Page>;

@@ -14,7 +14,7 @@ function AppNavigation() {
   return <View style={styles.root}>
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
       <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="drama/[id]" />
+      <Stack.Screen name="drama/[id]" options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="episode/[id]" />
       <Stack.Screen name="preview/[dramaId]/[videoId]" />
       <Stack.Screen name="points" />

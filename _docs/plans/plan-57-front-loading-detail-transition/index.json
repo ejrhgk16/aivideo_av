@@ -1,0 +1,209 @@
+{
+  "version": 1,
+  "plan_id": "plan-57-front-loading-detail-transition",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "loading-state-tests",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/tests/unit/loadingState.test.tsx"
+      ],
+      "checks": [],
+      "started_at": "2026-11-16T08:19:30.636Z",
+      "summary": "Fixed the RNTL 13 boundary assertion in front/tests/unit/loadingState.test.tsx: getByRole returns the native host instance, so removed the comparison against the imported ActivityIndicator component function. The progressbar role query still anchors size/color and accessibility prop checks at the spinner boundary for both variants. Checks remain [] and were not run; task-2 owns typecheck and behavior test execution.",
+      "completed_at": "2026-11-16T08:20:13.362Z"
+    },
+    {
+      "id": "task-2",
+      "name": "loading-state-source",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/src/components/ui.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test -- tests/unit/loadingState.test.tsx"
+      ],
+      "started_at": "2026-11-16T08:20:19.878Z",
+      "summary": "Implemented LOAD-UI in front/src/components/ui.tsx: centered large accessible spinner by default and compact small footer spinner with vertical padding. `npm --prefix front run typecheck` passed; `npm --prefix front run test -- tests/unit/loadingState.test.tsx` passed (1 suite, 2 tests). Both variants verify progressbar name/busy state, no visible loading text, size, and accent color. Device layout and server checks were not run.",
+      "completed_at": "2026-11-16T08:20:45.929Z"
+    },
+    {
+      "id": "task-3",
+      "name": "home-search-loading-tests",
+      "status": "completed",
+      "depends_on": [
+        "task-2"
+      ],
+      "files": [
+        "front/tests/unit/homeScreen.test.tsx",
+        "front/tests/unit/searchScreen.test.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck"
+      ],
+      "started_at": "2026-11-16T08:20:51.817Z",
+      "summary": "Added LOAD-CATALOG tests in homeScreen.test.tsx for one loader, retained header/tabs, per-tab loading, Recommendation settling in out-of-order success/error while campaign/catalog/genres remain pending, and keeping existing cards during pagination. Added tests in searchScreen.test.tsx for loading through session restoration, genre and list requests, preserving the search input/value, no loader after genre error, and retaining cards during pagination. `npm --prefix front run typecheck` passed. Behavior tests are deferred to task-4; no runtime tests were run.",
+      "completed_at": "2026-11-16T08:24:06.721Z"
+    },
+    {
+      "id": "task-4",
+      "name": "home-search-loading-source",
+      "status": "completed",
+      "depends_on": [
+        "task-2",
+        "task-3"
+      ],
+      "files": [
+        "front/src/screens/HomeScreen.tsx",
+        "front/src/screens/SearchScreen.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test -- tests/unit/homeScreen.test.tsx tests/unit/searchScreen.test.tsx"
+      ],
+      "started_at": "2026-11-16T08:24:23.664Z",
+      "summary": "홈은 선택 탭에 필요한 요청이 대기할 때 탭 아래 원형 로딩 하나를 표시하고, 찾기는 상단·검색 입력·필터를 유지한 채 결과 영역만 로딩으로 전환하도록 구현했습니다. 두 화면의 추가 페이지 로딩도 하단 compact spinner로 바꿨습니다. `npm --prefix front run typecheck` 통과; `npm --prefix front run test -- tests/unit/homeScreen.test.tsx tests/unit/searchScreen.test.tsx` 통과(2 suites, 23 tests). 기기 실측과 서버 검증은 실행하지 않았습니다.",
+      "completed_at": "2026-11-16T08:27:16.346Z"
+    },
+    {
+      "id": "task-5",
+      "name": "library-points-loading-tests",
+      "status": "completed",
+      "depends_on": [
+        "task-2"
+      ],
+      "files": [
+        "front/tests/unit/libraryScreen.test.tsx",
+        "front/tests/unit/pointsScreen.test.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck"
+      ],
+      "started_at": "2026-11-16T08:21:11.239Z",
+      "summary": "LOAD-HISTORY coverage updated in front/tests/unit/libraryScreen.test.tsx and front/tests/unit/pointsScreen.test.tsx. Restoration, initial fetch, and stale-account/focus refresh checks now assert the accessible progressbar; library and points pagination checks confirm the spinner appears while existing rows remain visible. Points checks also retain the balance, back button, tabs, demo rows, and actual-history header during loading. `npm --prefix front run typecheck` passed. Behavior tests are deferred to task-6, which owns the screen implementation and test run; they were not run here.",
+      "completed_at": "2026-11-16T08:23:14.470Z"
+    },
+    {
+      "id": "task-6",
+      "name": "library-points-loading-source",
+      "status": "completed",
+      "depends_on": [
+        "task-2",
+        "task-5"
+      ],
+      "files": [
+        "front/src/screens/LibraryScreen.tsx",
+        "front/src/screens/PointsScreen.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test -- tests/unit/libraryScreen.test.tsx tests/unit/pointsScreen.test.tsx"
+      ],
+      "started_at": "2026-11-16T08:23:20.432Z",
+      "summary": "Replaced restoration and initial-fetch text with LoadingState in LibraryScreen and the actual history region in PointsScreen; pagination now uses the compact spinner while preserving existing rows and demo history. LOAD-HISTORY checks are covered in the updated libraryScreen and pointsScreen tests, including retained tabs, balance, history header, and rows. `npm --prefix front run typecheck` passed. `npm --prefix front run test -- tests/unit/libraryScreen.test.tsx tests/unit/pointsScreen.test.tsx` passed (2 suites, 24 tests). Device layout and server checks were not run.",
+      "completed_at": "2026-11-16T08:24:50.454Z"
+    },
+    {
+      "id": "task-7",
+      "name": "recommendation-loading-tests",
+      "status": "completed",
+      "depends_on": [
+        "task-2"
+      ],
+      "files": [
+        "front/tests/unit/recommendationPreviewBuffer.test.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck"
+      ],
+      "started_at": "2026-11-16T08:21:29.878Z",
+      "summary": "Added LOAD-MEDIA coverage in front/tests/unit/recommendationPreviewBuffer.test.tsx: the pending collection shows one accessible spinner without loading copy; empty and error responses replace it with their existing states; feed data removes it while preview URL requests remain pending. Existing buffer and gesture scenarios were preserved. `npm --prefix front run typecheck` passed. The behavior suite is deferred to task-8, which implements the recommendation loading state. Device and server checks were not run.",
+      "completed_at": "2026-11-16T08:23:56.549Z"
+    },
+    {
+      "id": "task-8",
+      "name": "recommendation-loading-source",
+      "status": "completed",
+      "depends_on": [
+        "task-2",
+        "task-7"
+      ],
+      "files": [
+        "front/src/screens/RecommendationScreen.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test -- tests/unit/recommendationPreviewBuffer.test.tsx"
+      ],
+      "started_at": "2026-11-16T08:24:04.801Z",
+      "summary": "Implemented LOAD-MEDIA in front/src/screens/RecommendationScreen.tsx: the existing collection-loading branch now shows one centered LoadingState in the existing flex:1 feed area. Session and player behavior were left intact. `npm --prefix front run typecheck` passed. `npm --prefix front run test -- tests/unit/recommendationPreviewBuffer.test.tsx` passed (1 suite, 34 tests). Device and server checks were not run.",
+      "completed_at": "2026-11-16T08:25:26.962Z"
+    },
+    {
+      "id": "task-9",
+      "name": "detail-playback-loading-tests",
+      "status": "completed",
+      "depends_on": [
+        "task-2"
+      ],
+      "files": [
+        "front/tests/unit/dramaDetailScreen.test.tsx",
+        "front/tests/unit/playbackScreenEpisode.test.tsx",
+        "front/tests/unit/savedVideoScreens.test.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck"
+      ],
+      "started_at": "2026-11-16T08:29:07.048Z",
+      "summary": "Fixed the async assertion in playbackScreenEpisode.test.tsx: after rejecting the deferred playback request, the test now awaits the existing “영상 정보를 불러오지 못했어요” error before checking that the progressbar disappeared. Reviewed the other spinner-clear assertions in all three owned files; each follows an awaited UI result or async act. `npm --prefix front run typecheck` passed. The three behavior suites remain deferred to task-10 and were not run.",
+      "completed_at": "2026-11-16T08:29:57.031Z"
+    },
+    {
+      "id": "task-10",
+      "name": "detail-playback-loading-source",
+      "status": "completed",
+      "depends_on": [
+        "task-2",
+        "task-9",
+        "task-4",
+        "task-8"
+      ],
+      "files": [
+        "front/src/screens/DramaDetailScreen.tsx",
+        "front/src/screens/playbackScreen_episode.tsx",
+        "front/src/screens/playbackScreen_preview.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test -- tests/unit/dramaDetailScreen.test.tsx tests/unit/playbackScreenEpisode.test.tsx tests/unit/savedVideoScreens.test.tsx"
+      ],
+      "started_at": "2026-11-16T08:30:02.530Z",
+      "summary": "Implemented LOAD-MEDIA loading states for drama detail, episode playback, and preview using scroll=false Page and LoadingState, preserving the existing loading and session ownership conditions. `npm --prefix front run typecheck` passed. `npm --prefix front run test -- tests/unit/dramaDetailScreen.test.tsx tests/unit/playbackScreenEpisode.test.tsx tests/unit/savedVideoScreens.test.tsx` passed (3 suites, 32 tests). Device layout and server checks were not run.",
+      "completed_at": "2026-11-16T08:30:45.842Z"
+    },
+    {
+      "id": "task-11",
+      "name": "drama-detail-slide-source",
+      "status": "completed",
+      "depends_on": [
+        "task-10"
+      ],
+      "files": [
+        "front/src/app/_layout.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test -- tests/unit/sessionExpiredDialog.test.tsx"
+      ],
+      "started_at": "2026-11-16T08:30:51.681Z",
+      "summary": "Added the approved `slide_from_right` option only to the drama detail route in `front/src/app/_layout.tsx`. Expo’s official Stack docs support static per-route options, and the installed React Native Screens types accept this animation. `npm --prefix front run typecheck` passed; `npm --prefix front run test -- tests/unit/sessionExpiredDialog.test.tsx` passed (1 suite, 3 tests). Device animation was not checked. The installed type docs note `slide_from_right` is Android-only and resolves to the default transition on iOS.",
+      "completed_at": "2026-11-16T08:32:04.924Z"
+    }
+  ]
+}

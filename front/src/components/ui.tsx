@@ -1,7 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import type { ComponentProps, ReactNode } from 'react';
 import {
-  Pressable, ScrollView, StyleSheet, Text, View,
+  ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View,
   type StyleProp, type TextProps, type ViewStyle,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -58,6 +58,16 @@ export function EmptyState({ title, description, action, onAction }: {
   return <View style={styles.empty}><Icon name="film" size={30} color={colors.muted} /><AppText weight="semibold" style={styles.emptyTitle}>{title}</AppText><AppText style={styles.emptyCopy}>{description}</AppText>{action && onAction ? <Button label={action} onPress={onAction} /> : null}</View>;
 }
 
+export function LoadingState({ compact = false }: { compact?: boolean }) {
+  return (
+    <View style={compact ? styles.loadingCompact : styles.loading}>
+      <ActivityIndicator accessible accessibilityRole="progressbar"
+        accessibilityLabel="로딩 중" accessibilityState={{ busy: true }}
+        size={compact ? 'small' : 'large'} color={colors.accent} />
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   text: { color: colors.text, fontSize: 16, lineHeight: 24, letterSpacing: -0.35 },
   page: { flex: 1, backgroundColor: colors.background },
@@ -75,4 +85,6 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingVertical: 60, gap: 18 },
   emptyTitle: { fontSize: 20, lineHeight: 28, textAlign: 'center' },
   emptyCopy: { color: colors.muted, textAlign: 'center' },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  loadingCompact: { alignItems: 'center', justifyContent: 'center', paddingVertical: 16 },
 });

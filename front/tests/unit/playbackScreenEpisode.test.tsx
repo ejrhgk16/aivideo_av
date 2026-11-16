@@ -214,13 +214,16 @@ function mockSubtitleFiles(files: Record<string, string>) {
 
 test('playback waits for restore and an anonymous paid episode offers an explicit login route', async () => {
   const view = renderEpisode(makeSession({ user: null, isRestoring: true }));
-  expect(screen.getByText('영상을 불러오는 중이에요')).toBeOnTheScreen();
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
+  expect(screen.queryByText('영상을 불러오는 중이에요')).not.toBeOnTheScreen();
   expect(getEpisodePlayback).not.toHaveBeenCalled();
 
   setSession(makeSession({ user: null, isRestoring: false }));
   await waitFor(() => expect(getEpisodePlayback).toHaveBeenCalledTimes(1));
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   act(() => playbackRequests[0].reject(new ApiError(401, 'AUTH_INVALID_TOKEN')));
   await userEvent.setup().press(await screen.findByRole('button', { name: '로그인' }));
+  expect(screen.queryByRole('progressbar', { name: '로딩 중' })).not.toBeOnTheScreen();
   expect(await screen.findByText('로그인 화면')).toBeOnTheScreen();
   expect(view.getPathname()).toBe('/auth/login');
 });
@@ -235,13 +238,18 @@ test('playback keeps paid access denied separate from missing media and offers a
 
   const missing = renderEpisode();
   await waitFor(() => expect(getEpisodePlayback).toHaveBeenCalledTimes(2));
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   act(() => playbackRequests[1].reject(new ApiError(404, 'CONTENT_NOT_FOUND')));
   expect(await screen.findByText('재생할 영상을 찾을 수 없어요')).toBeOnTheScreen();
+  expect(screen.queryByRole('progressbar', { name: '로딩 중' })).not.toBeOnTheScreen();
   missing.unmount();
 
   const offline = renderEpisode();
   await waitFor(() => expect(getEpisodePlayback).toHaveBeenCalledTimes(3));
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   act(() => playbackRequests[2].reject(new Error('offline')));
+  expect(await screen.findByText('영상 정보를 불러오지 못했어요')).toBeOnTheScreen();
+  expect(screen.queryByRole('progressbar', { name: '로딩 중' })).not.toBeOnTheScreen();
   await userEvent.setup().press(await screen.findByRole('button', { name: '다시 시도' }));
   await waitFor(() => expect(getEpisodePlayback).toHaveBeenCalledTimes(4));
   act(() => playbackRequests[3].resolve(playback));
@@ -414,10 +422,11 @@ test('anonymous episode saves open login, and a late write after account change 
   setSession(makeSession({ user: { uuid: 'user-2', displayName: null, accountType: 'MEMBER' }, sessionVersion: 2,
     isCurrentSession: (version) => version === 2 }));
   await waitFor(() => expect(getEpisodePlayback).toHaveBeenCalledTimes(requestCountBeforeAccountChange + 1));
-  expect(screen.getByText('영상을 불러오는 중이에요')).toBeOnTheScreen();
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   act(() => savedWrites[0].resolve());
   act(() => playbackRequests[requestCountBeforeAccountChange].resolve({ ...playback, isSaved: false }));
   expect(await screen.findByRole('button', { name: '작품 저장' })).toBeOnTheScreen();
+  expect(screen.queryByRole('progressbar', { name: '로딩 중' })).not.toBeOnTheScreen();
 });
 
 test('anonymous locked next episode opens the auth login route from its unlock dialog', async () => {

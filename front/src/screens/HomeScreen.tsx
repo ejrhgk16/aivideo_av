@@ -3,7 +3,7 @@ import { PanResponder, Pressable, ScrollView, StyleSheet, useWindowDimensions, V
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { AppText, Button, EmptyState, Icon, Page, SectionTitle } from '@/components/ui';
+import { AppText, Button, EmptyState, Icon, LoadingState, Page, SectionTitle } from '@/components/ui';
 import { AppTopBar } from '@/components/AppTopBar';
 import { getDramaList, getGenres, type DramaSummary, type GenreSummary } from '@/features/drama/dramaContent';
 import { SessionChangedError } from '@/common/http/api';
@@ -196,8 +196,14 @@ export function HomeScreen() {
   const posterWidth = Math.min(Math.max((Math.min(width, 960) - 58) / 2, 140), 230);
   const openDetail = (drama: DramaSummary | HomeCollectionDrama) => router.push({ pathname: '/drama/[id]', params: { id: drama.uuid } });
   const openGenre = (genre: string) => router.push({ pathname: '/search', params: { genre } });
+  const contentLoading = isRestoring || (tab === '추천'
+    ? featuredStatus === 'loading' || dailyStatus === 'loading' || topThreeStatus === 'loading'
+    : tab === '최신' ? catalogStatus === 'loading'
+      : tab === '랭킹' ? topThreeStatus === 'loading'
+        : genresStatus === 'loading');
+  const tabBar = <View style={styles.tabs} accessibilityRole="tablist">{tabs.map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: item === tab }} style={[styles.tab, item === tab && styles.selectedTab]} onPress={() => setTab(item)}><AppText weight={item === tab ? 'bold' : 'medium'} style={[styles.tabText, item === tab && styles.selectedText]}>{item}</AppText></Pressable>)}</View>;
   const collectionState = (status: CollectionStatus, title: string, emptyDescription: string) => status === 'loading'
-    ? <EmptyState title={title + ' 불러오는 중'} description="잠시만 기다려 주세요." />
+    ? <LoadingState />
     : status === 'error'
       ? <EmptyState title={title + '을 불러오지 못했어요'} description="잠시 후 다시 확인해 주세요." />
       : <EmptyState title={title + ' 작품이 없어요'} description={emptyDescription} />;
@@ -206,17 +212,17 @@ export function HomeScreen() {
     : collectionState(topThreeStatus, 'TOP 3', '새로운 작품을 준비하고 있어요.');
   const retryCatalog = () => void loadCatalogPage(1, true, generation.current, sessionVersion);
   const latestContent = catalogStatus === 'loading'
-    ? <EmptyState title="최신 작품 불러오는 중" description="잠시만 기다려 주세요." />
+    ? <LoadingState />
     : catalogStatus === 'error'
       ? <EmptyState title="최신 작품을 불러오지 못했어요" description="잠시 후 다시 확인해 주세요." action="다시 시도" onAction={retryCatalog} />
       : catalog.length === 0
         ? <EmptyState title="최신 작품이 없어요" description="새로운 작품을 준비하고 있어요." />
         : <>
           <View style={styles.posterGrid}>{catalog.map((drama) => <Pressable key={drama.uuid} accessibilityRole="button" accessibilityLabel={drama.title + ' 작품 소개'} style={{ width: posterWidth, gap: 10 }} onPress={() => openDetail(drama)}><View style={[styles.apiPoster, { height: posterWidth * 1.48 }]}><ApiDramaImage imageUrl={drama.imageUrls.poster} title={drama.title} style={StyleSheet.absoluteFill} /></View><AppText weight="semibold" numberOfLines={1}>{drama.title}</AppText><AppText style={styles.apiMeta}>{summaryGenreLabel(drama)} · {drama.freeEpisodeCount}화 무료</AppText></Pressable>)}</View>
-          {catalogNextLoading ? <AppText style={styles.apiMeta}>더 불러오는 중이에요</AppText> : catalogNextError ? <View><AppText style={styles.apiMeta}>작품을 더 불러오지 못했어요</AppText><Button label="다시 시도" variant="secondary" onPress={loadNextCatalogPage} /></View> : catalogHasNext ? <Button label="더 보기" variant="secondary" onPress={loadNextCatalogPage} /> : null}
+          {catalogNextLoading ? <LoadingState compact /> : catalogNextError ? <View><AppText style={styles.apiMeta}>작품을 더 불러오지 못했어요</AppText><Button label="다시 시도" variant="secondary" onPress={loadNextCatalogPage} /></View> : catalogHasNext ? <Button label="더 보기" variant="secondary" onPress={loadNextCatalogPage} /> : null}
         </>;
   const genreContent = genresStatus === 'loading'
-    ? <EmptyState title="장르 불러오는 중" description="잠시만 기다려 주세요." />
+    ? <LoadingState />
     : genresStatus === 'error'
       ? <EmptyState title="장르를 불러오지 못했어요" description="잠시 후 다시 확인해 주세요." action="다시 시도" onAction={retryGenres} />
       : genres.length === 0
@@ -232,9 +238,9 @@ export function HomeScreen() {
         })}</View>;
 
   return (
-    <Page header={<AppTopBar />} contentStyle={styles.page}>
-      <View style={styles.tabs} accessibilityRole="tablist">{tabs.map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: item === tab }} style={[styles.tab, item === tab && styles.selectedTab]} onPress={() => setTab(item)}><AppText weight={item === tab ? 'bold' : 'medium'} style={[styles.tabText, item === tab && styles.selectedText]}>{item}</AppText></Pressable>)}</View>
-      {tab === '추천' ? <>
+    <Page header={<AppTopBar />} scroll={!contentLoading} contentStyle={contentLoading ? [styles.page, { flex: 1 }] : styles.page}>
+      {tabBar}
+      {contentLoading ? <LoadingState /> : tab === '추천' ? <>
         <View style={styles.hero} onLayout={(event) => setHeroWidth(event.nativeEvent.layout.width)} {...heroResponder.panHandlers}>
           {hero ? <ApiDramaImage imageUrl={hero.imageUrls.homeHero ?? hero.imageUrls.detailCover ?? hero.imageUrls.poster} title={hero.title} style={StyleSheet.absoluteFill as ImageStyle} /> : null}
           <LinearGradient pointerEvents="none" colors={['#0B0C0F00', '#0B0C0F29', '#0B0C0FE6', colors.background]} locations={[0.14, 0.35, 0.72, 1]} style={StyleSheet.absoluteFill} />

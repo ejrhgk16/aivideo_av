@@ -6,7 +6,7 @@ import { createVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import Slider from '@react-native-community/slider';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlatList, Modal, PanResponder, Platform, Pressable, Share, StyleSheet, View, type GestureResponderEvent, type NativeScrollEvent, type NativeSyntheticEvent, type PanResponderGestureState } from 'react-native';
-import { AppText, Button, EmptyState, Icon, Page } from '@/components/ui';
+import { AppText, Button, EmptyState, Icon, LoadingState, Page } from '@/components/ui';
 import { EpisodeUnlockDialog } from '@/components/EpisodeUnlockDialog';
 import { ApiError, SessionChangedError } from '@/common/http/api';
 import { getErrorMessage } from '@/common/http/errorMessages';
@@ -870,7 +870,7 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
   }, [activeEntry, activePlayer, activePreviewTarget, buffer, screenFocused]);
 
   return <Page scroll={false} contentStyle={styles.pageContent}>
-    {status === 'loading' ? <EmptyState title="추천 작품 불러오는 중" description="잠시만 기다려 주세요." />
+    {status === 'loading' ? <LoadingState />
       : status === 'error' ? <EmptyState title="추천 작품을 불러오지 못했어요" description="잠시 후 다시 확인해 주세요." />
         : dramas.length === 0 ? <EmptyState title="오늘의 추천 작품이 없어요" description="새로운 작품을 준비하고 있어요." />
           : <View

@@ -232,7 +232,10 @@ afterEach(() => {
 
 test('preview save uses the selected route video and focus refresh preserves player and position', async () => {
   const view = renderPreview();
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
+  expect(screen.queryByText('영상을 불러오는 중이에요')).not.toBeOnTheScreen();
   const player = await loadPreview();
+  expect(screen.queryByRole('progressbar', { name: '로딩 중' })).not.toBeOnTheScreen();
   expect(getPreviewPlayback).toHaveBeenCalledWith('drama-1', 'preview-exact');
   expect(mockVideoPlayers).toHaveLength(1);
   expect(screen.getByRole('button', { name: '저장 해제' })).toBeEnabled();
@@ -376,7 +379,8 @@ test('preview requires login for anonymous writes, disables during restoration, 
 
   currentSession = makeSession({ isRestoring: true });
   const restoring = renderPreview(currentSession);
-  expect(screen.getByText('영상을 불러오는 중이에요')).toBeOnTheScreen();
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
+  expect(screen.queryByText('영상을 불러오는 중이에요')).not.toBeOnTheScreen();
   expect(getPreviewPlayback).toHaveBeenCalledTimes(1);
   restoring.unmount();
 

@@ -91,10 +91,13 @@ const historyPage = (items: WatchHistoryItem[], page = 1, hasNext = false) => ({
 test('saved library waits for restoration, loads cards, and routes preview and episode items', async () => {
   const requests = installRequests();
   const view = renderLibrary();
-  expect(screen.getByText('로그인 상태를 확인하고 있어요')).toBeOnTheScreen();
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
+  expect(screen.getAllByRole('progressbar', { name: '로딩 중' })).toHaveLength(1);
+  expect(screen.getByRole('tab', { name: '저장한 작품' })).toBeOnTheScreen();
   expect(getSavedVideos).not.toHaveBeenCalled();
   view.setSession(makeSession(makeUser('user-a'), 1, false));
   expect(requests.savedPages).toEqual([1]);
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   await act(async () => { requests.saved[0].resolve(savedPage([preview, episode])); await requests.saved[0].promise; });
   expect(await screen.findByRole('button', { name: '작품 하나 미리보기' })).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '작품 둘 에피소드 2화' })).toBeOnTheScreen();
@@ -182,6 +185,8 @@ test('history pagination blocks duplicate loads, retries the same page, deduplic
   fireEvent.press(more);
   fireEvent.press(more);
   expect(requests.historyPages).toEqual([1, 2]);
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
+  expect(screen.getByRole('button', { name: '작품 하나 미리보기' })).toBeOnTheScreen();
   await act(async () => { requests.history[1].reject(new Error('offline')); try { await requests.history[1].promise; } catch {} });
   expect(screen.getByRole('button', { name: '작품 하나 미리보기' })).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '다시 시도' })).toBeOnTheScreen();
@@ -224,6 +229,7 @@ test('session changes hide old cards and tab changes discard late responses', as
   view.setSession(makeSession(makeUser('user-b'), 2, false));
   expect(requests.savedPages).toEqual([1, 1]);
   expect(screen.queryByRole('button', { name: '작품 하나 미리보기' })).toBeNull();
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   fireEvent.press(screen.getByRole('tab', { name: '시청 기록' }));
   expect(requests.historyPages).toEqual([1]);
   await act(async () => { requests.saved[1].resolve(savedPage([preview])); await requests.saved[1].promise; });
@@ -248,7 +254,7 @@ test('focus refresh replaces saved videos and ignores a pending older page', asy
   await waitFor(() => expect(view.getPathnameWithParams()).toBe('/'));
   await waitFor(() => expect(requests.savedPages).toEqual([1, 2, 1]));
   await act(async () => { requests.saved[1].resolve(savedPage([episode], 2)); await requests.saved[1].promise; });
-  expect(screen.getByText('저장한 영상을 불러오는 중이에요')).toBeOnTheScreen();
+  expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   await act(async () => { requests.saved[2].resolve(savedPage([episode])); await requests.saved[2].promise; });
   expect(await screen.findByRole('button', { name: '작품 둘 에피소드 2화' })).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '작품 하나 미리보기' })).toBeNull();
