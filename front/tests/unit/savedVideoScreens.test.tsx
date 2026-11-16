@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import Slider from '@react-native-community/slider';
-import { Text } from 'react-native';
+import { FlatList, Text, View } from 'react-native';
 import { act, fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { renderRouter, testRouter } from 'expo-router/testing-library';
 import { Stack, useLocalSearchParams } from 'expo-router';
@@ -15,6 +15,7 @@ import { saveWatchProgress } from '@/features/playback/watchProgress';
 import { useUser } from '@/features/user/UserProvider';
 import type { User } from '@/features/user/sessionClient';
 import { HomeScreen } from '@/screens/HomeScreen';
+import { RecommendationScreen } from '@/screens/RecommendationScreen';
 import { PlaybackScreenPreview } from '@/screens/playbackScreen_preview';
 import { mockVideoPlayers } from '../support/video';
 
@@ -88,10 +89,16 @@ function PreviewTarget() {
 }
 
 function AwayRoute() { return <Text>away fixture</Text>; }
+function LoginRoute() { return <Text>로그인 화면</Text>; }
 function TestRootLayout() { return <Stack screenOptions={{ headerShown: false, animation: 'none' }} />; }
 function HomeRoute() {
   jest.mocked(useUser).mockReturnValue(currentSession);
   return <HomeScreen />;
+}
+
+function RecommendationRoute() {
+  jest.mocked(useUser).mockReturnValue(currentSession);
+  return <RecommendationScreen initialId={undefined} />;
 }
 
 function renderPreview(session = makeSession()) {
@@ -100,7 +107,7 @@ function renderPreview(session = makeSession()) {
     _layout: TestRootLayout,
     'preview/[dramaId]/[videoId]': PreviewRoute,
     'target/[dramaId]/[videoId]': PreviewTarget,
-    login: AwayRoute,
+    'auth/login': LoginRoute,
     away: AwayRoute,
   }, { initialUrl: '/preview/drama-1/preview-exact' });
 }
@@ -111,9 +118,19 @@ function renderHome(session = makeSession()) {
     _layout: TestRootLayout,
     index: HomeRoute,
     'preview/[dramaId]/[videoId]': PreviewTarget,
-    login: AwayRoute,
+    'auth/login': LoginRoute,
     away: AwayRoute,
   });
+}
+
+function renderRecommendation(session = makeSession()) {
+  currentSession = session;
+  return renderRouter({
+    _layout: TestRootLayout,
+    index: RecommendationRoute,
+    'auth/login': LoginRoute,
+    away: AwayRoute,
+  }, { initialUrl: '/' });
 }
 
 function setSession(next: Session) {
@@ -352,7 +369,8 @@ test('preview requires login for anonymous writes, disables during restoration, 
   const anonymous = renderPreview(makeSession({ user: null }));
   await loadPreview();
   await userEvent.setup().press(screen.getByRole('button', { name: '저장 해제' }));
-  await waitFor(() => expect(anonymous.getPathname()).toBe('/login'));
+  expect(await screen.findByText('로그인 화면')).toBeOnTheScreen();
+  expect(anonymous.getPathname()).toBe('/auth/login');
   expect(saveVideo).not.toHaveBeenCalled();
   anonymous.unmount();
 
@@ -394,6 +412,41 @@ test('preview requires login for anonymous writes, disables during restoration, 
   });
   expect(await screen.findByRole('button', { name: '저장 해제' })).toBeOnTheScreen();
   expect(accountChange.getPathnameWithParams()).toBe('/preview/drama-1/preview-exact');
+});
+
+test('recommendation save sends an anonymous user to auth login without writing', async () => {
+  const recommendationDrama = hero('recommendation-drama', 'preview-recommendation');
+  jest.mocked(getHomeCollection).mockImplementation((code) => Promise.resolve(code === 'RECOMMENDATION_DAILY'
+    ? { code, title: '추천', description: null, dramas: [recommendationDrama] }
+    : emptyCollection(code)));
+  jest.mocked(getDramaContent).mockResolvedValue({
+    ...drama,
+    uuid: recommendationDrama.uuid,
+    previewVideos: [{ uuid: 'preview-recommendation', storageKey: '', durationMs: 60_000, isSaved: false }],
+  });
+  jest.mocked(getPreviewPlayback).mockResolvedValue({
+    url: 'https://cdn.example.test/recommendation.mp4', videoUuid: 'preview-recommendation', isSaved: false, durationMs: 60_000,
+  });
+
+  const view = renderRecommendation(makeSession({ user: null }));
+  await waitFor(() => expect(getHomeCollection).toHaveBeenCalledWith('RECOMMENDATION_DAILY'));
+  await waitFor(() => expect(screen.UNSAFE_getAllByType(View).some((item) => typeof item.props.onLayout === 'function'
+    && typeof item.props.onMoveShouldSetResponderCapture === 'function')).toBe(true));
+  const feed = screen.UNSAFE_getAllByType(View).find((item) => typeof item.props.onLayout === 'function'
+    && typeof item.props.onMoveShouldSetResponderCapture === 'function');
+  if (!feed) throw new Error('Recommendation feed was not rendered');
+  fireEvent(feed, 'layout', { nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 700 } } });
+  await waitFor(() => screen.UNSAFE_getByType(FlatList));
+  const recommendationList = screen.UNSAFE_getByType(FlatList);
+  fireEvent(recommendationList, 'contentSizeChange', 400, 700);
+  await waitFor(() => expect(getPreviewPlayback).toHaveBeenCalledWith('recommendation-drama', 'preview-recommendation'));
+  await waitFor(() => expect(mockVideoPlayers.length).toBeGreaterThan(0));
+  const player = mockVideoPlayers[mockVideoPlayers.length - 1];
+  emit(player, 'statusChange', { status: 'readyToPlay' });
+  await userEvent.setup().press(await screen.findByRole('button', { name: '작품 저장' }));
+  expect(await screen.findByText('로그인 화면')).toBeOnTheScreen();
+  expect(view.getPathname()).toBe('/auth/login');
+  expect(saveVideo).not.toHaveBeenCalled();
 });
 
 test('home hero opens the current first preview for members and anonymous users without save writes', async () => {

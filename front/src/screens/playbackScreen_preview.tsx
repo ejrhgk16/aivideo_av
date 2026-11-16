@@ -118,7 +118,7 @@ function PreviewVideo({ drama, url, videoId, durationMs, initialSaved, savedWrit
   const genres = drama.genres.map((genre) => genre.name).join(' · ') || '장르 정보 없음';
   const toggleSaved = async () => {
     if (isRestoring || savedWrites.pending) return;
-    if (!user) { router.push('/login'); return; }
+    if (!user) { router.push('/auth/login'); return; }
     const version = sessionVersion;
     savedWrites.pending = true;
     savedWrites.revision += 1;

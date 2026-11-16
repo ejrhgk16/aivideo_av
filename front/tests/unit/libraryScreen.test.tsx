@@ -53,12 +53,23 @@ function renderLibrary(initial: ReturnType<typeof useUser> = makeSession(null, 1
     _layout: () => <Stack screenOptions={{ animation: 'none' }} />,
     index: Route,
     away: () => <Text>다른 화면</Text>,
-    login: () => <Text>로그인 화면</Text>,
+    'auth/login': () => <Text>로그인 화면</Text>,
     'episode/[id]': () => <Text>회차 화면</Text>,
     'preview/[dramaId]/[videoId]': () => <Text>미리보기 화면</Text>,
   }, { initialUrl: tab ? `/?tab=${tab}` : '/' });
   return { ...view, setSession: (next: ReturnType<typeof useUser>) => act(() => setSession(next)) };
 }
+
+test('anonymous saved library opens the auth login route without loading saved videos', async () => {
+  const requests = installRequests();
+  const view = renderLibrary(makeSession(null, 1, false));
+  expect(screen.getByText('로그인이 필요해요')).toBeOnTheScreen();
+  expect(getSavedVideos).not.toHaveBeenCalled();
+  fireEvent.press(screen.getByRole('button', { name: '로그인' }));
+  expect(await screen.findByText('로그인 화면')).toBeOnTheScreen();
+  expect(view.getPathname()).toBe('/auth/login');
+  expect(requests.savedPages).toEqual([]);
+});
 
 function installRequests() {
   const saved: Deferred<SavedVideoPage>[] = [];

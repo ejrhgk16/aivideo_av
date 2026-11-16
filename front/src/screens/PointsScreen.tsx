@@ -250,7 +250,7 @@ export function PointsScreen() {
     ? <EmptyState title="로그인 상태를 확인하고 있어요" description="잠시만 기다려 주세요." />
     : !user?.uuid
       ? <EmptyState title="로그인이 필요해요" description="포인트 이용 내역을 보려면 로그인해 주세요."
-          action="로그인" onAction={() => router.push('/login')} />
+          action="로그인" onAction={() => router.push('/auth/login')} />
       : !visibleHistory || visibleHistory.status === 'loading'
         ? <EmptyState title="이용 내역을 불러오는 중이에요" description="잠시만 기다려 주세요." />
         : visibleHistory.status === 'error'

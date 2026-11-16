@@ -31,7 +31,7 @@ test('expiration dialog closes only through the chosen action', () => {
   expect(screen.queryByRole('alert')).not.toBeOnTheScreen();
 });
 
-test('root layout displays one expiration notice, dismisses from system close and routes only after login', () => {
+test('root layout displays one expiration notice, dismisses from system close and routes only after login', async () => {
   const dismissSessionExpired = jest.fn();
   mockedUseUser.mockReturnValue({
     user: null,
@@ -64,6 +64,8 @@ test('root layout displays one expiration notice, dismisses from system close an
     'preview/[dramaId]/[videoId]': () => <Text>미리보기 fixture</Text>,
     points: () => <Text>포인트 fixture</Text>,
     login: () => <Text>로그인 경로</Text>,
+    'auth/login': () => <Text>인증 로그인 화면</Text>,
+    'auth/onboarding': () => <Text>첫 이용 설정 화면</Text>,
   });
 
   expect(screen.getAllByText('로그인이 만료됐어요')).toHaveLength(1);
@@ -79,8 +81,8 @@ test('root layout displays one expiration notice, dismisses from system close an
 
   fireEvent.press(screen.getByRole('button', { name: '로그인' }));
   expect(dismissSessionExpired).toHaveBeenCalledTimes(3);
-  expect(router.getPathname()).toBe('/login');
-  expect(screen.getByText('로그인 경로')).toBeOnTheScreen();
+  expect(router.getPathname()).toBe('/auth/login');
+  expect(await screen.findByText('인증 로그인 화면')).toBeOnTheScreen();
 });
 
 test('hidden expiration notice does not expose its message to users', () => {

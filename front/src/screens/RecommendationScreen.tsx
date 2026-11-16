@@ -83,7 +83,7 @@ function RecommendationPreviewPlayer({
   useEffect(() => { setIsSaved(initialSaved); }, [initialSaved]);
   const toggleSaved = async () => {
     if (!preview || isRestoring || savedWriteState.pending) return;
-    if (!user) { router.push('/login'); return; }
+    if (!user) { router.push('/auth/login'); return; }
     const version = sessionVersion;
     const nextSaved = !isSaved;
     savedWriteState.pending = true;

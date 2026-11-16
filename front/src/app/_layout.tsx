@@ -19,13 +19,15 @@ function AppNavigation() {
       <Stack.Screen name="preview/[dramaId]/[videoId]" />
       <Stack.Screen name="points" />
       <Stack.Screen name="login" />
+      <Stack.Screen name="auth/login" />
+      <Stack.Screen name="auth/onboarding" />
     </Stack>
     <SessionExpiredDialog
       visible={sessionExpired}
       onDismiss={dismissSessionExpired}
       onLogin={() => {
         dismissSessionExpired();
-        router.push('/login');
+        router.push('/auth/login');
       }}
     />
   </View>;

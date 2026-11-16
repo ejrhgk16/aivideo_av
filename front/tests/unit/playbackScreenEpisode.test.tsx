@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import Slider from '@react-native-community/slider';
-import { act, fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, screen, userEvent, waitFor, within } from '@testing-library/react-native';
 import { renderRouter, testRouter } from 'expo-router/testing-library';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import { Text } from 'react-native';
+import { Animated, Modal, Platform, Text } from 'react-native';
 import { ApiError } from '@/common/http/api';
 import { getDramaContent } from '@/features/drama/dramaContent';
 import { getEpisodePlayback } from '@/features/playback/episodePlayback';
@@ -82,6 +82,8 @@ let dramaReads: Deferred<DramaContent>[];
 let savedWrites: Deferred<void>[];
 let deferWrites: boolean;
 let originalFetch: typeof fetch;
+type AnimationCallback = (result: { finished: boolean }) => void;
+const animations: AnimationCallback[] = [];
 
 function EpisodeRoute() {
   const [, rerender] = useState(0);
@@ -100,7 +102,7 @@ function TestRootLayout() {
 }
 
 function LoginRoute() {
-  return <>{/* The pathname is asserted through the memory router result. */}</>;
+  return <Text>로그인 화면</Text>;
 }
 
 function DramaRoute() {
@@ -112,7 +114,7 @@ function renderEpisode(session = makeSession()) {
   const view = renderRouter({
     _layout: TestRootLayout,
     'episode/[id]': EpisodeRoute,
-    login: LoginRoute,
+    'auth/login': LoginRoute,
     away: AwayRoute,
     'drama/[id]': DramaRoute,
   }, { initialUrl: '/episode/episode-1?dramaId=drama-1' });
@@ -153,6 +155,7 @@ function emit(player: (typeof mockVideoPlayers)[number], name: 'timeUpdate' | 's
 }
 
 beforeEach(() => {
+  animations.length = 0;
   originalFetch = globalThis.fetch;
   originalRouterImportMode = process.env.EXPO_ROUTER_IMPORT_MODE;
   currentSession = makeSession();
@@ -186,6 +189,10 @@ beforeEach(() => {
     return request.promise;
   });
   jest.mocked(saveWatchProgress).mockResolvedValue(undefined);
+  jest.spyOn(Animated, 'timing').mockImplementation((_value, _config) => ({
+    start: (callback?: AnimationCallback) => { if (callback) animations.push(callback); },
+    stop: jest.fn(),
+  } as unknown as Animated.CompositeAnimation));
 });
 
 afterEach(() => {
@@ -214,7 +221,8 @@ test('playback waits for restore and an anonymous paid episode offers an explici
   await waitFor(() => expect(getEpisodePlayback).toHaveBeenCalledTimes(1));
   act(() => playbackRequests[0].reject(new ApiError(401, 'AUTH_INVALID_TOKEN')));
   await userEvent.setup().press(await screen.findByRole('button', { name: '로그인' }));
-  await waitFor(() => expect(view.getPathname()).toBe('/login'));
+  expect(await screen.findByText('로그인 화면')).toBeOnTheScreen();
+  expect(view.getPathname()).toBe('/auth/login');
 });
 
 test('playback keeps paid access denied separate from missing media and offers a retry for network failures', async () => {
@@ -392,7 +400,8 @@ test('anonymous episode saves open login, and a late write after account change 
   const anonymous = renderEpisode(makeSession({ user: null }));
   await resolvePlayback(anonymous);
   await userEvent.setup().press(screen.getByRole('button', { name: '작품 저장' }));
-  await waitFor(() => expect(anonymous.getPathname()).toBe('/login'));
+  expect(await screen.findByText('로그인 화면')).toBeOnTheScreen();
+  expect(anonymous.getPathname()).toBe('/auth/login');
   expect(saveVideo).not.toHaveBeenCalled();
   anonymous.unmount();
 
@@ -409,6 +418,36 @@ test('anonymous episode saves open login, and a late write after account change 
   act(() => savedWrites[0].resolve());
   act(() => playbackRequests[requestCountBeforeAccountChange].resolve({ ...playback, isSaved: false }));
   expect(await screen.findByRole('button', { name: '작품 저장' })).toBeOnTheScreen();
+});
+
+test('anonymous locked next episode opens the auth login route from its unlock dialog', async () => {
+  const originalPlatform = Object.getOwnPropertyDescriptor(Platform, 'OS');
+  Object.defineProperty(Platform, 'OS', { configurable: true, value: 'web' });
+  try {
+    jest.mocked(getDramaContent).mockResolvedValueOnce({
+      ...drama,
+      episodes: [
+        { uuid: 'episode-1', episodeNumber: 1, title: null, synopsis: null, durationMs: 90_000, videoUuid: 'video-1', isSaved: false, pricePoints: 0, isUnlocked: true, image: null, watchProgress: null },
+        { uuid: 'episode-2', episodeNumber: 2, title: null, synopsis: null, durationMs: 90_000, videoUuid: 'video-2', isSaved: false, pricePoints: 50, isUnlocked: false, image: null, watchProgress: null },
+      ],
+    });
+    const view = await resolvePlayback(renderEpisode(makeSession({ user: null, points: null })));
+    await waitFor(() => expect(screen.getByRole('button', { name: '다음 화' })).toBeEnabled());
+    await userEvent.setup().press(screen.getByRole('button', { name: '다음 화' }));
+    const nativeModal = screen.UNSAFE_getAllByType(Modal).find((modal) =>
+      within(modal).queryByRole('button', { name: '로그인하기' }) !== null,
+    );
+    if (!nativeModal) throw new Error('Episode unlock modal was not rendered');
+    await userEvent.setup().press(await screen.findByRole('button', { name: '로그인하기' }));
+    const finishAnimation = animations.shift();
+    if (!finishAnimation) throw new Error('Expected the unlock dialog close animation');
+    act(() => finishAnimation({ finished: true }));
+    fireEvent(nativeModal, 'dismiss');
+    expect(await screen.findByText('로그인 화면')).toBeOnTheScreen();
+    expect(view.getPathname()).toBe('/auth/login');
+  } finally {
+    if (originalPlatform) Object.defineProperty(Platform, 'OS', originalPlatform);
+  }
 });
 
 test('anonymous, buffered, blurred, and expired-session playback never creates progress writes', async () => {

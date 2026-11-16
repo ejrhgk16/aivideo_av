@@ -117,7 +117,7 @@ export function DramaDetailScreen({ id }: { id: string }) {
         onClose={() => setLockedEpisode(null)}
         onCharge={() => {
           setLockedEpisode(null);
-          router.push(user === null ? '/login' : '/points');
+          router.push(user === null ? '/auth/login' : '/points');
         }}
         onPurchased={(episode) => {
           setDrama((current) => current === null ? null : {

@@ -12,7 +12,20 @@ type AccountDialog = 'settings' | 'help' | 'about' | null;
 export function AccountScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { user, points, subtitlesEnabled, setSubtitlesEnabled } = useUser();
+  const { user, points, subtitlesEnabled, setSubtitlesEnabled, logout } = useUser();
+  const [loggingOut, setLoggingOut] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    setLogoutError(null);
+    try {
+      await logout();
+    } catch {
+      setLogoutError('로그아웃 요청을 완료하지 못했어요. 연결 상태를 확인해 주세요.');
+    } finally {
+      setLoggingOut(false);
+    }
+  };
   const [dialog, setDialog] = useState<AccountDialog>(null);
   const [dialogVisible, setDialogVisible] = useState(false);
   const openDialog = (next: Exclude<AccountDialog, null>) => {
@@ -26,6 +39,7 @@ export function AccountScreen() {
     OPERATOR: '운영자',
     PARTNER: '제휴사',
   }[user.accountType];
+  const showAuthEntry = user === null || user.accountType === 'GUEST';
   const amount = points === null ? '—' : points.toLocaleString('ko-KR');
   const pointsDescription = points === null ? '로그인 후 포인트를 확인할 수 있어요'
     : `사용 가능한 포인트는 ${amount} P예요`;
@@ -40,6 +54,10 @@ export function AccountScreen() {
       </View>
     </View>
     <View style={styles.accountBadge}><AppText style={styles.badgeText}>{accountTypeLabel}</AppText></View>
+
+    {showAuthEntry ? <View style={styles.authActions}>
+      <Button label="로그인하고 시작하기" onPress={() => router.push('/auth/login')} />
+    </View> : null}
 
     <Pressable accessibilityRole="button" accessibilityLabel={`내 포인트 ${amount}${points === null ? '' : ' P'}, 충전하기`} onPress={() => router.push('/points')} style={[styles.pointsCard, { borderRadius: width <= 700 ? 18 : 20 }]}>
       <LinearGradient pointerEvents="none" colors={['#272F22', '#171C18']} style={StyleSheet.absoluteFill} />
@@ -67,6 +85,8 @@ export function AccountScreen() {
       <MenuItem icon="help-circle" label="이용 안내" onPress={() => openDialog('help')} />
       <MenuItem icon="info" label="앱 정보" onPress={() => openDialog('about')} />
     </View>
+    {!showAuthEntry ? <Button label="로그아웃" variant="secondary" disabled={loggingOut} onPress={handleLogout} /> : null}
+    {logoutError ? <AppText accessibilityRole="alert" style={styles.muted}>{logoutError}</AppText> : null}
 
     <Modal visible={dialogVisible} transparent animationType="fade" onRequestClose={closeDialog}>
       {dialog !== null && <View style={styles.modalBackdrop}>
@@ -112,6 +132,7 @@ function SettingItem({ label }: { label: string }) {
 const styles = StyleSheet.create({
   page: { gap: 24 },
   profile: { flexDirection: 'row', alignItems: 'center', gap: 15 },
+  authActions: { flexDirection: 'row', gap: 10 },
   avatar: { width: 62, height: 62, borderRadius: 31, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   copy: { flex: 1, gap: 4 },
   title: { fontSize: 19, lineHeight: 27 },

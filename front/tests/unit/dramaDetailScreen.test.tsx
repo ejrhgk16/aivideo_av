@@ -77,7 +77,7 @@ function renderDetail(initialSession: ReturnType<typeof useUser> = makeSession(m
     _layout: () => <Stack screenOptions={{ animation: 'none' }} />,
     index: () => <DramaDetailScreen id="drama-1" />,
     'episode/[id]': () => <Text>회차 플레이어</Text>,
-    login: () => <Text>로그인 화면</Text>,
+    'auth/login': () => <Text>로그인 화면</Text>,
     points: () => <Text>포인트 화면</Text>,
     'preview/[dramaId]/[videoId]': () => <Text>미리보기 화면</Text>,
   }, { initialUrl: '/' });
@@ -114,6 +114,16 @@ test('drama detail distinguishes free, purchased and locked episodes and routes 
   expect(screen.getByRole('button', { name: '구매 완료 테스트' })).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '4화 80포인트' })).toBeOnTheScreen();
   view.unmount();
+});
+
+test('anonymous users can open the login route from the locked episode dialog', async () => {
+  const view = renderDetail(makeSession(null, 1));
+  await resolveDrama(view.request);
+  fireEvent.press(screen.getByRole('tab', { name: /전체 회차/ }));
+  fireEvent.press(screen.getByRole('button', { name: '3화 50포인트' }));
+  fireEvent.press(screen.getByRole('button', { name: '포인트 충전 이동 테스트' }));
+  expect(await screen.findByText('로그인 화면')).toBeOnTheScreen();
+  expect(view.getPathname()).toBe('/auth/login');
 });
 
 test('drama detail reloads entitlements on account changes and ignores stale responses', async () => {

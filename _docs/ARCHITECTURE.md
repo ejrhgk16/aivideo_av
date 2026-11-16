@@ -15,6 +15,8 @@ front (Expo / React Native) ── HTTP API ──> back (NestJS)
 | `src/components/` | Reusable UI components. |
 | `src/common/` | Shared HTTP, storage, environment, theme, and utilities. |
 | `src/features/` | Feature state, API calls, and response types in `*Responses.ts`. |
+| `src/features/auth/authAge.ts` | Pure KST birth-date validation and age calculation for the auth screens. |
+| `src/screens/AuthLoginScreen.tsx`, `AuthOnboardingScreen.tsx` | Social login preview and first-use terms/birth-date setup; draft input stays local to onboarding. |
 | `assets/` | Static images, icons, fonts, and licenses. |
 | `tests/` | Frontend test suites, shared setup, and test support. |
 | `scripts/test-front.cjs` | Frontend test entry point. |
@@ -42,6 +44,8 @@ Frontend state ownership is defined in the [frontend README](../front/README.md#
 ## Documentation and tooling
 
 `auth-prototype/` preserves the `front/` source from `ai/app-auth` at commit `0f10df4c180a8b613cb4dd07d3d85d616e2d3ea7` as a standalone reference. It is separate from the active `front/` application; usage is documented in `front/README.md`.
+
+The active `front/` app owns the `/auth/login` preview and `/auth/onboarding` first-use setup routes, with no separate signup entry. Provider buttons always open first-use setup until real OAuth and new-user detection are connected. Local form state does not create a session; the existing `/login` route remains the development auto-login entry point.
 
 | Path | Responsibility |
 | --- | --- |

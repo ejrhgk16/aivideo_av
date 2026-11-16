@@ -69,7 +69,7 @@ export function PlaybackScreenEpisode({ id, dramaId }: Props) {
       title={needsLogin ? '로그인이 필요해요' : denied ? '구매 후 재생할 수 있어요' : '영상 정보를 불러오지 못했어요'}
       description={needsLogin ? '로그인한 뒤 회차를 이용해 주세요.' : denied ? '작품의 회차 목록에서 구매할 수 있어요.' : getErrorMessage(error)}
       action={needsLogin ? '로그인' : denied && dramaId ? '회차 보기' : '다시 시도'}
-      onAction={needsLogin ? () => router.push('/login') : denied && dramaId ? () => router.replace({ pathname: '/drama/[id]', params: { id: dramaId, tab: 'episodes' } }) : () => setRetryCount((count) => count + 1)}
+      onAction={needsLogin ? () => router.push('/auth/login') : denied && dramaId ? () => router.replace({ pathname: '/drama/[id]', params: { id: dramaId, tab: 'episodes' } }) : () => setRetryCount((count) => count + 1)}
     /></Page>;
   }
 
@@ -122,7 +122,7 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
   const subtitleText = isFocused && !videoFailed && !isSeeking ? subtitleState.text : '';
   const toggleSaved = async () => {
     if (isRestoring || savePending.current) return;
-    if (!user) { router.push('/login'); return; }
+    if (!user) { router.push('/auth/login'); return; }
     const version = sessionVersion;
     const nextSaved = !isSaved;
     savePending.current = true;
@@ -457,7 +457,7 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
       onClose={() => setLockedEpisode(null)}
       onCharge={() => {
         setLockedEpisode(null);
-        router.push(user === null ? '/login' : '/points');
+        router.push(user === null ? '/auth/login' : '/points');
       }}
       onPurchased={(episode) => {
         if (!dramaId) return;

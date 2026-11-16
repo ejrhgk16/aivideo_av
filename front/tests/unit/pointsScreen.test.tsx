@@ -39,7 +39,7 @@ function renderPoints(initial: ReturnType<typeof useUser> = makeSession(makeUser
     _layout: () => <Stack screenOptions={{ animation: 'none' }} />,
     index: Route,
     away: () => <Text>다른 화면</Text>,
-    login: () => <Text>로그인 화면</Text>,
+    'auth/login': () => <Text>로그인 화면</Text>,
     account: () => <Text>계정 화면</Text>,
   }, { initialUrl: tab ? `/?tab=${tab}` : '/' });
   return { ...view, setSession: (next: ReturnType<typeof useUser>) => act(() => setSession(next)) };
@@ -282,8 +282,9 @@ test('history waits for session restoration and routes anonymous users to login 
   view.setSession(makeSession(null, null, 2));
   expect(getPointHistory).not.toHaveBeenCalled();
   expect(screen.getByText('로그인이 필요해요')).toBeOnTheScreen();
-  fireEvent.press(screen.getByRole('button', { name: '로그인' }));
-  expect(view.getPathname()).toBe('/login');
+  await userEvent.setup().press(screen.getByRole('button', { name: '로그인' }));
+  expect(await screen.findByText('로그인 화면')).toBeOnTheScreen();
+  expect(view.getPathname()).toBe('/auth/login');
   testRouter.back();
   view.setSession(makeSession(makeUser('user-a'), 2000, 3, true));
   expect(getPointHistory).not.toHaveBeenCalled();

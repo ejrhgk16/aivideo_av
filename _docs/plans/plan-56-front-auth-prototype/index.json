@@ -1,0 +1,148 @@
+{
+  "version": 1,
+  "plan_id": "plan-56-front-auth-prototype",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "auth-age-tests",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/tests/unit/authAge.test.ts"
+      ],
+      "checks": [],
+      "started_at": "2026-11-16T05:54:49.114Z",
+      "summary": "Added front/tests/unit/authAge.test.ts covering AUTH-AGE in five tests: KST midnight/year rollover, birthday age boundaries, Feb 29 behavior, valid single-digit dates and 120-year limit, plus missing/invalid/future/too-old dates with the approved error text. Reviewed imports, assertions, package versions, Jest config, and setup. No checks were declared; execution is deferred to task-2 after authAge.ts is implemented.",
+      "completed_at": "2026-11-16T05:56:02.100Z"
+    },
+    {
+      "id": "task-2",
+      "name": "auth-age-source",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "front/src/features/auth/authAge.ts"
+      ],
+      "checks": [
+        "npm --prefix front run test -- tests/unit/authAge.test.ts"
+      ],
+      "started_at": "2026-11-16T05:56:13.377Z",
+      "summary": "Implemented the AUTH-AGE exports in front/src/features/auth/authAge.ts, covering KST dates, birthday age calculation including Feb 29, input/date validation, and the approved error messages. Check passed: npm --prefix front run test -- tests/unit/authAge.test.ts (5 tests).",
+      "completed_at": "2026-11-16T05:57:19.740Z"
+    },
+    {
+      "id": "task-3",
+      "name": "auth-screen-tests",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/tests/unit/authScreens.test.tsx"
+      ],
+      "checks": [],
+      "started_at": "2026-11-16T06:08:13.652Z",
+      "summary": "Fixed the automatic-focus test fixture in front/tests/unit/authScreens.test.tsx using the installed React Native Jest TextInput mock’s `focus` method spy. The test verifies the next field receives focus after the year and month inputs reach their limits. Check passed: `npm --prefix front run test -- tests/unit/authScreens.test.tsx` — 1 suite, 16 tests passed. AUTH-UI, AUTH-FLOW, AUTH-AGE, AUTH-NAV, and AUTH-TEST scenarios remain covered.",
+      "completed_at": "2026-11-16T06:13:35.396Z"
+    },
+    {
+      "id": "task-4",
+      "name": "auth-screen-source",
+      "status": "completed",
+      "depends_on": [
+        "task-2",
+        "task-3"
+      ],
+      "files": [
+        "front/src/app/auth/login.tsx",
+        "front/src/app/auth/signup.tsx",
+        "front/src/screens/AuthLoginScreen.tsx",
+        "front/src/screens/AuthSignupScreen.tsx",
+        "front/src/components/authUi.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run test -- tests/unit/authScreens.test.tsx tests/unit/authAge.test.ts"
+      ],
+      "started_at": "2026-11-16T06:13:45.589Z",
+      "summary": "이식한 로그인·회원가입 화면과 두 route, 공통 UI를 승인 계약에 맞췄습니다. Google·카카오·네이버 시안, 동의·생년월일 단계, 만 14세 경계, 보호자 대기, 화면 복귀와 Android back을 포함합니다. 선언 검사 `npm --prefix front run test -- tests/unit/authScreens.test.tsx tests/unit/authAge.test.ts` 통과: 2개 suite, 21개 테스트.",
+      "completed_at": "2026-11-16T06:14:34.388Z"
+    },
+    {
+      "id": "task-5",
+      "name": "account-root-auth-tests",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/tests/unit/accountAuth.test.tsx",
+        "front/tests/unit/sessionExpiredDialog.test.tsx"
+      ],
+      "checks": [],
+      "started_at": "2026-11-16T05:55:30.373Z",
+      "summary": "AUTH-ENTRY 테스트 추가: accountAuth.test.tsx에서 미로그인/GUEST의 로그인·회원가입 목적지 이동과 MEMBER/OPERATOR/PARTNER 버튼 부재를 검사합니다. sessionExpiredDialog.test.tsx에서 auth/login·auth/signup route fixture를 등록하고 세션 만료 로그인 후 /auth/login 화면 도착을 검사하며 기존 닫기·시스템 닫힘·단일 알림 검사를 보존했습니다. AUTH-TEST의 실제 AccountScreen/RootLayout, renderRouter, 전체 useUser fixture, 목적 화면 확인을 자체 검토했습니다. 선언 checks는 []이며 실행하지 않았습니다. 제품 동작 검증은 task-6에서 수행합니다.",
+      "completed_at": "2026-11-16T05:57:38.041Z"
+    },
+    {
+      "id": "task-6",
+      "name": "account-root-auth-source",
+      "status": "completed",
+      "depends_on": [
+        "task-4",
+        "task-5"
+      ],
+      "files": [
+        "front/src/screens/AccountScreen.tsx",
+        "front/src/app/_layout.tsx",
+        "front/README.md",
+        "_docs/ARCHITECTURE.md"
+      ],
+      "checks": [
+        "npm --prefix front run test -- tests/unit/accountAuth.test.tsx tests/unit/accountSubtitles.test.tsx tests/unit/sessionExpiredDialog.test.tsx tests/unit/authScreens.test.tsx"
+      ],
+      "started_at": "2026-11-16T06:14:43.485Z",
+      "summary": "계정 화면에 null/GUEST 전용 로그인·회원가입 버튼을 연결하고, Root Stack에 인증 화면 두 개를 등록했습니다. 세션 만료 로그인도 /auth/login으로 이동합니다. README와 ARCHITECTURE에 시안 경로, 로컬 상태, 개발용 /login 역할을 기록했습니다. 선언 검사 통과: `npm --prefix front run test -- tests/unit/accountAuth.test.tsx tests/unit/accountSubtitles.test.tsx tests/unit/sessionExpiredDialog.test.tsx tests/unit/authScreens.test.tsx` — 4 suites, 27 tests. `git diff --check` 통과.",
+      "completed_at": "2026-11-16T06:16:09.890Z"
+    },
+    {
+      "id": "task-7",
+      "name": "consumer-auth-navigation-tests",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/tests/unit/dramaDetailScreen.test.tsx",
+        "front/tests/unit/libraryScreen.test.tsx",
+        "front/tests/unit/pointsScreen.test.tsx",
+        "front/tests/unit/savedVideoScreens.test.tsx",
+        "front/tests/unit/playbackScreenEpisode.test.tsx"
+      ],
+      "checks": [],
+      "started_at": "2026-11-16T06:18:17.344Z",
+      "summary": "Fixed both test defects: the episode test now selects the unlock Modal containing the visible “로그인하기” button, and the recommendation test waits for the FlatList fixture through its supported query instead of applying a screen matcher to a composite. Focused check passed: playbackScreenEpisode.test.tsx and savedVideoScreens.test.tsx, 27 tests. Requested five-suite check passed: 5 suites, 56 tests. git diff --check passed.",
+      "completed_at": "2026-11-16T06:20:40.804Z"
+    },
+    {
+      "id": "task-8",
+      "name": "consumer-auth-navigation-source",
+      "status": "completed",
+      "depends_on": [
+        "task-6",
+        "task-7"
+      ],
+      "files": [
+        "front/src/screens/DramaDetailScreen.tsx",
+        "front/src/screens/LibraryScreen.tsx",
+        "front/src/screens/PointsScreen.tsx",
+        "front/src/screens/RecommendationScreen.tsx",
+        "front/src/screens/playbackScreen_preview.tsx",
+        "front/src/screens/playbackScreen_episode.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test -- tests/unit/dramaDetailScreen.test.tsx tests/unit/libraryScreen.test.tsx tests/unit/pointsScreen.test.tsx tests/unit/savedVideoScreens.test.tsx tests/unit/playbackScreenEpisode.test.tsx tests/unit/recommendationPreviewBuffer.test.tsx",
+        "npm --prefix front run test -- tests/unit/login.test.ts tests/unit/session.test.ts tests/unit/api.test.ts"
+      ],
+      "started_at": "2026-11-16T06:20:46.923Z",
+      "summary": "Updated the six approved screens so anonymous login actions route to `/auth/login`, preserving their existing conditions and actions. Checks passed: `npm --prefix front run typecheck`; the six consumer suites (6 suites, 87 tests); and login/session/API suites (3 suites, 60 tests). `git diff --check` passed.",
+      "completed_at": "2026-11-16T06:22:19.153Z"
+    }
+  ]
+}
