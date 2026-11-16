@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Modal, Pressable, StyleSheet, Switch, useWindowDimensions, View } from 'react-native';
-import { AppText, Button, Icon, Page, SectionTitle } from '@/components/ui';
+import { AppText, Button, Icon, LoadingState, Page, SectionTitle } from '@/components/ui';
 import { AppTopBar } from '@/components/AppTopBar';
 import { LinearGradient } from 'expo-linear-gradient';
 import { colors } from '@/common/theme/tokens';
@@ -12,7 +12,7 @@ type AccountDialog = 'settings' | 'help' | 'about' | null;
 export function AccountScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { user, points, subtitlesEnabled, setSubtitlesEnabled, logout } = useUser();
+  const { user, points, isRestoring, subtitlesEnabled, setSubtitlesEnabled, logout } = useUser();
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const handleLogout = async () => {
@@ -43,6 +43,11 @@ export function AccountScreen() {
   const amount = points === null ? '—' : points.toLocaleString('ko-KR');
   const pointsDescription = points === null ? '로그인 후 포인트를 확인할 수 있어요'
     : `사용 가능한 포인트는 ${amount} P예요`;
+
+  if (isRestoring) return <Page header={<AppTopBar />} scroll={false} contentStyle={styles.page}>
+    <SectionTitle title="나의 작은 영화관" eyebrow="MY SPACE" />
+    <LoadingState />
+  </Page>;
 
   return <Page header={<AppTopBar />} contentStyle={styles.page}>
     <SectionTitle title="나의 작은 영화관" eyebrow="MY SPACE" />

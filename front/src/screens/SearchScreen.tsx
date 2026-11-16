@@ -236,7 +236,7 @@ export function SearchScreen() {
         <TextInput style={styles.input} accessibilityLabel="작품 제목이나 장르 검색" placeholder="작품 제목이나 장르를 검색해요" placeholderTextColor={colors.muted} value={query} onChangeText={applySearchText} returnKeyType="search" autoCapitalize="none" autoCorrect={false} />
         {query.length > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="검색어 지우기" style={styles.clear} onPress={() => applySearchText('')}><Icon name="x" size={18} color={colors.muted} /></Pressable> : null}
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filters}>
         {[{ code: 'all', name: '전체' }, ...genres].map((item) => <Pressable key={item.code} accessibilityRole="button" accessibilityState={{ disabled: !genresReady.current, selected: selectedGenre === item.code }} disabled={!genresReady.current} style={[styles.filter, selectedGenre === item.code && styles.activeFilter]} onPress={() => applyGenre(item.code)}><AppText weight={selectedGenre === item.code ? 'semibold' : 'regular'} style={[styles.filterLabel, selectedGenre === item.code && styles.activeFilterLabel]}>{item.name}</AppText></Pressable>)}
       </ScrollView>
       <View style={styles.resultHeading}><AppText weight="semibold" style={styles.resultTitle}>{term ? `'${term}' 검색 결과` : selectedGenre === 'all' ? '모든 이야기' : `${currentGenre?.name ?? ''} 이야기`}</AppText><AppText style={styles.count}>{status === 'loaded' ? `불러온 작품 ${dramas.length}개` : ''}</AppText></View>
@@ -257,7 +257,8 @@ const styles = StyleSheet.create({
   searchField: { marginTop: 25, minHeight: 54, paddingLeft: 15, paddingRight: 7, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, borderCurve: 'continuous', flexDirection: 'row', alignItems: 'center', gap: 10 },
   input: { flex: 1, fontFamily: typography.regular, color: colors.text, fontSize: 14, paddingVertical: 14, minWidth: 0 },
   clear: { width: 40, height: 44, justifyContent: 'center', alignItems: 'center' },
-  filters: { gap: 8, paddingTop: 18, paddingBottom: 28 },
+  filterScroll: { flexGrow: 0, flexShrink: 0 },
+  filters: { alignItems: 'center', gap: 8, paddingTop: 18, paddingBottom: 28 },
   filter: { paddingHorizontal: 18, minHeight: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 23, borderCurve: 'continuous' },
   activeFilter: { backgroundColor: colors.accent, borderColor: colors.accent },
   filterLabel: { fontSize: 12, lineHeight: 18, color: colors.muted },

@@ -38,7 +38,7 @@ test('account switch shares subtitle state and language preference survives rout
   }, { initialUrl: '/account' });
 
   expect(screen.getByText('subtitle-state:true:ko')).toBeOnTheScreen();
-  await userEvent.setup().press(screen.getByRole('button', { name: '재생 설정' }));
+  await userEvent.setup().press(await screen.findByRole('button', { name: '재생 설정' }));
   const subtitleSwitch = screen.getByRole('switch', { name: '자막 표시' });
   expect(subtitleSwitch).toBeEnabled();
   expect(subtitleSwitch).toBeChecked();

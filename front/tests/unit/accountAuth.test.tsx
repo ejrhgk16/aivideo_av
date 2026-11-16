@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text } from 'react-native';
-import { screen, userEvent } from '@testing-library/react-native';
+import { act, screen, userEvent } from '@testing-library/react-native';
 import { Stack } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
 import { AccountScreen } from '@/screens/AccountScreen';
@@ -12,12 +12,12 @@ jest.mock('@/features/user/UserProvider', () => ({
 
 const mockedUseUser = jest.mocked(useUser);
 
-function renderAccount(accountType: 'GUEST' | 'MEMBER' | 'OPERATOR' | 'PARTNER' | null) {
+function renderAccount(accountType: 'GUEST' | 'MEMBER' | 'OPERATOR' | 'PARTNER' | null, isRestoring = false) {
   mockedUseUser.mockReturnValue({
     user: accountType === null ? null : { uuid: 'test-user', displayName: '테스트 사용자', accountType },
     points: null,
     accessToken: null,
-    isRestoring: false,
+    isRestoring,
     restoreError: null,
     sessionExpired: false,
     sessionVersion: 0,
@@ -36,15 +36,41 @@ function renderAccount(accountType: 'GUEST' | 'MEMBER' | 'OPERATOR' | 'PARTNER' 
   });
 
   const session = mockedUseUser();
+  let setSession!: React.Dispatch<React.SetStateAction<ReturnType<typeof useUser>>>;
+  function AccountRoute() {
+    const [current, update] = React.useState(session);
+    setSession = update;
+    mockedUseUser.mockReturnValue(current);
+    return <AccountScreen />;
+  }
   const view = renderRouter({
     _layout: () => <Stack screenOptions={{ animation: 'none' }} />,
-    account: AccountScreen,
+    account: AccountRoute,
     'auth/login': () => <Text>로그인 목적 화면</Text>,
   }, { initialUrl: '/account' });
-  return { ...view, session };
+  return { ...view, session, setSession: (next: ReturnType<typeof useUser>) => act(() => setSession(next)) };
 }
 
 describe('AccountScreen authentication entry', () => {
+  test.each(['MEMBER', null] as const)('세션 복원 중 비회원 내용을 노출하지 않고 %s 결과로 전환한다', accountType => {
+    const view = renderAccount(null, true);
+    expect(screen.getByText('나의 작은 영화관')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '홈으로 이동' })).toBeOnTheScreen();
+    expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
+    expect(screen.queryByText('게스트로 둘러보고 있어요')).not.toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: '로그인하고 시작하기' })).not.toBeOnTheScreen();
+
+    view.setSession({ ...view.session, isRestoring: false,
+      user: accountType === null ? null : { uuid: 'test-user', displayName: '테스트 사용자', accountType },
+      points: accountType === null ? null : 200,
+    });
+
+    expect(screen.queryByRole('progressbar')).not.toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: accountType === null ? '로그인하고 시작하기' : '로그아웃' })).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: accountType === null ? '로그아웃' : '로그인하고 시작하기' })).not.toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '홈으로 이동' })).toBeOnTheScreen();
+  });
+
   test.each([
     ['미로그인', null],
     ['GUEST', 'GUEST'],
