@@ -42,6 +42,7 @@ test('root layout displays one expiration notice, dismisses from system close an
     sessionExpired: true,
     sessionVersion: 1,
     subtitlesEnabled: true,
+    preferredSubtitleLanguage: 'ko',
     autoplayNext: false,
     setUser: jest.fn(),
     setPoints: jest.fn(),
@@ -50,6 +51,7 @@ test('root layout displays one expiration notice, dismisses from system close an
     dismissSessionExpired,
     isCurrentSession: (version) => version === 1,
     setSubtitlesEnabled: jest.fn(),
+    setPreferredSubtitleLanguage: jest.fn(),
     setAutoplayNext: jest.fn(),
   });
 

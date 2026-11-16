@@ -13,6 +13,7 @@ import { createPointHistoryFixtures } from './pointHistoryFixtures.mjs';
 import { createWatchHistoryFixtures } from './watchHistoryFixtures.mjs';
 import { readCatalogPages } from './catalogPages.mjs';
 import { createDramaPaginationFixtures } from './dramaPaginationFixtures.mjs';
+import { createSubtitleFixtures } from './subtitleFixtures.mjs';
 
 const coordinatorAbort = new AbortController();
 let coordinatorDisconnected = false;
@@ -196,6 +197,7 @@ async function main() {
   let watchHistoryFixture;
   let pointHistoryFixture;
   let dramaPaginationFixture;
+  let subtitleFixture;
   let ownedSavedPairs = [];
   let ownedCollectionLinks = [];
   let prepRefreshTokens = [];
@@ -290,6 +292,27 @@ async function main() {
     unentitled = await fixtureContext.createUser();
     entitledUuid = entitled.uuid;
     unentitledUuid = unentitled.uuid;
+    if (suites.length === 1 && suites[0].id === 'subtitles') {
+      subtitleFixture = createSubtitleFixtures({ db, runId: fixtureContext.runId });
+      const values = await subtitleFixture.prepare({ fixtureContext, entitled, unentitled });
+      directory = mkdtempSync(join(tmpdir(), 'aivideo-postman-'));
+      const environmentFile = join(directory, 'environment.json');
+      const environmentValues = {
+        baseUrl,
+        entitledLoginId: entitled.loginId, entitledPassword: entitled.password, entitledUserUuid: entitledUuid,
+        unentitledLoginId: unentitled.loginId, unentitledPassword: unentitled.password, unentitledUserUuid: unentitledUuid,
+        ...values,
+      };
+      writeFileSync(environmentFile, JSON.stringify({ name: 'Subtitle API test', values:
+        Object.entries(environmentValues).map(([key, value]) => ({ key, value, enabled: true, type: 'secret' })) }), { mode: 0o600 });
+      await coordinate('prepared', { suite: ['subtitles'], runId: fixtureContext.runId,
+        userUuids: fixtureContext.userUuids, progressPairs: [] });
+      exitCode = await runSuites(['--environment', environmentFile], false);
+      if (exitCode !== 0) throw new Error('Postman subtitle verification failed.');
+      await coordinate('verified', { suite: ['subtitles'], runId: fixtureContext.runId,
+        userUuids: fixtureContext.userUuids, progressPairs: [] });
+      return exitCode;
+    }
     if (suites.length === 1 && suites[0].id === 'drama-pagination') {
       dramaPaginationFixture = createDramaPaginationFixtures({ db, runId: fixtureContext.runId });
       const values = await dramaPaginationFixture.prepare();
@@ -1033,6 +1056,7 @@ async function main() {
         });
       }
       await attemptCleanup(() => fixtureContext.cleanup());
+      if (subtitleFixture) await attemptCleanup(() => subtitleFixture.cleanup());
       if (dramaPaginationFixture) await attemptCleanup(() => dramaPaginationFixture.cleanup());
       if (pointHistoryFixture) await attemptCleanup(() => pointHistoryFixture.cleanup());
       if (!cleanupErrors.length) process.send?.({ type: 'cleaned', suite: suites.map(suite => suite.id), runId: fixtureContext.runId,

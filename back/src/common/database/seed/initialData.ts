@@ -206,6 +206,7 @@ const landscapePosters = dramas.map((drama, dramaIndex) => {
 });
 
 const episodeDurationsMs = [103125, 53453, 84084, 92459, 68610, 92593, 52500];
+const episodePrices = [0, 20, 30, 40];
 
 const episodes = dramas.flatMap((drama, dramaIndex) =>
   [1, 2, 3, 4].map((episodeNumber) => ({
@@ -215,7 +216,7 @@ const episodes = dramas.flatMap((drama, dramaIndex) =>
     title: `${episodeNumber}화`,
     synopsis: `${drama.title} ${episodeNumber}화 이야기`,
     durationMs: episodeDurationsMs[(dramaIndex * 4 + episodeNumber - 1) % episodeDurationsMs.length],
-    pricePoints: episodeNumber === 1 ? 0 : episodeNumber * 10,
+    pricePoints: episodePrices[episodeNumber - 1],
     status: 'PUBLISHED',
     publishedAt,
   })),
@@ -361,6 +362,19 @@ const adRewardOffers = [
   { uuid: fixedId(9, 2), code: 'AD_REWARD_BONUS', rewardPoints: 50, dailyLimit: 2, isActive: true },
 ];
 
+const newEpisode = {
+  uuid: fixedId(4, 5),
+  dramaUuid: dramas[0].uuid,
+  episodeNumber: 5,
+  title: '5화',
+  synopsis: '우리의 마지막 봄 5화 이야기',
+  durationMs: 66110,
+  pricePoints: 10,
+  status: 'PUBLISHED',
+  publishedAt,
+};
+const newVideoUuid = fixedId(5, 71);
+
 export const initialData: InitialSeedData = {
   adminLogin: { loginId: 'admin', password: 'admin' },
   adminUser: {
@@ -382,9 +396,23 @@ export const initialData: InitialSeedData = {
   dramas,
   dramaGenres,
   contentImages: [...contentImages, ...landscapePosters, ...contentImagesForEpisodes],
-  episodes,
-  contentVideos,
-  episodeSubtitles,
+  episodes: [...episodes, newEpisode],
+  contentVideos: [...contentVideos, {
+    uuid: newVideoUuid,
+    contentType: 'EPISODE',
+    contentUuid: newEpisode.uuid,
+    kind: 'FULL',
+    storageKey: createEpisodeVideoStorageKey(newEpisode.dramaUuid, newEpisode.uuid, newVideoUuid),
+    durationMs: newEpisode.durationMs,
+    displayOrder: 1,
+  }],
+  episodeSubtitles: [...episodeSubtitles, ...['ko', 'en'].map((languageCode, index) => ({
+    uuid: fixedId(6, 21 + index),
+    episodeUuid: newEpisode.uuid,
+    languageCode,
+    format: 'SRT',
+    storageKey: createEpisodeSubtitleStorageKey(newEpisode.dramaUuid, newEpisode.uuid, languageCode, 'SRT'),
+  }))],
   contentCollections,
   collectionDramas,
   pointProducts,

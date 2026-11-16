@@ -6,6 +6,7 @@ import { DramaGenre } from './entities/dramaGenre.entity.js';
 import { ContentImage } from './entities/contentImage.entity.js';
 import { ContentVideo } from './entities/contentVideo.entity.js';
 import { Episode } from './entities/episode.entity.js';
+import { EpisodeSubtitle } from './entities/episodeSubtitle.entity.js';
 import { Genre } from './entities/genre.entity.js';
 import { ProductionCompany } from './entities/productionCompany.entity.js';
 import { EpisodeEntitlement } from '../economy/entities/episodeEntitlement.entity.js';
@@ -394,8 +395,23 @@ export class PublicCatalogService {
   async getEpisodePlaybackUrl(episodeId: string, userUuid?: string, now = new Date()): Promise<EpisodePlaybackResponse> {
     if (process.env.NODE_ENV !== 'development') throw new NotFoundException(`Episode '${episodeId}' was not found`);
     const { storageKey, videoUuid, isSaved, title, episodeNumber, durationMs } = await this.getEpisodeVideo(episodeId, userUuid, now);
-    const url = await this.s3VideoUrlService.createSignedGetUrl(storageKey);
-    return { url, videoUuid, isSaved: Number(isSaved) === 1, title, episodeNumber, durationMs };
+    const subtitleRows = await this.episodeRepository.createQueryBuilder('episode')
+      .innerJoin(EpisodeSubtitle, 'subtitle', 'subtitle.episodeId = episode.id')
+      .select('subtitle.languageCode', 'languageCode')
+      .addSelect('subtitle.format', 'format')
+      .addSelect('subtitle.storageKey', 'storageKey')
+      .where('episode.uuid = :episodeId', { episodeId })
+      .orderBy('subtitle.languageCode', 'ASC')
+      .getRawMany<{ languageCode: string; format: 'VTT' | 'SRT'; storageKey: string }>();
+    const [url, subtitles] = await Promise.all([
+      this.s3VideoUrlService.createSignedGetUrl(storageKey),
+      Promise.all(subtitleRows.map(async ({ languageCode, format, storageKey: subtitleStorageKey }) => ({
+        languageCode,
+        format,
+        url: await this.s3VideoUrlService.createSignedGetUrl(subtitleStorageKey),
+      }))),
+    ]);
+    return { url, videoUuid, isSaved: Number(isSaved) === 1, title, episodeNumber, durationMs, subtitles };
   }
 
   async getDramaPreviewPlaybackUrl(dramaId: string, videoId: string, userUuid?: string): Promise<PreviewPlaybackResponse> {

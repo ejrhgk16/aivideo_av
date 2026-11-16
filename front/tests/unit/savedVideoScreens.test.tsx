@@ -43,10 +43,10 @@ function makeSession(overrides: Partial<Session> = {}): Session {
   return {
     user: member, points: 120, accessToken: 'access-test', isRestoring: false,
     restoreError: null, sessionExpired: false, sessionVersion: 1,
-    subtitlesEnabled: true, autoplayNext: false, setUser: jest.fn(), setPoints: jest.fn(),
+    subtitlesEnabled: true, preferredSubtitleLanguage: 'ko', autoplayNext: false, setUser: jest.fn(), setPoints: jest.fn(),
     login: jest.fn(), logout: jest.fn(), dismissSessionExpired: jest.fn(),
     isCurrentSession: (version) => version === 1,
-    setSubtitlesEnabled: jest.fn(), setAutoplayNext: jest.fn(), ...overrides,
+    setSubtitlesEnabled: jest.fn(), setPreferredSubtitleLanguage: jest.fn(), setAutoplayNext: jest.fn(), ...overrides,
   };
 }
 

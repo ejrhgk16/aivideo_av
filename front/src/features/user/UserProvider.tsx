@@ -16,6 +16,7 @@ type UserContextValue = Omit<UserSessionState, 'version'> & {
   accessToken: string | null;
   sessionVersion: number;
   subtitlesEnabled: boolean;
+  preferredSubtitleLanguage: string;
   autoplayNext: boolean;
   setUser: (user: User | null, points?: number | null) => void;
   setPoints: (points: number) => void;
@@ -24,6 +25,7 @@ type UserContextValue = Omit<UserSessionState, 'version'> & {
   dismissSessionExpired: () => void;
   isCurrentSession: (version: number) => boolean;
   setSubtitlesEnabled: (enabled: boolean) => void;
+  setPreferredSubtitleLanguage: (languageCode: string) => void;
   setAutoplayNext: (enabled: boolean) => void;
 };
 
@@ -32,6 +34,7 @@ const UserContext = createContext<UserContextValue | null>(null);
 export function UserProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<UserSessionState>(() => sessionClient.getUserSessionState());
   const [subtitlesEnabled, setSubtitlesEnabled] = useState(true);
+  const [preferredSubtitleLanguage, setPreferredSubtitleLanguage] = useState('ko');
   const [autoplayNext, setAutoplayNext] = useState(false);
 
   useEffect(() => {
@@ -53,6 +56,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     accessToken: session.accessToken,
     sessionVersion: session.version,
     subtitlesEnabled,
+    preferredSubtitleLanguage,
     autoplayNext,
     setUser,
     setPoints,
@@ -61,8 +65,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
     dismissSessionExpired,
     isCurrentSession,
     setSubtitlesEnabled,
+    setPreferredSubtitleLanguage,
     setAutoplayNext,
-  }), [session, subtitlesEnabled, autoplayNext, setUser, setPoints, login, logout, dismissSessionExpired, isCurrentSession]);
+  }), [session, subtitlesEnabled, preferredSubtitleLanguage, autoplayNext, setUser, setPoints, login, logout, dismissSessionExpired, isCurrentSession]);
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
 }

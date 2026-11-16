@@ -45,6 +45,7 @@ const makeSession = (overrides: Partial<Session> = {}): Session => ({
   sessionExpired: false,
   sessionVersion: 1,
   subtitlesEnabled: true,
+  preferredSubtitleLanguage: 'ko',
   autoplayNext: false,
   setUser: jest.fn(),
   setPoints: jest.fn(),
@@ -53,6 +54,7 @@ const makeSession = (overrides: Partial<Session> = {}): Session => ({
   dismissSessionExpired: jest.fn(),
   isCurrentSession: (version) => version === 1,
   setSubtitlesEnabled: jest.fn(),
+  setPreferredSubtitleLanguage: jest.fn(),
   setAutoplayNext: jest.fn(),
   ...overrides,
 });
@@ -68,6 +70,8 @@ const playback: EpisodePlayback = {
   url: 'https://cdn.example.test/episode.mp4', videoUuid: 'video-1', isSaved: false,
   title: '첫 회', episodeNumber: 1, durationMs: 90_000,
 };
+const englishSubtitle = { languageCode: 'en', format: 'SRT' as const, url: 'https://signed.example.test/en.srt' };
+const koreanSubtitle = { languageCode: 'ko', format: 'VTT' as const, url: 'https://signed.example.test/ko.vtt' };
 
 let currentSession: Session;
 let originalRouterImportMode: string | undefined;
@@ -77,6 +81,7 @@ let nextPlaybackRequest: number;
 let dramaReads: Deferred<DramaContent>[];
 let savedWrites: Deferred<void>[];
 let deferWrites: boolean;
+let originalFetch: typeof fetch;
 
 function EpisodeRoute() {
   const [, rerender] = useState(0);
@@ -121,6 +126,16 @@ function setSession(next: Session) {
   });
 }
 
+function makeSessionWithPreference(overrides: Partial<Session> = {}): Session {
+  let current = makeSession(overrides);
+  const setPreferredSubtitleLanguage = jest.fn((languageCode: string) => {
+    current = { ...current, preferredSubtitleLanguage: languageCode };
+    setSession(current);
+  });
+  current = { ...current, setPreferredSubtitleLanguage };
+  return current;
+}
+
 function resolvePlayback(view: ReturnType<typeof renderEpisode>, result: EpisodePlayback = playback) {
   const request = playbackRequests[nextPlaybackRequest++];
   act(() => request.resolve(result));
@@ -138,6 +153,7 @@ function emit(player: (typeof mockVideoPlayers)[number], name: 'timeUpdate' | 's
 }
 
 beforeEach(() => {
+  originalFetch = globalThis.fetch;
   originalRouterImportMode = process.env.EXPO_ROUTER_IMPORT_MODE;
   currentSession = makeSession();
   refreshRoute = undefined;
@@ -173,11 +189,21 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  globalThis.fetch = originalFetch;
   if (originalRouterImportMode === undefined) delete process.env.EXPO_ROUTER_IMPORT_MODE;
   else process.env.EXPO_ROUTER_IMPORT_MODE = originalRouterImportMode;
   currentSession = makeSession();
   refreshRoute = undefined;
 });
+
+function mockSubtitleFiles(files: Record<string, string>) {
+  const request = jest.fn(async (input: RequestInfo | URL) => ({
+    ok: true,
+    text: async () => files[String(input)],
+  } as Response)) as unknown as typeof fetch;
+  globalThis.fetch = request;
+  return request;
+}
 
 test('playback waits for restore and an anonymous paid episode offers an explicit login route', async () => {
   const view = renderEpisode(makeSession({ user: null, isRestoring: true }));
@@ -422,4 +448,166 @@ test('anonymous, buffered, blurred, and expired-session playback never creates p
   emit(player, 'timeUpdate', { currentTime: 22.5 });
   await act(async () => Promise.resolve());
   expect(saveWatchProgress).toHaveBeenCalledTimes(1);
+});
+
+test('remembers a language choice, updates captions on seek, and keeps the line while paused', async () => {
+  const session = makeSessionWithPreference();
+  const fetchMock = mockSubtitleFiles({
+    [englishSubtitle.url]: '1\n00:00:00,000 --> 00:00:02,000\nHello\n\n2\n00:00:02,000 --> 00:00:04,000\nWorld',
+    [koreanSubtitle.url]: 'WEBVTT\n\n00:00.000 --> 00:04.000\n안녕하세요',
+  });
+  const view = renderEpisode(session);
+  await resolvePlayback(view, { ...playback, subtitles: [englishSubtitle, koreanSubtitle] });
+  const player = mockVideoPlayers[mockVideoPlayers.length - 1];
+  expect(player.timeUpdateEventInterval).toBe(0.1);
+  emit(player, 'timeUpdate', { currentTime: 1.5 });
+  expect(await screen.findByText('안녕하세요')).toBeOnTheScreen();
+  expect(fetchMock).toHaveBeenCalledWith(koreanSubtitle.url, { signal: expect.any(AbortSignal) });
+
+  await userEvent.setup().press(screen.getByRole('button', { name: '더보기 설정' }));
+  expect(screen.getByRole('button', { name: '한국어', selected: true })).toBeOnTheScreen();
+  expect(screen.getByRole('switch', { name: '자막 표시' })).toBeChecked();
+  await userEvent.setup().press(screen.getByRole('button', { name: 'English' }));
+  expect(session.setPreferredSubtitleLanguage).toHaveBeenCalledWith('en');
+  expect(await screen.findByText('Hello')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: 'English', selected: true })).toBeOnTheScreen();
+
+  await userEvent.setup().press(screen.getByRole('button', { name: '더보기 메뉴 닫기' }));
+  await userEvent.setup().press(screen.getByRole('button', { name: '일시정지' }));
+  expect(screen.getByText('Hello')).toBeOnTheScreen();
+  const slider = screen.UNSAFE_getByType(Slider);
+  fireEvent(slider, 'slidingStart');
+  expect(screen.queryByText('Hello')).not.toBeOnTheScreen();
+  fireEvent(slider, 'slidingComplete', 2.5);
+  expect(screen.getByText('World')).toBeOnTheScreen();
+  testRouter.push('/away');
+  await screen.findByText('away fixture');
+  expect(screen.queryByText('World')).not.toBeOnTheScreen();
+});
+
+test('uses the preferred language again when a later episode provides it', async () => {
+  const setPreferredSubtitleLanguage = jest.fn();
+  mockSubtitleFiles({
+    [englishSubtitle.url]: '1\n00:00:00,000 --> 00:00:04,000\nHello again',
+    [koreanSubtitle.url]: 'WEBVTT\n\n00:00.000 --> 00:04.000\n한국어 대사',
+  });
+  const view = renderEpisode(makeSession({ preferredSubtitleLanguage: 'en', setPreferredSubtitleLanguage }));
+  await resolvePlayback(view, { ...playback, subtitles: [koreanSubtitle] });
+  emit(mockVideoPlayers[mockVideoPlayers.length - 1], 'timeUpdate', { currentTime: 1 });
+  expect(await screen.findByText('한국어 대사')).toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole('button', { name: '더보기 설정' }));
+  expect(screen.getByRole('button', { name: '한국어', selected: true })).toBeOnTheScreen();
+  expect(setPreferredSubtitleLanguage).not.toHaveBeenCalled();
+  await userEvent.setup().press(screen.getByRole('button', { name: '더보기 메뉴 닫기' }));
+
+  testRouter.push('/episode/episode-2?dramaId=drama-1');
+  await waitFor(() => expect(getEpisodePlayback).toHaveBeenCalledTimes(2));
+  await resolvePlayback(view, { ...playback, videoUuid: 'video-2', subtitles: [koreanSubtitle, englishSubtitle] });
+  emit(mockVideoPlayers[mockVideoPlayers.length - 1], 'timeUpdate', { currentTime: 1 });
+  expect(await screen.findByText('Hello again')).toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole('button', { name: '더보기 설정' }));
+  expect(screen.getByRole('button', { name: 'English', selected: true })).toBeOnTheScreen();
+  expect(setPreferredSubtitleLanguage).not.toHaveBeenCalled();
+});
+
+test('keeps subtitles off when a language is selected and falls back to English when Korean is absent', async () => {
+  const session = makeSessionWithPreference({ subtitlesEnabled: false });
+  mockSubtitleFiles({
+    [englishSubtitle.url]: '1\n00:00:00,000 --> 00:00:04,000\nHello only',
+    [koreanSubtitle.url]: 'WEBVTT\n\n00:00.000 --> 00:00:04.000\n한국어 자막',
+  });
+  const view = renderEpisode(session);
+  await resolvePlayback(view, { ...playback, subtitles: [englishSubtitle, koreanSubtitle] });
+  emit(mockVideoPlayers[mockVideoPlayers.length - 1], 'timeUpdate', { currentTime: 1 });
+  expect(screen.queryByText('Hello only')).not.toBeOnTheScreen();
+  expect(screen.queryByText('한국어 자막')).not.toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole('button', { name: '더보기 설정' }));
+  expect(screen.getByRole('button', { name: '한국어', selected: true })).toBeOnTheScreen();
+  const subtitleSwitch = screen.getByRole('switch', { name: '자막 표시' });
+  expect(subtitleSwitch).toBeEnabled();
+  expect(subtitleSwitch).not.toBeChecked();
+  await userEvent.setup().press(screen.getByRole('button', { name: 'English' }));
+  expect(session.setPreferredSubtitleLanguage).toHaveBeenCalledWith('en');
+  expect(screen.getByRole('switch', { name: '자막 표시' })).not.toBeChecked();
+  expect(screen.queryByText('Hello only')).not.toBeOnTheScreen();
+});
+
+test('falls back to English when it is the only language returned', async () => {
+  mockSubtitleFiles({ [englishSubtitle.url]: '1\n00:00:00,000 --> 00:00:04,000\nHello only' });
+  const view = renderEpisode(makeSession({ preferredSubtitleLanguage: 'ko' }));
+  await resolvePlayback(view, { ...playback, subtitles: [englishSubtitle] });
+  emit(mockVideoPlayers[mockVideoPlayers.length - 1], 'timeUpdate', { currentTime: 1 });
+  expect(await screen.findByText('Hello only')).toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole('button', { name: '더보기 설정' }));
+  expect(screen.getByRole('button', { name: 'English', selected: true })).toBeOnTheScreen();
+});
+
+test('chooses the first language by code order when preferred, Korean, and English are unavailable', async () => {
+  const french = { languageCode: 'fr', format: 'VTT' as const, url: 'https://signed.example.test/fr.vtt' };
+  const japanese = { languageCode: 'ja', format: 'VTT' as const, url: 'https://signed.example.test/ja.vtt' };
+  mockSubtitleFiles({
+    [french.url]: 'WEBVTT\n\n00:00.000 --> 00:00:04.000\nBonjour',
+    [japanese.url]: 'WEBVTT\n\n00:00.000 --> 00:00:04.000\nこんにちは',
+  });
+  const view = renderEpisode(makeSession({ preferredSubtitleLanguage: 'en' }));
+  await resolvePlayback(view, { ...playback, subtitles: [japanese, french] });
+  emit(mockVideoPlayers[mockVideoPlayers.length - 1], 'timeUpdate', { currentTime: 1 });
+  expect(await screen.findByText('Bonjour')).toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole('button', { name: '더보기 설정' }));
+  expect(screen.getByRole('button', { name: 'fr', selected: true })).toBeOnTheScreen();
+});
+
+test('keeps the newly selected language after a delayed old response and allows retry after a load error', async () => {
+  let resolveOldKorean!: (response: Response) => void;
+  let koreanRequests = 0;
+  const request = jest.fn((input: RequestInfo | URL) => {
+    if (String(input) === koreanSubtitle.url && koreanRequests++ === 0) {
+      return new Promise<Response>((resolve) => { resolveOldKorean = resolve; });
+    }
+    if (String(input) === koreanSubtitle.url) return Promise.resolve({ ok: false, text: async () => '' } as Response);
+    return Promise.resolve({ ok: true, text: async () => '1\n00:00:00,000 --> 00:00:04,000\nCurrent English' } as Response);
+  }) as jest.MockedFunction<typeof fetch>;
+  globalThis.fetch = request;
+  const session = makeSessionWithPreference();
+  const view = renderEpisode(session);
+  await resolvePlayback(view, { ...playback, subtitles: [englishSubtitle, koreanSubtitle] });
+  emit(mockVideoPlayers[mockVideoPlayers.length - 1], 'timeUpdate', { currentTime: 1 });
+  await userEvent.setup().press(screen.getByRole('button', { name: '더보기 설정' }));
+  await userEvent.setup().press(screen.getByRole('button', { name: 'English' }));
+  expect(await screen.findByText('Current English')).toBeOnTheScreen();
+  await act(async () => {
+    resolveOldKorean({ ok: true, text: async () => 'WEBVTT\n\n00:00.000 --> 00:04.000\n늦은 한국어' } as Response);
+  });
+  expect(screen.getByText('Current English')).toBeOnTheScreen();
+
+  await userEvent.setup().press(screen.getByRole('button', { name: '한국어' }));
+  expect(await screen.findByText('자막을 불러오지 못했어요')).toBeOnTheScreen();
+  expect(screen.getByRole('switch', { name: '자막 표시' })).toHaveProp('disabled', true);
+  await userEvent.setup().press(screen.getByRole('button', { name: 'English' }));
+  expect(await screen.findByText('Current English')).toBeOnTheScreen();
+  expect(screen.getByRole('switch', { name: '자막 표시' })).toBeEnabled();
+});
+
+test('hides the current caption on video error and replaces it after a session change', async () => {
+  const nextSubtitle = { ...koreanSubtitle, url: 'https://signed.example.test/next-ko.vtt' };
+  mockSubtitleFiles({
+    [koreanSubtitle.url]: 'WEBVTT\n\n00:00.000 --> 00:04.000\n회차 자막',
+    [nextSubtitle.url]: 'WEBVTT\n\n00:00.000 --> 00:04.000\n다음 회차 자막',
+  });
+  const view = renderEpisode();
+  await resolvePlayback(view, { ...playback, subtitles: [koreanSubtitle] });
+  const firstPlayer = mockVideoPlayers[mockVideoPlayers.length - 1];
+  emit(firstPlayer, 'timeUpdate', { currentTime: 1 });
+  expect(await screen.findByText('회차 자막')).toBeOnTheScreen();
+  emit(firstPlayer, 'statusChange', { status: 'error' });
+  expect(screen.queryByText('회차 자막')).not.toBeOnTheScreen();
+  expect(screen.getByText('영상을 재생할 수 없어요')).toBeOnTheScreen();
+
+  setSession(makeSession({ user: { uuid: 'user-2', displayName: null, accountType: 'MEMBER' }, sessionVersion: 2,
+    isCurrentSession: (version) => version === 2 }));
+  await waitFor(() => expect(getEpisodePlayback).toHaveBeenCalledTimes(2));
+  await resolvePlayback(view, { ...playback, videoUuid: 'video-2', subtitles: [nextSubtitle] });
+  expect(screen.queryByText('회차 자막')).not.toBeOnTheScreen();
+  emit(mockVideoPlayers[mockVideoPlayers.length - 1], 'timeUpdate', { currentTime: 1 });
+  expect(await screen.findByText('다음 회차 자막')).toBeOnTheScreen();
 });

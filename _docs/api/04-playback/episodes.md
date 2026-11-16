@@ -4,7 +4,7 @@
 
 ### GET /episodes/:episodeId/playback
 
-공개 회차의 본편 영상 재생 URL을 반환한다.
+공개 회차의 본편 영상 URL과 등록된 자막별 재생 URL을 반환한다.
 
 #### Path parameter
 
@@ -29,6 +29,7 @@
 - 공개 회차가 없으면 `404 Not Found`다. 공개된 유료 회차의 익명 요청은 `AUTH_INVALID_TOKEN`(401), 인증된 미구매 사용자는 `EPISODE_ACCESS_DENIED`(403)다.
 - 영상이나 회차 또는 공개 작품이 없거나 공개 조건을 만족하지 않으면 `404 Not Found`를 반환한다.
 - S3 GET 서명 URL은 개발 환경에서만 발급하며 3600초 후 만료된다. 개발 환경 이외에서는 `404 Not Found`를 반환한다.
+- 자막 URL은 본편 영상과 같은 공개·구매 권한 검사를 통과한 뒤 발급한다. 회차에 자막이 없으면 `subtitles`는 빈 배열이다.
 
 #### 200 Response
 
@@ -39,7 +40,19 @@
   "isSaved": false,
   "title": "첫 번째 이야기",
   "episodeNumber": 1,
-  "durationMs": 420000
+  "durationMs": 420000,
+  "subtitles": [
+    {
+      "languageCode": "en",
+      "format": "SRT",
+      "url": "https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/...?..."
+    },
+    {
+      "languageCode": "ko",
+      "format": "VTT",
+      "url": "https://aivideo-dev.s3.ap-northeast-2.amazonaws.com/...?..."
+    }
+  ]
 }
 ```
 
@@ -48,6 +61,7 @@
 `durationMs`는 선택된 `FULL` 영상의 재생 시간(밀리초)이다.
 `videoUuid`는 선택된 FULL 영상의 공개 UUID다. `isSaved`는 선택적 JWT 사용자 저장 여부이며 익명 요청에서는 `false`다.
 `title`과 `episodeNumber`는 `episodes`에서, `durationMs`와 서명에 사용하는 `storage_key`는 조인된 `content_videos` 행에서 가져온다. 작품 공개 여부는 조인된 `dramas` 행에서 확인한다.
+`subtitles`는 `languageCode` 오름차순의 모든 등록 자막이며 각 항목은 `languageCode`, `format`(`VTT` 또는 `SRT`), `url`만 포함한다. 언어 코드는 저장된 값을 그대로 반환한다. 자막 UUID·내부 ID·`storage_key`는 반환하지 않는다. 각 자막 URL은 개발 환경에서만 발급하며 3600초 후 만료된다. 조회는 회차 내부 숫자 ID로 연결하고, 공개 및 구매 권한 검사에 실패하면 자막 URL을 반환하지 않는다.
 
 #### 401 Response
 

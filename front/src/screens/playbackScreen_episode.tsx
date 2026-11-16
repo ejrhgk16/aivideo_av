@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, Share, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, Share, StyleSheet, Switch, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import Slider from '@react-native-community/slider';
@@ -15,6 +15,7 @@ import { getEpisodePlayback, type EpisodePlayback } from '@/features/playback/ep
 import { createWatchProgressTracker, saveWatchProgress } from '@/features/playback/watchProgress';
 import { useUser } from '@/features/user/UserProvider';
 import { removeSavedVideo, saveVideo } from '@/features/playback/savedVideos';
+import { useEpisodeSubtitles } from '@/features/playback/useEpisodeSubtitles';
 
 type LoadState = 'loading' | 'loaded' | 'not-found' | 'error';
 type Props = { id: string; dramaId?: string };
@@ -79,7 +80,10 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
   id: string; playback: EpisodePlayback; dramaId?: string; onBack: () => void;
 }) {
   const router = useRouter();
-  const { isRestoring, sessionVersion, isCurrentSession, user, sessionExpired } = useUser();
+  const {
+    isRestoring, sessionVersion, isCurrentSession, user, sessionExpired,
+    subtitlesEnabled, setSubtitlesEnabled, preferredSubtitleLanguage, setPreferredSubtitleLanguage,
+  } = useUser();
   const [isSaved, setIsSaved] = useState(playback.isSaved);
   const [saving, setSaving] = useState(false);
   const [drama, setDrama] = useState<DramaContent | null>(null);
@@ -93,6 +97,9 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
   const [controlsVisible, setControlsVisible] = useState(true);
   const [isPlaying, setIsPlaying] = useState(player.playing);
   const [position, setPosition] = useState(player.currentTime);
+  const [subtitlePositionMs, setSubtitlePositionMs] = useState(Math.max(0, player.currentTime * 1000));
+  const [isFocused, setIsFocused] = useState(true);
+  const [isSeeking, setIsSeeking] = useState(false);
   const [duration, setDuration] = useState(player.duration);
   const [savedError, setSavedError] = useState<unknown>(null);
   const savePending = useRef(false);
@@ -106,6 +113,13 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
   const focused = useRef(true);
   const previousPlaybackTime = useRef<number | null>(null);
   const insets = useSafeAreaInsets();
+  const subtitleTracks = playback.subtitles ?? [];
+  const selectedSubtitle = subtitleTracks.find((track) => track.languageCode === preferredSubtitleLanguage)
+    ?? subtitleTracks.find((track) => track.languageCode === 'ko')
+    ?? subtitleTracks.find((track) => track.languageCode === 'en')
+    ?? [...subtitleTracks].sort((first, second) => first.languageCode < second.languageCode ? -1 : first.languageCode > second.languageCode ? 1 : 0)[0];
+  const subtitleState = useEpisodeSubtitles(selectedSubtitle, subtitlesEnabled, subtitlePositionMs);
+  const subtitleText = isFocused && !videoFailed && !isSeeking ? subtitleState.text : '';
   const toggleSaved = async () => {
     if (isRestoring || savePending.current) return;
     if (!user) { router.push('/login'); return; }
@@ -159,6 +173,7 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
 
   useFocusEffect(useCallback(() => {
     focused.current = true;
+    setIsFocused(true);
     let active = true;
     if (dramaId && !isRestoring) {
       const version = sessionVersion;
@@ -173,6 +188,7 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
     return () => {
       active = false;
       focused.current = false;
+      setIsFocused(false);
       previousPlaybackTime.current = null;
       player.pause();
     };
@@ -189,11 +205,14 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
   }, [player]);
   useEffect(() => {
     previousPlaybackTime.current = null;
-    player.timeUpdateEventInterval = 0.5;
+    player.timeUpdateEventInterval = 0.1;
     const time = player.addListener('timeUpdate', ({ currentTime }) => {
       const videoDuration = player.duration;
       if (Number.isFinite(videoDuration) && videoDuration > 0) setDuration(videoDuration);
-      if (!seeking.current && Number.isFinite(currentTime)) setPosition(currentTime);
+      if (!seeking.current && Number.isFinite(currentTime)) {
+        setPosition(currentTime);
+        setSubtitlePositionMs(Math.max(0, currentTime * 1000));
+      }
     });
     const source = player.addListener('sourceLoad', ({ duration: videoDuration }) => {
       if (Number.isFinite(videoDuration) && videoDuration > 0) setDuration(videoDuration);
@@ -279,6 +298,9 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
     <StatusBar hidden />
     {videoFailed ? <View style={styles.error}><EmptyState title="영상을 재생할 수 없어요" description="잠시 후 다시 시도해 주세요." action="뒤로 가기" onAction={onBack} /></View> : <>
       <VideoView player={player} nativeControls={false} contentFit="contain" style={[StyleSheet.absoluteFill, styles.video]} />
+      {subtitleText ? <View pointerEvents="none" style={[styles.subtitleOverlay, { bottom: insets.bottom + 154 }]}>
+        <AppText accessibilityRole="text" style={styles.subtitleText}>{subtitleText}</AppText>
+      </View> : null}
       <Pressable style={StyleSheet.absoluteFill} onPress={toggleControls} accessibilityLabel="재생 컨트롤 표시 또는 숨기기" />
       {controlsVisible && <>
         <View style={[styles.topControls, { paddingTop: insets.top + 6 }]}>
@@ -361,13 +383,16 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
             thumbTintColor={colors.accent}
             onSlidingStart={() => {
               seeking.current = true;
+              setIsSeeking(true);
               previousPlaybackTime.current = null;
               clearHideTimer();
             }}
             onValueChange={setPosition}
             onSlidingComplete={(value) => {
               player.currentTime = value;
+              setSubtitlePositionMs(Math.max(0, value * 1000));
               seeking.current = false;
+              setIsSeeking(false);
               previousPlaybackTime.current = null;
               showControls();
             }}
@@ -384,9 +409,36 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
             <Pressable onPress={() => setSettingsOpen(false)} accessibilityRole="button" accessibilityLabel="닫기" style={styles.settingsClose}><Icon name="x" color={colors.muted} /></Pressable>
           </View>
           <View style={styles.settingsRow}>
-            <View style={styles.settingsCopy}><AppText weight="semibold">자막 표시</AppText><AppText style={styles.settingsNote}>자막 정보를 준비하고 있어요.</AppText></View>
-            <AppText style={styles.settingsDisabled}>준비 중</AppText>
+            <View style={styles.settingsCopy}>
+              <AppText weight="semibold">자막 표시</AppText>
+              <AppText style={styles.settingsNote}>
+                {subtitleState.status === 'loading' ? '자막을 불러오는 중이에요'
+                  : subtitleState.status === 'unavailable' ? '제공되는 자막이 없어요'
+                    : subtitleState.status === 'error' ? '자막을 불러오지 못했어요' : '언어를 선택해 주세요.'}
+              </AppText>
+            </View>
+            <Switch
+              accessibilityRole="switch"
+              accessibilityLabel="자막 표시"
+              disabled={subtitleState.status !== 'ready'}
+              value={subtitlesEnabled}
+              onValueChange={setSubtitlesEnabled}
+            />
           </View>
+          {subtitleTracks.length > 0 ? <View style={styles.subtitleLanguages}>
+            {subtitleTracks.map((track) => {
+              const selected = track.languageCode === selectedSubtitle?.languageCode;
+              const label = track.languageCode === 'ko' ? '한국어' : track.languageCode === 'en' ? 'English' : track.languageCode;
+              return <Pressable
+                key={track.languageCode}
+                accessibilityRole="button"
+                accessibilityLabel={label}
+                accessibilityState={{ selected }}
+                onPress={() => setPreferredSubtitleLanguage(track.languageCode)}
+                style={[styles.subtitleLanguage, selected && styles.selectedSubtitleLanguage]}
+              ><AppText style={styles.subtitleLanguageText}>{label}</AppText></Pressable>;
+            })}
+          </View> : null}
           <View style={styles.settingsRow}>
             <View style={styles.settingsCopy}><AppText weight="semibold">다음 화 자동 재생</AppText><AppText style={styles.settingsNote}>자동 재생 기능을 준비하고 있어요.</AppText></View>
             <AppText style={styles.settingsDisabled}>준비 중</AppText>
@@ -455,6 +507,12 @@ const styles = StyleSheet.create({
   settingsTitle: { fontSize: 20, lineHeight: 28 },
   settingsClose: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   settingsRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+  subtitleLanguages: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+  subtitleLanguage: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 18, borderWidth: 1, borderColor: colors.border },
+  selectedSubtitleLanguage: { borderColor: colors.accent, backgroundColor: '#CBF46A18' },
+  subtitleLanguageText: { fontSize: 12 },
+  subtitleOverlay: { position: 'absolute', left: 20, right: 20, alignItems: 'center', justifyContent: 'center' },
+  subtitleText: { maxWidth: '100%', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, overflow: 'hidden', backgroundColor: '#000B', color: '#fff', fontSize: 17, lineHeight: 24, textAlign: 'center' },
   lastSettingsRow: { borderBottomWidth: 0 },
   settingsCopy: { flex: 1, gap: 3 },
   settingsNote: { color: colors.muted, fontSize: 11, lineHeight: 16 },

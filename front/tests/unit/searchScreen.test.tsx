@@ -21,10 +21,10 @@ function deferred<T>(): Deferred<T> {
 const makeUser = (uuid: string): User => ({ uuid, displayName: null, accountType: 'MEMBER' });
 const makeSession = (user: User | null, version: number, isRestoring: boolean): ReturnType<typeof useUser> => ({
   user, points: user ? 200 : null, accessToken: null, isRestoring, restoreError: null,
-  sessionExpired: false, sessionVersion: version, subtitlesEnabled: true, autoplayNext: false,
+  sessionExpired: false, sessionVersion: version, subtitlesEnabled: true, preferredSubtitleLanguage: 'ko', autoplayNext: false,
   setUser: jest.fn(), setPoints: jest.fn(), login: jest.fn(), logout: jest.fn(),
   dismissSessionExpired: jest.fn(), isCurrentSession: (candidate: number) => candidate === version,
-  setSubtitlesEnabled: jest.fn(), setAutoplayNext: jest.fn(),
+  setSubtitlesEnabled: jest.fn(), setPreferredSubtitleLanguage: jest.fn(), setAutoplayNext: jest.fn(),
 });
 
 const romance: GenreSummary = { id: 1, code: 'ROMANCE', name: '로맨스', tileImage: 'genres/romance/tile.webp' };

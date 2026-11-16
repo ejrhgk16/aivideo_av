@@ -66,6 +66,12 @@ export type DramaDetailResponse = {
   episodes: DramaEpisodeResponse[];
 };
 
+export type PlaybackSubtitle = {
+  languageCode: string;
+  format: 'VTT' | 'SRT';
+  url: string;
+};
+
 export type EpisodePlaybackResponse = {
   url: string;
   videoUuid: string;
@@ -73,6 +79,7 @@ export type EpisodePlaybackResponse = {
   title: string | null;
   episodeNumber: number;
   durationMs: number;
+  subtitles: PlaybackSubtitle[];
 };
 
 export type PreviewPlaybackResponse = {

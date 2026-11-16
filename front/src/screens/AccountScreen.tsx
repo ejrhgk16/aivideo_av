@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Modal, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Switch, useWindowDimensions, View } from 'react-native';
 import { AppText, Button, Icon, Page, SectionTitle } from '@/components/ui';
 import { AppTopBar } from '@/components/AppTopBar';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,7 +12,7 @@ type AccountDialog = 'settings' | 'help' | 'about' | null;
 export function AccountScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const { user, points } = useUser();
+  const { user, points, subtitlesEnabled, setSubtitlesEnabled } = useUser();
   const [dialog, setDialog] = useState<AccountDialog>(null);
   const [dialogVisible, setDialogVisible] = useState(false);
   const openDialog = (next: Exclude<AccountDialog, null>) => {
@@ -73,10 +73,18 @@ export function AccountScreen() {
         <View accessibilityRole="alert" style={styles.dialog}>
           <AppText weight="bold" style={styles.dialogTitle}>{dialog === 'settings' ? '재생 설정' : dialog === 'help' ? '이용 안내' : '앱 정보'}</AppText>
           {dialog === 'settings' ? <View style={styles.settingList}>
-            <SettingItem label="자막 표시" />
+            <View style={styles.settingItem}>
+              <AppText style={styles.menuLabel}>자막 표시</AppText>
+              <Switch
+                accessibilityRole="switch"
+                accessibilityLabel="자막 표시"
+                value={subtitlesEnabled}
+                onValueChange={setSubtitlesEnabled}
+              />
+            </View>
             <SettingItem label="다음 회차 자동 재생" />
             <SettingItem label="화질" />
-            <AppText style={styles.muted}>설정 기능은 준비 중이에요.</AppText>
+            <AppText style={styles.muted}>일부 설정 기능은 준비 중이에요.</AppText>
           </View> : dialog === 'help' ? <AppText style={styles.dialogCopy}>포인트 잔액과 이용 내역을 확인할 수 있어요. 광고와 충전은 실제 결제 없이 체험할 수 있어요. 체험 포인트는 포인트 화면을 나가면 초기화돼요.</AppText>
             : <AppText style={styles.dialogCopy}>AI DRAMA{ '\n' }드라마를 위한 체험 화면</AppText>}
           <Button label="닫기" onPress={closeDialog} />

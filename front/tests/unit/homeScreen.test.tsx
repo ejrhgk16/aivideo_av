@@ -24,9 +24,9 @@ function deferred<T>(): Deferred<T> {
 const user: User = { uuid: 'user-1', displayName: null, accountType: 'MEMBER' };
 const session = (version = 1, isRestoring = false): ReturnType<typeof useUser> => ({
   user, points: 0, accessToken: null, isRestoring, restoreError: null, sessionExpired: false,
-  sessionVersion: version, subtitlesEnabled: true, autoplayNext: false, setUser: jest.fn(), setPoints: jest.fn(),
+  sessionVersion: version, subtitlesEnabled: true, preferredSubtitleLanguage: 'ko', autoplayNext: false, setUser: jest.fn(), setPoints: jest.fn(),
   login: jest.fn(), logout: jest.fn(), dismissSessionExpired: jest.fn(), isCurrentSession: (candidate) => candidate === version,
-  setSubtitlesEnabled: jest.fn(), setAutoplayNext: jest.fn(),
+  setSubtitlesEnabled: jest.fn(), setPreferredSubtitleLanguage: jest.fn(), setAutoplayNext: jest.fn(),
 });
 const romance: GenreSummary = { id: 1, code: 'ROMANCE', name: '로맨스', tileImage: 'genres/romance/tile.webp' };
 const action: GenreSummary = { id: 2, code: 'ACTION', name: '액션', tileImage: null };

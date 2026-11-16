@@ -90,6 +90,7 @@ const session: ReturnType<typeof useUser> = {
   sessionExpired: false,
   sessionVersion: 1,
   subtitlesEnabled: true,
+  preferredSubtitleLanguage: 'ko',
   autoplayNext: false,
   setUser: jest.fn(),
   setPoints: jest.fn(),
@@ -98,6 +99,7 @@ const session: ReturnType<typeof useUser> = {
   dismissSessionExpired: jest.fn(),
   isCurrentSession: (version) => version === 1,
   setSubtitlesEnabled: jest.fn(),
+  setPreferredSubtitleLanguage: jest.fn(),
   setAutoplayNext: jest.fn(),
 };
 

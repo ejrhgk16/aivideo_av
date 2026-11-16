@@ -10,6 +10,7 @@ export const suites = [
   { id: 'saved-videos', collection: 'saved-videos.postman_collection.json', contentMode: 'exclusive' },
   { id: 'watch-history', collection: 'watch-history.postman_collection.json', contentMode: 'exclusive' },
   { id: 'point-history', collection: 'point-history.postman_collection.json', contentMode: 'exclusive' },
+  { id: 'subtitles', collection: 'subtitles.postman_collection.json', contentMode: 'exclusive' },
 ];
 
 const suiteById = new Map(suites.map(suite => [suite.id, suite]));

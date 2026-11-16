@@ -1,0 +1,207 @@
+{
+  "version": 1,
+  "plan_id": "plan-55-subtitle-playback",
+  "tasks": [
+    {
+      "id": "task-1",
+      "name": "자막 API 전용 fixture와 실행기 준비",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/test/api/subtitleFixtures.mjs",
+        "back/test/api/run.mjs",
+        "back/test/api/suites.mjs",
+        "back/test/unit/api/subtitleFixtures.spec.ts"
+      ],
+      "checks": [
+        "node --check back/test/api/subtitleFixtures.mjs",
+        "node --check back/test/api/run.mjs",
+        "node --check back/test/api/suites.mjs",
+        "npm --prefix back run test:unit -- test/unit/api/subtitleFixtures.spec.ts"
+      ],
+      "started_at": "2026-11-16T02:56:00.127Z",
+      "summary": "Implemented the owned subtitle fixtures and dedicated exclusive runner branch in back/test/api/subtitleFixtures.mjs, run.mjs, and suites.mjs. The Vitest cases in subtitleFixtures.spec.ts cover the eight fixture environments, English/Korean formats and counts, paid entitlement for only the entitled user, foreign-row preservation, partial-insert cleanup, cleanup ordering, idempotence, and retry after cleanup failure. All declared checks passed: the three node --check commands and the fixture unit test (3 tests passed). HTTP suite execution is deferred to task-4 after API implementation.",
+      "completed_at": "2026-11-16T03:02:07.331Z"
+    },
+    {
+      "id": "task-2",
+      "name": "다국어 자막 HTTP 시나리오 작성",
+      "status": "completed",
+      "depends_on": [
+        "task-1"
+      ],
+      "files": [
+        "back/test/api/subtitles.postman_collection.json",
+        "back/test/unit/api/suiteSelection.spec.ts"
+      ],
+      "checks": [
+        "node -e \"const fs=require('node:fs'),vm=require('node:vm');const c=JSON.parse(fs.readFileSync('back/test/api/subtitles.postman_collection.json','utf8'));const visit=x=>{for(const e of x.event??[])new vm.Script((e.script?.exec??[]).join('\\n'));for(const i of x.item??[])visit(i)};visit(c)\"",
+        "npm --prefix back run test:unit -- test/unit/api/suiteSelection.spec.ts"
+      ],
+      "started_at": "2026-11-16T03:02:14.431Z",
+      "summary": "Added `subtitles.postman_collection.json` scenarios for anonymous and authenticated free playback, entitled and denied paid playback, Korean/English, English-only and empty subtitles, hidden/future episodes and dramas, and malformed JWTs. Success checks verify response keys, subtitle item keys, language ordering, formats, HTTPS URLs, and one-hour expiry; denials check that media URLs are absent. Updated suite selection to expect twelve suites and verify the subtitles suite is deduplicated and uses the exclusive lock. C1/C5 review: the collection consumes the fixture environment keys and checks approved response behavior. Both declared checks passed: Postman JSON and event-script syntax validation; suiteSelection tests (23 passed). HTTP execution is deferred to task-4 after API implementation.",
+      "completed_at": "2026-11-16T03:04:48.524Z"
+    },
+    {
+      "id": "task-3",
+      "name": "기존 Postman 본편 응답 검사 적응",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "back/test/api/content.postman_collection.json",
+        "back/test/api/economy.postman_collection.json",
+        "back/test/api/http.postman_collection.json",
+        "back/test/api/identity.postman_collection.json",
+        "back/test/api/playback.postman_collection.json",
+        "back/test/api/programming.postman_collection.json",
+        "back/test/api/saved-videos.postman_collection.json",
+        "back/test/api/watch-progress.postman_collection.json"
+      ],
+      "checks": [
+        "node -e \"const fs=require('node:fs'),vm=require('node:vm');for(const n of ['content','economy','http','identity','playback','programming','saved-videos','watch-progress']){const c=JSON.parse(fs.readFileSync('back/test/api/'+n+'.postman_collection.json','utf8'));const visit=x=>{for(const e of x.event??[])new vm.Script((e.script?.exec??[]).join('\\n'));for(const i of x.item??[])visit(i)};visit(c)}\""
+      ],
+      "started_at": "2026-11-16T03:11:09.597Z",
+      "summary": "Fixed the nested playback response checks in the two saved-videos validators and the watch-progress validator to require subtitles and validate each subtitle’s exact keys, language, format, and HTTPS URL. The declared JSON/Postman script syntax check passed. Confirmed the C1 checks remain in all eight main playback branches and the preview shape is unaffected. Full HTTP rerun belongs to task-4.",
+      "completed_at": "2026-11-16T03:18:07.620Z"
+    },
+    {
+      "id": "task-4",
+      "name": "자막 재생 API 구현과 전체 HTTP 검증",
+      "status": "completed",
+      "depends_on": [
+        "task-1",
+        "task-2",
+        "task-3"
+      ],
+      "files": [
+        "back/src/content/publicCatalogService.ts",
+        "back/src/content/contentResponses.ts",
+        "_docs/api/04-playback/episodes.md",
+        "back/README.md"
+      ],
+      "checks": [
+        "npm --prefix back run lint",
+        "npm --prefix back run build",
+        "npm --prefix back run test:api -- --suite subtitles --suite playback",
+        "npm --prefix back run test:api"
+      ],
+      "started_at": "2026-11-16T03:18:20.417Z",
+      "summary": "Implemented and documented the C1 subtitle playback response. All declared checks passed: backend lint, build, selected subtitles+playback HTTP suites, and full `test:api`. The existing localhost:3000 server responded with 200; subtitle HTTP checks passed against it, covering sorted multilingual metadata, empty/English-only cases, and access denials.",
+      "completed_at": "2026-11-16T03:20:42.281Z"
+    },
+    {
+      "id": "task-5",
+      "name": "VTT SRT 파서 경계 테스트 작성",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/tests/unit/subtitles.test.ts"
+      ],
+      "checks": [],
+      "started_at": "2026-11-16T02:56:55.531Z",
+      "summary": "Added parser and cue-selection tests in front/tests/unit/subtitles.test.ts covering VTT/SRT timing, BOM/CRLF, multiline text, tags/entities, ignored VTT blocks, invalid cues, overlap order, boundaries, gaps, and backward seeking. Reviewed imports and assertions against C2 and the installed Jest 29.7 setup. No checks were run because checks=[] and the parser module is not implemented yet; Jest is deferred to task-6 and typecheck to task-8.",
+      "completed_at": "2026-11-16T02:58:11.962Z"
+    },
+    {
+      "id": "task-6",
+      "name": "VTT SRT 파서 구현",
+      "status": "completed",
+      "depends_on": [
+        "task-5"
+      ],
+      "files": [
+        "front/src/features/playback/subtitles.ts"
+      ],
+      "checks": [
+        "npm --prefix front run test -- tests/unit/subtitles.test.ts"
+      ],
+      "started_at": "2026-11-16T02:58:24.020Z",
+      "summary": "Implemented the C2 parser and cue lookup in front/src/features/playback/subtitles.ts, covering VTT/SRT timestamps, ignored VTT blocks, multiline text, tags/entities, invalid cues, overlaps, and time boundaries. `npm --prefix front run test -- tests/unit/subtitles.test.ts` passed: 1 suite, 8 tests. Reviewed the implementation against C2; no extra exports or dependencies.",
+      "completed_at": "2026-11-16T03:00:32.981Z"
+    },
+    {
+      "id": "task-7",
+      "name": "자막 로드 훅 비동기 테스트 작성",
+      "status": "completed",
+      "depends_on": [],
+      "files": [
+        "front/tests/unit/useEpisodeSubtitles.test.tsx"
+      ],
+      "checks": [],
+      "started_at": "2026-11-16T03:05:14.753Z",
+      "summary": "Fixed the renderHook callback typing in front/tests/unit/useEpisodeSubtitles.test.tsx by declaring its props as {enabled:boolean;positionMs:number} or {track:PlaybackSubtitle}; all scenarios and assertions are preserved. Verification passed: `npm --prefix front run test -- tests/unit/useEpisodeSubtitles.test.tsx` (1 suite, 12 tests) and `npm --prefix front run typecheck`.",
+      "completed_at": "2026-11-16T03:06:13.617Z"
+    },
+    {
+      "id": "task-8",
+      "name": "프론트 응답 타입과 자막 로드 훅 구현",
+      "status": "completed",
+      "depends_on": [
+        "task-6",
+        "task-7"
+      ],
+      "files": [
+        "front/src/features/playback/playbackResponses.ts",
+        "front/src/features/playback/useEpisodeSubtitles.ts"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test -- tests/unit/subtitles.test.ts tests/unit/useEpisodeSubtitles.test.tsx"
+      ],
+      "started_at": "2026-11-16T03:06:44.655Z",
+      "summary": "Implemented PlaybackSubtitle and optional EpisodePlayback.subtitles plus useEpisodeSubtitles with direct fetch, identity-based stale result protection, abort cleanup, and enabled/position handling. After the task-7 typing correction, both declared checks passed: front typecheck and focused Jest (2 suites, 20 tests).",
+      "completed_at": "2026-11-16T03:07:16.934Z"
+    },
+    {
+      "id": "task-9",
+      "name": "다국어 화면 테스트와 기존 세션 mock 적응",
+      "status": "completed",
+      "depends_on": [
+        "task-8"
+      ],
+      "files": [
+        "front/tests/unit/playbackScreenEpisode.test.tsx",
+        "front/tests/unit/accountSubtitles.test.tsx",
+        "front/tests/unit/dramaDetailScreen.test.tsx",
+        "front/tests/unit/episodeUnlockDialog.test.tsx",
+        "front/tests/unit/homeScreen.test.tsx",
+        "front/tests/unit/libraryScreen.test.tsx",
+        "front/tests/unit/pointsScreen.test.tsx",
+        "front/tests/unit/recommendationPreviewBuffer.test.tsx",
+        "front/tests/unit/savedVideoScreens.test.tsx",
+        "front/tests/unit/searchScreen.test.tsx",
+        "front/tests/unit/sessionExpiredDialog.test.tsx"
+      ],
+      "checks": [
+        "npm --prefix front run test -- tests/unit/dramaDetailScreen.test.tsx tests/unit/episodeUnlockDialog.test.tsx tests/unit/homeScreen.test.tsx tests/unit/libraryScreen.test.tsx tests/unit/pointsScreen.test.tsx tests/unit/recommendationPreviewBuffer.test.tsx tests/unit/savedVideoScreens.test.tsx tests/unit/searchScreen.test.tsx tests/unit/sessionExpiredDialog.test.tsx"
+      ],
+      "started_at": "2026-11-16T03:26:03.206Z",
+      "summary": "Corrected test session updates to preserve the mock auth callback and avoid unintended playback reloads, used the settings modal’s own close control, and gave the replacement episode a distinct subtitle URL and text. The real-provider account route test now navigates through its route action. Verification passed: focused player/account tests (2 suites, 17 tests), typecheck, and the declared existing-screen regression check (9 suites, 100 tests).",
+      "completed_at": "2026-11-16T03:31:39.396Z"
+    },
+    {
+      "id": "task-10",
+      "name": "다국어 본편 재생과 계정 설정 연결",
+      "status": "completed",
+      "depends_on": [
+        "task-4",
+        "task-8",
+        "task-9"
+      ],
+      "files": [
+        "front/src/screens/playbackScreen_episode.tsx",
+        "front/src/screens/AccountScreen.tsx",
+        "front/src/features/user/UserProvider.tsx",
+        "front/README.md"
+      ],
+      "checks": [
+        "npm --prefix front run typecheck",
+        "npm --prefix front run test -- tests/unit/subtitles.test.ts tests/unit/useEpisodeSubtitles.test.tsx tests/unit/playbackScreenEpisode.test.tsx tests/unit/accountSubtitles.test.tsx tests/unit/dramaDetailScreen.test.tsx tests/unit/episodeUnlockDialog.test.tsx tests/unit/homeScreen.test.tsx tests/unit/libraryScreen.test.tsx tests/unit/pointsScreen.test.tsx tests/unit/recommendationPreviewBuffer.test.tsx tests/unit/savedVideoScreens.test.tsx tests/unit/searchScreen.test.tsx tests/unit/sessionExpiredDialog.test.tsx",
+        "npm --prefix front run export"
+      ],
+      "started_at": "2026-11-16T03:31:46.608Z",
+      "summary": "Connected the shared Korean-default subtitle preference, language selection, caption loading and overlay, and account playback switch; documented the global state. All declared checks passed: front typecheck, 13 Jest suites with 137 tests, and Expo export for web, Android, and iOS. Manual S3/CORS and device caption placement verification was not run because no real subtitle object or device was available; tests use mocked subtitle fetches.",
+      "completed_at": "2026-11-16T03:34:37.428Z"
+    }
+  ]
+}

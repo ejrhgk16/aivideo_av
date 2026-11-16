@@ -35,6 +35,7 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     sessionExpired: false,
     sessionVersion: 0,
     subtitlesEnabled: true,
+    preferredSubtitleLanguage: 'ko',
     autoplayNext: false,
     setUser: jest.fn(),
     setPoints: jest.fn(),
@@ -43,6 +44,7 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     dismissSessionExpired: jest.fn(),
     isCurrentSession: (version) => version === 0,
     setSubtitlesEnabled: jest.fn(),
+    setPreferredSubtitleLanguage: jest.fn(),
     setAutoplayNext: jest.fn(),
     ...overrides,
   };

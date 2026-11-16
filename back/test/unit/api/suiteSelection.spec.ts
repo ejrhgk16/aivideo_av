@@ -6,9 +6,9 @@ import { parseSuiteArguments, selectSuites, suites } from '../../api/suites.mjs'
 const collectionDirectory = fileURLToPath(new URL('../../api/', import.meta.url));
 
 describe('API suite selection', () => {
-  it('registers all eleven suites in the default order', () => {
+  it('registers all twelve suites in the default order', () => {
     expect(selectSuites([]).map(suite => suite.id)).toEqual([
-      'http', 'identity', 'content', 'drama-pagination', 'programming', 'playback', 'economy', 'watch-progress', 'saved-videos', 'watch-history', 'point-history',
+      'http', 'identity', 'content', 'drama-pagination', 'programming', 'playback', 'economy', 'watch-progress', 'saved-videos', 'watch-history', 'point-history', 'subtitles',
     ]);
   });
 
@@ -32,6 +32,12 @@ describe('API suite selection', () => {
   it('selects point-history once and runs it under the exclusive content lock', () => {
     expect(selectSuites(['--suite', 'point-history', '--suite', 'point-history'])).toMatchObject([
       { id: 'point-history', contentMode: 'exclusive', collection: 'point-history.postman_collection.json' },
+    ]);
+  });
+
+  it('selects subtitles once and runs it under the exclusive content lock', () => {
+    expect(selectSuites(['--suite', 'subtitles', '--suite', 'subtitles'])).toMatchObject([
+      { id: 'subtitles', contentMode: 'exclusive', collection: 'subtitles.postman_collection.json' },
     ]);
   });
 

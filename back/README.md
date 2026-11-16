@@ -92,6 +92,7 @@ Harness의 작업별 검사·최종 전체 검증은 [플랜 규칙](../_docs/pl
 | 9. `saved-videos` | 저장/해제·0/30/31 페이지·동일 시각·숨김·사용자 격리·FULL/PREVIEW 진행률·응답 flags | exclusive |
 | 10. `watch-history` | 본인 STARTED 기록·0/30/31 페이지·동일 시각·숨김/미래/종류 오류 제외·FULL/PREVIEW 분리 | exclusive |
 | 11. `point-history` | 본인 원장·0/30/31 페이지·동일 시각·전체 거래 유형·회차 공개·인증/페이지 | exclusive |
+| 12. `subtitles` | 다국어 VTT/SRT·빈 자막·무료/유료 권한·숨김/미래 공개 조건·URL metadata | exclusive |
 
 - 요청·assertion 원본은 suite별 컬렉션이며 `suites.mjs`가 선택·잠금을 관리한다. 기존 public 컬렉션은 사용하지 않는다. 응답·오류의 정확한 키를 검사하고 `pm.sendRequest` 응답은 collection event가 적용되지 않으므로 직접 assert한다.
 - 실행마다 컬렉션·환경을 전용 임시 디렉터리에 복사한다. credentials·JWT는 출력하거나 컬렉션에 저장하지 않는다. 서명 미디어는 URL metadata만 검사하며 다운로드하지 않는다.
@@ -117,6 +118,7 @@ managed 모드는 `.env.development`를 읽고 명시적인 비어 있지 않은
 | `saved-videos` | HOME_FEATURED에 연결한 실행 전용 공개 드라마·복제 이미지·PREVIEW·무료/유료 FULL. 무료 회차의 두 번째 FULL과 PREVIEW 진행률로 영상별 분리를 검증. 저장할 유료 FULL은 미구매인지 사전 확인 |
 | `watch-history` | 공개 드라마를 복제해 FULL 31개·PREVIEW·대체/유료 FULL·poster-only/image-less PREVIEW·숨김/미래/종류 오류 데이터 생성. PUT으로 0/30/31 경계를 검사한 뒤 해당 실행 기록만 같은 과거 UTC로 바꿔 두 번째 pass에서 `video_id DESC` 동률 순서·인증/입력 검증 |
 | `point-history` | 권한 사용자 31건·경계 사용자 30건·미권한 사용자 빈 원장. 동일/삽입순서와 다른 UTC·5가지 거래 유형·공개/숨김/미래 회차/드라마. 읽기 전후 지갑·원장·권한 snapshot 비교. 기존 공개 드라마의 제작사 ID만 읽기 전용 template으로 사용 |
+| `subtitles` | 실행별 드라마·회차·FULL 영상·자막 행. 기존 공개 작품의 제작사 ID만 template으로 읽고, 새 미디어 객체는 업로드/다운로드하지 않음. 무료·유료의 en/SRT+ko/VTT, en-only, 빈 자막, 숨김/미래 회차와 작품을 검사하고 소유 행만 제거 |
 
 UUID는 삽입 전에 기록한다. 정리는 소유한 user/video 쌍·콘텐츠만 제거하고 Refresh 이력·권한·저장·진행률·거래·지갑을 정리한 후 사용자를 삭제한다. 숨김 영상 DELETE 성공은 fixture 제거 전에 확인한다.
 
@@ -135,6 +137,7 @@ UUID는 삽입 전에 기록한다. 정리는 소유한 user/video 쌍·콘텐�
 | `watch-history` | `entitledUserUuid`, `unentitledUserUuid`, `historyPhase=verify`, `historyDramaUuid`, `historyPreviewVideoUuid`, `historyVideoUuids`, `historyExpectedVideoUuids`, `historyHiddenVideoUuids`, `historyRecentVideoUuid`, `historyNoImageVideoUuid`, `historyPosterOnlyVideoUuid`, `historyPaidVideoUuid`, `historyAlternateVideoUuid` |
 | `point-history` | 권한/미권한 로그인·UUID, `pointHistoryBoundaryLoginId`, `pointHistoryBoundaryPassword`, `pointHistoryExpectedItems` 31건, `pointHistoryBoundaryExpectedItems` 30건. 정렬은 `created_at DESC, id DESC`, 각 item의 키는 `uuid/transactionType/amount/balanceAfter/createdAt/episode`만 허용 |
 | `drama-pagination` | `catalogAllQuery`, `catalogThirtyQuery`, `catalogEmptyQuery`, `catalogTailQuery`, `catalogLiteralQuery`, `catalogGenreCodeA`, `catalogGenreCodeB`, `catalogGenreName`, `catalogExpectedUuids`, `catalogThirtyExpectedUuids`, `catalogGenreExpectedUuids`, `catalogLiteralExpectedUuids`, `catalogExcludedUuids`, `catalogPreviewVideoUuid`, `catalogPreviewDramaUuid`. 기대 UUID 값은 정렬된 JSON 배열이다. 외부 환경은 fixture를 직접 준비·정리한다 |
+| `subtitles` | `subtitleFreeEpisodeUuid`, `subtitlePaidEpisodeUuid`, `subtitleEmptyEpisodeUuid`, `subtitleEnglishOnlyEpisodeUuid`, `subtitleHiddenEpisodeUuid`, `subtitleFutureEpisodeUuid`, `subtitleHiddenDramaEpisodeUuid`, `subtitleFutureDramaEpisodeUuid`와 공통 권한/미권한 로그인 쌍. 외부 환경은 자막/회차/작품을 직접 준비·정리한다 |
 
 watch-history는 사용자·공개 영상·권한 사용자의 유료 FULL 구매·진행률과 제외할 숨김/미래/종류 오류 기록을 미리 준비한다. `historyVideoUuids`는 최초 30개와 나머지를 생성한 순서, `historyExpectedVideoUuids`는 시각 동률 적용 후 전체 기대 순서다. `historyPreviewVideoUuid`는 대표 드라마 이미지 assertion에 쓴다. verify 모드는 준비된 기록을 검사하고 fixture를 생성·정리하지 않는다.
 

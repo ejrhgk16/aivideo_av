@@ -43,9 +43,9 @@ describe('initial seed data', () => {
     expect(initialData.dramas).toHaveLength(5);
     expect(initialData.dramaGenres).toHaveLength(10);
     expect(initialData.contentImages).toHaveLength(56);
-    expect(initialData.episodes).toHaveLength(20);
-    expect(initialData.contentVideos).toHaveLength(30);
-    expect(initialData.episodeSubtitles).toHaveLength(20);
+    expect(initialData.episodes).toHaveLength(21);
+    expect(initialData.contentVideos).toHaveLength(31);
+    expect(initialData.episodeSubtitles).toHaveLength(22);
     expect(initialData.contentCollections).toHaveLength(4);
     expect(initialData.collectionDramas).toHaveLength(14);
     expect(initialData.pointProducts).toHaveLength(3);
@@ -103,11 +103,39 @@ describe('initial seed data', () => {
         .filter(({ dramaUuid }) => dramaUuid === drama.uuid)
         .sort((left, right) => left.episodeNumber! - right.episodeNumber!);
 
-      expect(dramaEpisodes).toHaveLength(4);
+      expect(dramaEpisodes).toHaveLength(drama.uuid === initialData.dramas[0].uuid ? 5 : 4);
       expect(dramaEpisodes[0].episodeNumber).toBe(1);
       expect(dramaEpisodes[0].pricePoints).toBe(0);
       expect(dramaEpisodes.slice(1).every(({ pricePoints }) => (pricePoints ?? 0) > 0)).toBe(true);
     }
+  });
+
+  it('connects the added fifth episode to its full video and Korean and English SRT subtitles', () => {
+    const episodeUuid = '00000004-0000-4000-8000-000000000005';
+    expect(initialData.episodes.find(({ uuid }) => uuid === episodeUuid)).toMatchObject({
+      dramaUuid: initialData.dramas[0].uuid,
+      episodeNumber: 5,
+      durationMs: 66110,
+      pricePoints: 10,
+      status: 'PUBLISHED',
+    });
+    const videos = initialData.contentVideos.filter(({ contentUuid }) => contentUuid === episodeUuid);
+    expect(videos).toHaveLength(1);
+    expect(videos[0]).toMatchObject({
+      uuid: '00000005-0000-4000-8000-000000000071',
+      contentType: 'EPISODE',
+      kind: 'FULL',
+      durationMs: 66110,
+    });
+    expect(
+      initialData.episodeSubtitles
+        .filter(({ episodeUuid: subtitleEpisodeUuid }) => subtitleEpisodeUuid === episodeUuid)
+        .map(({ languageCode, format }) => ({ languageCode, format }))
+        .sort((left, right) => left.languageCode!.localeCompare(right.languageCode!)),
+    ).toEqual([
+      { languageCode: 'en', format: 'SRT' },
+      { languageCode: 'ko', format: 'SRT' },
+    ]);
   });
 
   it('has the planned image ownership and ordered campaigns', () => {
@@ -153,7 +181,7 @@ describe('initial seed data', () => {
           ({ contentType, contentUuid, kind }) =>
             contentType === 'EPISODE' && contentUuid === episode.uuid && kind === 'EPISODE_COVER',
         ),
-      ).toHaveLength(1);
+      ).toHaveLength(episode.uuid === '00000004-0000-4000-8000-000000000005' ? 0 : 1);
     }
 
     const homeCampaign = initialData.contentCollections.find(

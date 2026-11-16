@@ -1,3 +1,9 @@
+export type PlaybackSubtitle = {
+  languageCode: string;
+  format: 'VTT' | 'SRT';
+  url: string;
+};
+
 export type EpisodePlayback = {
   url: string;
   videoUuid: string;
@@ -5,6 +11,7 @@ export type EpisodePlayback = {
   title: string | null;
   episodeNumber: number;
   durationMs: number;
+  subtitles?: PlaybackSubtitle[];
 };
 
 export type PreviewPlayback = {

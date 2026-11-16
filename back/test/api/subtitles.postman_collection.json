@@ -1,0 +1,121 @@
+{
+  "info": {
+    "name": "AI Drama episode subtitle API",
+    "description": "HTTP checks for multilingual episode subtitles against the running development API. Signed media URLs are inspected as metadata and never downloaded.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" },
+    { "key": "entitledLoginId", "value": "", "type": "string" },
+    { "key": "entitledPassword", "value": "", "type": "string" },
+    { "key": "unentitledLoginId", "value": "", "type": "string" },
+    { "key": "unentitledPassword", "value": "", "type": "string" },
+    { "key": "entitledUserUuid", "value": "", "type": "string" },
+    { "key": "unentitledUserUuid", "value": "", "type": "string" },
+    { "key": "subtitleFreeEpisodeUuid", "value": "", "type": "string" },
+    { "key": "subtitlePaidEpisodeUuid", "value": "", "type": "string" },
+    { "key": "subtitleEmptyEpisodeUuid", "value": "", "type": "string" },
+    { "key": "subtitleEnglishOnlyEpisodeUuid", "value": "", "type": "string" },
+    { "key": "subtitleHiddenEpisodeUuid", "value": "", "type": "string" },
+    { "key": "subtitleFutureEpisodeUuid", "value": "", "type": "string" },
+    { "key": "subtitleHiddenDramaEpisodeUuid", "value": "", "type": "string" },
+    { "key": "subtitleFutureDramaEpisodeUuid", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Root",
+      "request": { "method": "GET", "url": "{{baseUrl}}/" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('HTTP 200', () => pm.response.to.have.status(200));"] } }]
+    },
+    {
+      "name": "Login as entitled fixture user",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"loginId\":\"{{entitledLoginId}}\",\"password\":\"{{entitledPassword}}\"}" },
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const body = pm.response.json(); pm.test('Entitled fixture login succeeds', () => { pm.response.to.have.status(200); pm.expect(body.uuid).to.equal(pm.variables.get('entitledUserUuid')); pm.expect(body.accessToken).to.be.a('string').and.not.empty; pm.collectionVariables.set('entitledAccessToken', body.accessToken); });"] } }]
+    },
+    {
+      "name": "Login as unentitled fixture user",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"loginId\":\"{{unentitledLoginId}}\",\"password\":\"{{unentitledPassword}}\"}" },
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["const body = pm.response.json(); pm.test('Unentitled fixture login succeeds', () => { pm.response.to.have.status(200); pm.expect(body.uuid).to.equal(pm.variables.get('unentitledUserUuid')); pm.expect(body.accessToken).to.be.a('string').and.not.empty; pm.collectionVariables.set('unentitledAccessToken', body.accessToken); });"] } }]
+    },
+    {
+      "name": "Free episode playback includes Korean and English subtitles",
+      "request": { "method": "GET", "url": "{{baseUrl}}/episodes/{{subtitleFreeEpisodeUuid}}/playback" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('Anonymous free playback succeeds', () => pm.response.to.have.status(200));",
+        "const body = pm.response.json();",
+        "pm.test('Playback retains its public response keys and returns sorted subtitle metadata', () => {",
+        "  pm.expect(Object.keys(body).sort()).to.eql(['durationMs','episodeNumber','isSaved','subtitles','title','url','videoUuid'].sort());",
+        "  pm.expect(body.durationMs).to.be.a('number'); pm.expect(body.episodeNumber).to.be.a('number'); pm.expect(body.isSaved).to.equal(false);",
+        "  pm.expect(body.url).to.match(/^https:\\/\\/[^/]+\\.s3\\.[^/]+\\.amazonaws\\.com\\//); pm.expect(body.url).to.match(/[?&]X-Amz-Expires=3600(?:&|$)/);",
+        "  pm.expect(body.subtitles.map(item => item.languageCode)).to.eql(['en','ko']);",
+        "  body.subtitles.forEach(item => { pm.expect(Object.keys(item).sort()).to.eql(['format','languageCode','url']); pm.expect(item.format).to.equal(item.languageCode === 'en' ? 'SRT' : 'VTT'); pm.expect(item.url).to.match(/^https:\\/\\/[^/]+\\.s3\\.[^/]+\\.amazonaws\\.com\\//); pm.expect(item.url).to.match(/[?&]X-Amz-Expires=3600(?:&|$)/); });",
+        "});"
+      ] } }]
+    },
+    {
+      "name": "Free episode playback accepts an authenticated user",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{entitledAccessToken}}" }], "url": "{{baseUrl}}/episodes/{{subtitleFreeEpisodeUuid}}/playback" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Authenticated free playback succeeds and keeps both subtitle languages', () => { pm.response.to.have.status(200); const body = pm.response.json(); pm.expect(body.subtitles.map(item => item.languageCode)).to.eql(['en','ko']); });"] } }]
+    },
+    {
+      "name": "Paid episode playback for entitled user includes both languages",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{entitledAccessToken}}" }], "url": "{{baseUrl}}/episodes/{{subtitlePaidEpisodeUuid}}/playback" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Entitled paid playback returns both sorted languages', () => { pm.response.to.have.status(200); const body = pm.response.json(); pm.expect(body.subtitles.map(item => item.languageCode)).to.eql(['en','ko']); pm.expect(body.subtitles.map(item => item.format)).to.eql(['SRT','VTT']); });"] } }]
+    },
+    {
+      "name": "Paid episode playback for anonymous user requires authentication",
+      "request": { "method": "GET", "url": "{{baseUrl}}/episodes/{{subtitlePaidEpisodeUuid}}/playback" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Anonymous paid playback returns 401 without media URLs', () => { pm.response.to.have.status(401); const body = pm.response.json(); pm.expect(body.errorCode).to.equal('AUTH_INVALID_TOKEN'); pm.expect(body).not.to.have.property('url'); pm.expect(body).not.to.have.property('subtitles'); });"] } }]
+    },
+    {
+      "name": "Paid episode playback denies an unentitled user",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer {{unentitledAccessToken}}" }], "url": "{{baseUrl}}/episodes/{{subtitlePaidEpisodeUuid}}/playback" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Unentitled paid playback returns 403 without media URLs', () => { pm.response.to.have.status(403); const body = pm.response.json(); pm.expect(body.errorCode).to.equal('EPISODE_ACCESS_DENIED'); pm.expect(body).not.to.have.property('url'); pm.expect(body).not.to.have.property('subtitles'); });"] } }]
+    },
+    {
+      "name": "English-only episode returns one SRT subtitle",
+      "request": { "method": "GET", "url": "{{baseUrl}}/episodes/{{subtitleEnglishOnlyEpisodeUuid}}/playback" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('English-only playback returns one exact SRT metadata item', () => { pm.response.to.have.status(200); const body = pm.response.json(); pm.expect(body.subtitles).to.have.length(1); const [item] = body.subtitles; pm.expect(Object.keys(item).sort()).to.eql(['format','languageCode','url']); pm.expect(item.languageCode).to.equal('en'); pm.expect(item.format).to.equal('SRT'); pm.expect(item.url).to.match(/^https:\\/\\/[^/]+\\.s3\\.[^/]+\\.amazonaws\\.com\\//); pm.expect(item.url).to.match(/[?&]X-Amz-Expires=3600(?:&|$)/); });"] } }]
+    },
+    {
+      "name": "Episode without subtitles returns an empty array",
+      "request": { "method": "GET", "url": "{{baseUrl}}/episodes/{{subtitleEmptyEpisodeUuid}}/playback" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Playback with no subtitle rows returns an empty array', () => { pm.response.to.have.status(200); const body = pm.response.json(); pm.expect(body).to.have.property('subtitles').that.is.an('array').and.is.empty; });"] } }]
+    },
+    {
+      "name": "Hidden episode playback is not public",
+      "request": { "method": "GET", "url": "{{baseUrl}}/episodes/{{subtitleHiddenEpisodeUuid}}/playback" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Hidden episode is not found and exposes no URLs', () => { pm.response.to.have.status(404); const body = pm.response.json(); pm.expect(body).not.to.have.property('url'); pm.expect(body).not.to.have.property('subtitles'); });"] } }]
+    },
+    {
+      "name": "Future episode playback is not public",
+      "request": { "method": "GET", "url": "{{baseUrl}}/episodes/{{subtitleFutureEpisodeUuid}}/playback" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Future episode is not found and exposes no URLs', () => { pm.response.to.have.status(404); const body = pm.response.json(); pm.expect(body).not.to.have.property('url'); pm.expect(body).not.to.have.property('subtitles'); });"] } }]
+    },
+    {
+      "name": "Episode under hidden drama is not public",
+      "request": { "method": "GET", "url": "{{baseUrl}}/episodes/{{subtitleHiddenDramaEpisodeUuid}}/playback" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Episode under hidden drama is not found and exposes no URLs', () => { pm.response.to.have.status(404); const body = pm.response.json(); pm.expect(body).not.to.have.property('url'); pm.expect(body).not.to.have.property('subtitles'); });"] } }]
+    },
+    {
+      "name": "Episode under future drama is not public",
+      "request": { "method": "GET", "url": "{{baseUrl}}/episodes/{{subtitleFutureDramaEpisodeUuid}}/playback" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Episode under future drama is not found and exposes no URLs', () => { pm.response.to.have.status(404); const body = pm.response.json(); pm.expect(body).not.to.have.property('url'); pm.expect(body).not.to.have.property('subtitles'); });"] } }]
+    },
+    {
+      "name": "Malformed JWT is rejected before returning subtitle URLs",
+      "request": { "method": "GET", "header": [{ "key": "Authorization", "value": "Bearer malformed.token.value" }], "url": "{{baseUrl}}/episodes/{{subtitleFreeEpisodeUuid}}/playback" },
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Malformed JWT returns 401 without media URLs', () => { pm.response.to.have.status(401); const body = pm.response.json(); pm.expect(body.errorCode).to.equal('AUTH_INVALID_TOKEN'); pm.expect(body).not.to.have.property('url'); pm.expect(body).not.to.have.property('subtitles'); });"] } }]
+    }
+  ]
+}
