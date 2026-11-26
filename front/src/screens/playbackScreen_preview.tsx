@@ -394,7 +394,7 @@ const useStyles = createThemedStyles((colors) => ({
   actionLabel: { color: colors.onMedia, fontSize: 10, lineHeight: 14 },
   playPause: { alignSelf: 'center', width: 68, height: 68, borderRadius: 34, backgroundColor: colors.mediaScrim, alignItems: 'center', justifyContent: 'center' },
   bottomControls: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 25, backgroundColor: colors.mediaScrim },
-  studio: { color: colors.onMediaMuted, fontSize: 9, lineHeight: 14, letterSpacing: 1.2 },
+  studio: { color: colors.onMediaMuted, fontSize: 12, lineHeight: 18 },
   bottomTitleButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 7 },
   bottomTitle: { flex: 1, color: colors.onMedia, fontSize: 21, lineHeight: 28 },
   episodeInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
