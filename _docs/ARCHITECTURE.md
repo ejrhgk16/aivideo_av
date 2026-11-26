@@ -4,6 +4,7 @@ Application structure, ownership, and dependency boundaries. Installation, execu
 
 ```text
 front (Expo / React Native) ── HTTP API ──> back (NestJS)
+admin (Next.js) ── SQL ──> shared MySQL <── back (schema owner)
 ```
 
 ## Frontend — `front/`
@@ -41,6 +42,21 @@ Frontend state ownership is defined in the [frontend README](../front/README.md#
 | `test/api/` | Postman HTTP suites and owned fixture/lock support. |
 | `test/unit/` | Internal rules and boundaries that HTTP cannot reproduce safely. |
 
+## Admin — `admin/`
+
+Operator web app (Next.js App Router). It reads and writes the same MySQL database as `back/` directly with `mysql2`, but does not own the schema; tables and migrations stay in `back/`. Setup and execution are in the [admin README](../admin/README.md).
+
+| Path | Responsibility |
+| --- | --- |
+| `src/app/` | App Router routes: login, project list, project/campaign dashboards, upload. |
+| `src/components/` | Shared admin UI, tables, and charts. |
+| `src/lib/db.ts` | MySQL connection pool. |
+| `src/lib/auth.ts`, `session.ts` | Operator login against `users` and signed session cookie. |
+| `src/lib/catalog.ts` | Drama/episode catalog reads. |
+| `src/lib/upload.ts`, `uploadValidation.ts` | Validation and transactional insert of `SCHEDULED` dramas/episodes. |
+| `src/lib/metrics.ts`, `sampleMetrics.ts` | Metric math and generated sample metrics (no collection tables yet). |
+| `tests/` | Vitest unit tests. |
+
 ## Documentation and tooling
 
 `auth-prototype/` preserves the `front/` source from `ai/app-auth` at commit `0f10df4c180a8b613cb4dd07d3d85d616e2d3ea7` as a standalone reference. It is separate from the active `front/` application; usage is documented in `front/README.md`.
@@ -63,4 +79,5 @@ The active `front/` app owns the `/auth/login` preview and `/auth/onboarding` fi
 ## Boundaries
 
 - Frontend and backend own independent package.json/lockfiles and response types; neither imports the other's source.
+- `admin/` owns its own package.json/lockfile, imports no `front/` or `back/` source, and never creates or migrates tables.
 - `web-prototype/` is a preserved standalone reference, excluded from active app and Harness work.

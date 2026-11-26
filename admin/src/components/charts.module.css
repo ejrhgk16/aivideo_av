@@ -1,0 +1,195 @@
+/* Campaign charts. Marks: bars <= 24px with 4px rounded tops and 2px gaps, 2px lines, 8px dots with a surface ring. */
+
+.chart {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.readout {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.daily {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.plot {
+  display: flex;
+  gap: 2px;
+  height: 160px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.slot {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 0;
+}
+
+/* Days other than the shown one recede to the resting step, which still clears 3:1 on the surface. */
+.bar {
+  width: 100%;
+  max-width: 24px;
+  border-radius: 4px 4px 0 0;
+  background: var(--chart-rest);
+}
+
+.active .bar {
+  background: var(--chart-selected);
+}
+
+.dates {
+  display: flex;
+  gap: 2px;
+}
+
+/* Each label centres under its own day, even when the day is narrower than the label. */
+.dates span {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* When a day is too narrow, the end labels grow inward instead of past the plot edge.
+   safe center falls back to the start edge, so the last label switches its start edge to the right. */
+.dates span:first-child,
+.dates span:last-child {
+  justify-content: safe center;
+}
+
+.dates span:last-child {
+  direction: rtl;
+}
+
+.drop {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.retention {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 8px;
+}
+
+.yTicks {
+  position: relative;
+  width: 32px;
+}
+
+.yTicks span,
+.xTicks span {
+  position: absolute;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.yTicks span {
+  right: 0;
+  transform: translateY(-50%);
+}
+
+.curve {
+  position: relative;
+  height: 180px;
+}
+
+.curve svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.grid {
+  stroke: var(--border);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+
+.area {
+  fill: var(--chart-line);
+  fill-opacity: var(--chart-area-opacity);
+}
+
+.line {
+  fill: none;
+  stroke: var(--chart-line);
+  stroke-width: 2px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.dropLine {
+  stroke: var(--chart-drop);
+}
+
+.hit {
+  fill: transparent;
+}
+
+.marker {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--chart-drop);
+  box-shadow: 0 0 0 2px var(--surface);
+  transform: translate(-50%, 50%);
+}
+
+.xTicks {
+  position: relative;
+  grid-column: 2;
+  height: 18px;
+}
+
+.meter {
+  display: grid;
+  grid-template-columns: 72px 1fr 60px;
+  align-items: center;
+  gap: 12px;
+}
+
+/* The track is a dim step of the fill's own hue. */
+.track {
+  height: 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--chart-line) 16%, var(--surface));
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--chart-line);
+}
+
+.meterValue {
+  font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

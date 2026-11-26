@@ -1,0 +1,97 @@
+/* PEEKA brand tokens (web-prototype/DESIGN.md). Light = cream, dark = ink; the theme follows the OS. */
+:root {
+  --background: #fbf4ec;
+  --surface: #ffffff;
+  --elevated: #ede2ff;
+  --secondary-hover: #d0b3fb;
+  --row-hover: #f6efff;
+  --text: #2b1d47;
+  --muted: #6e6089;
+  --accent: #6a3fd0;
+  --accent-hover: #4b2fa0;
+  --on-accent: #ffffff;
+  --primary: #ffc93c;
+  --primary-hover: #ffd45e;
+  --on-primary: #3d2400;
+  --border: #e8ddf3;
+  --border-strong: #8776aa;
+  --danger: #c4314b;
+  --notice-border: #d0b3fb;
+  --notice-surface: #ede2ff;
+  --logo-surface: #d0b3fb;
+  /* Chart marks, checked with the dataviz palette validator against each mode's surface. */
+  --chart-line: #6a3fd0;
+  --chart-rest: #9b6fe8;
+  --chart-selected: #4b2fa0;
+  --chart-area-opacity: 0.1;
+  --chart-drop: #c4314b;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #121214;
+    --surface: #1a1a1d;
+    --elevated: #242428;
+    --secondary-hover: #2c2c31;
+    --row-hover: #2c2c31;
+    --text: #f2f1f4;
+    --muted: #a8a7b0;
+    --accent: #d0b3fb;
+    --accent-hover: #ede2ff;
+    --on-accent: #121214;
+    --border: #2e2e33;
+    --border-strong: #7d7d88;
+    --danger: #ff9fb0;
+    --notice-border: #2e2e33;
+    --notice-surface: #242428;
+    --chart-line: #9b6fe8;
+    /* On ink only the selected day is lavender; the other days go neutral so purple stays a small accent. */
+    --chart-rest: #7d7d88;
+    --chart-selected: #d0b3fb;
+    --chart-area-opacity: 0.05;
+    --chart-drop: #e8506e;
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  letter-spacing: -0.02em;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--text);
+  font-family: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
