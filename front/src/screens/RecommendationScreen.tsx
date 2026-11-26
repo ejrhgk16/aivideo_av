@@ -12,7 +12,9 @@ import { ApiError, SessionChangedError } from '@/common/http/api';
 import { getErrorMessage } from '@/common/http/errorMessages';
 import { resolveApiImageUrl } from '@/common/media';
 import { createThemedStyles, useColors } from '@/common/theme/theme';
+import { radius, spacing, textSizes } from '@/common/theme/tokens';
 import { getDramaContent, type DramaContent } from '@/features/drama/dramaContent';
+import { resumeLabel, resumePoint } from '@/features/drama/resumePoint';
 import { getHomeCollection, type HomeCollection, type HomeCollectionDrama } from '@/features/home/homeContent';
 import { getPreviewPlayback } from '@/features/playback/previewPlayback';
 import { createRecommendationPreviewBuffer, recommendationPreviewKey, type RecommendationPreviewEntry } from '@/features/playback/recommendationPreviewBuffer';
@@ -39,6 +41,7 @@ function RecommendationPreviewPlayer({
   trackListener,
   drama,
   content,
+  contentLoading,
   initialSaved,
   savedWriteState,
   savedWritePending,
@@ -55,6 +58,7 @@ function RecommendationPreviewPlayer({
   trackListener: (subscription: { remove(): void }) => { remove(): void };
   drama: HomeCollectionDrama;
   content: DramaContent | null;
+  contentLoading: boolean;
   initialSaved: boolean;
   savedWriteState: { ownerKey: string; revision: number; pending: boolean };
   savedWritePending: boolean;
@@ -125,8 +129,9 @@ function RecommendationPreviewPlayer({
   const seekTouchActive = useRef(false);
   onErrorRef.current = onError;
   useEffect(() => { previousPlaybackTime.current = null; }, [moving]);
-  const episodes = [...(content?.episodes ?? [])].sort((first, second) => first.episodeNumber - second.episodeNumber);
-  const firstEpisode = episodes[0] ?? null;
+  // 주 버튼은 홈 대표 작품과 같은 규칙(resumePoint)으로 문구와 회차를 정한다.
+  const resume = content ? resumePoint(content) : null;
+  const watchLabel = resumeLabel(resume, drama.freeEpisodeCount, contentLoading);
   const genres = drama.genres.map((genre) => genre.name).join(' · ') || '장르 정보 없음';
   const productionCompany = content?.productionCompany ?? null;
   const updateSeekTouch = (active: boolean) => {
@@ -246,14 +251,14 @@ function RecommendationPreviewPlayer({
     else player.play();
     showControls();
   };
-  const watchFirstEpisode = () => {
+  const watchResume = () => {
     player.pause();
-    if (!firstEpisode) {
-      onOpenEpisodes();
-    } else if (firstEpisode.pricePoints > 0) {
-      setLockedEpisode(firstEpisode);
+    if (!resume) {
+      router.push({ pathname: '/drama/[id]', params: { id: drama.uuid } });
+    } else if (resume.episode.pricePoints > 0 && !resume.episode.isUnlocked) {
+      setLockedEpisode(resume.episode);
     } else {
-      router.push({ pathname: '/episode/[id]', params: { id: firstEpisode.uuid, dramaId: drama.uuid } });
+      router.push({ pathname: '/episode/[id]', params: { id: resume.episode.uuid, dramaId: drama.uuid } });
     }
   };
   const close = () => {
@@ -269,7 +274,7 @@ function RecommendationPreviewPlayer({
     {(controlsVisible || (touchActive && retainTouchControls.current)) && <>
       <View style={[styles.playerTopBar, { paddingTop: insets.top + 6 }]}>
         <Pressable onPress={close} accessibilityRole="button" accessibilityLabel="닫기" style={styles.playerIconButton}><Icon name="x" color={colors.onMedia} /></Pressable>
-        <View style={styles.playerHeading}><AppText style={styles.playerSubheading}>미리보기</AppText><AppText weight="semibold" numberOfLines={1} style={styles.playerHeadingTitle}>{drama.title}</AppText></View>
+        <View style={styles.playerHeading} />
         <Pressable onPress={() => setSpeedMenuOpen((open) => !open)} accessibilityRole="button" accessibilityLabel="재생 속도" style={styles.playerSpeedButton}><AppText weight="semibold" style={styles.playerSpeedText}>{playbackRate}x</AppText></Pressable>
         <Pressable onPress={() => { setSpeedMenuOpen(false); setSettingsOpen(true); }} accessibilityRole="button" accessibilityLabel="더보기 설정" style={styles.playerIconButton}><Icon name="more-horizontal" color={colors.onMedia} size={24} /></Pressable>
       </View>
@@ -279,7 +284,7 @@ function RecommendationPreviewPlayer({
         </Pressable>)}
       </View>}
       <View style={styles.playerSideActions}>
-        <Pressable disabled={!preview || isRestoring || saving || savedWritePending || savedWriteState.pending} onPress={() => void toggleSaved()} accessibilityRole="button" accessibilityLabel={isSaved ? '저장 해제' : '작품 저장'} accessibilityState={{ disabled: !preview || isRestoring || saving || savedWritePending || savedWriteState.pending, busy: saving || savedWritePending || savedWriteState.pending }} style={styles.playerSideAction}><Icon name="bookmark" color={isSaved ? colors.lavender : colors.onMedia} /><AppText style={styles.playerActionLabel}>{isSaved ? '저장됨' : '저장'}</AppText></Pressable>
+        <Pressable disabled={!preview || isRestoring || saving || savedWritePending || savedWriteState.pending} onPress={() => void toggleSaved()} accessibilityRole="button" accessibilityLabel="저장" accessibilityState={{ disabled: !preview || isRestoring || saving || savedWritePending || savedWriteState.pending, busy: saving || savedWritePending || savedWriteState.pending, selected: isSaved }} style={styles.playerSideAction}><Icon name="bookmark" color={isSaved ? colors.lavender : colors.onMedia} /><AppText style={[styles.playerActionLabel, isSaved && styles.playerSavedLabel]}>저장</AppText></Pressable>
         {savedError ? <AppText accessibilityRole="alert" style={styles.playerActionLabel}>{getErrorMessage(savedError)}</AppText> : null}
         <Pressable onPress={onOpenEpisodes} accessibilityRole="button" accessibilityLabel="전체 회차" style={styles.playerSideAction}><Icon name="layers" color={colors.onMedia} /><AppText style={styles.playerActionLabel}>회차</AppText></Pressable>
         <Pressable onPress={onShare} accessibilityRole="button" accessibilityLabel="작품 공유" style={styles.playerSideAction}><Icon name="share-2" color={colors.onMedia} /><AppText style={styles.playerActionLabel}>공유</AppText></Pressable>
@@ -288,8 +293,8 @@ function RecommendationPreviewPlayer({
       <View style={[styles.playerBottomControls, { paddingBottom: insets.bottom + 12 }]}>
         {productionCompany ? <AppText style={styles.playerStudio}>{productionCompany}</AppText> : null}
         <Pressable onPress={() => { player.pause(); router.push({ pathname: '/drama/[id]', params: { id: drama.uuid } }); }} accessibilityRole="button" accessibilityLabel={`${drama.title} 작품 상세 보기`} style={styles.playerTitleButton}><AppText weight="bold" numberOfLines={1} style={styles.playerTitle}>{drama.title}</AppText><Icon name="chevron-right" color={colors.onMedia} size={21} /></Pressable>
-        <View style={styles.playerEpisodeInfo}><AppText style={styles.playerEpisodeText}>{`${genres} · 미리보기`}</AppText><AppText style={styles.playerTime}>{formatTime(position)} / {formatTime(duration)}</AppText></View>
-        <Pressable onPress={watchFirstEpisode} accessibilityRole="button" accessibilityLabel="1화부터 본편 보기" style={styles.playerWatchButton}><Icon name="play" size={16} color={colors.onYolk} /><AppText weight="semibold" style={styles.playerWatchLabel}>1화부터 본편 보기</AppText><AppText style={styles.playerWatchMeta}>{firstEpisode ? `${firstEpisode.episodeNumber}화` : '회차 목록'}</AppText></Pressable>
+        <View style={styles.playerEpisodeInfo}><View style={styles.playerMeta}><AppText weight="semibold" style={styles.previewChip}>1화 미리보기</AppText><AppText numberOfLines={1} style={styles.playerEpisodeText}>{genres}</AppText></View><AppText style={styles.playerTime}>{formatTime(position)} / {formatTime(duration)}</AppText></View>
+        <Button label={watchLabel} disabled={contentLoading} icon={<Icon name="play" size={18} color={colors.onYolk} />} onPress={watchResume} style={styles.playerWatchButton} />
         <Slider {...seekTouchHandlers} style={styles.playerSlider} minimumValue={0} maximumValue={Math.max(duration, 1)} value={position} disabled={duration <= 0} minimumTrackTintColor={colors.lavender} maximumTrackTintColor={colors.mediaTrack} thumbTintColor={colors.lavender}
           onSlidingStart={() => { seeking.current = true; previousPlaybackTime.current = null; onSeekTouch(true); clearHideTimer(); }} onValueChange={setPosition} onSlidingComplete={(value) => { player.currentTime = value; seeking.current = false; previousPlaybackTime.current = null; updateSeekTouch(false); showControls(); }} />
       </View>
@@ -322,6 +327,7 @@ function RecommendationPreviewPlayer({
 export function RecommendationScreen({ initialId }: { initialId?: string }) {
   const styles = useStyles();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [collection, setCollection] = useState<HomeCollection | null>(null);
   const [status, setStatus] = useState<CollectionStatus>('loading');
   const [collectionSessionVersion, setCollectionSessionVersion] = useState<number | null>(null);
@@ -340,6 +346,7 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
   }
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeDrama, setActiveDrama] = useState<DramaContent | null>(null);
+  const [activeDramaLoading, setActiveDramaLoading] = useState(false);
   const [screenFocused, setScreenFocused] = useState(false);
   const [scrolling, setScrolling] = useState(false);
   const [buffer, setBuffer] = useState<ReturnType<typeof createRecommendationPreviewBuffer<VideoPlayer>> | null>(null);
@@ -772,13 +779,15 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
   useEffect(() => {
     if (!activeId) {
       setActiveDrama(null);
+      setActiveDramaLoading(false);
       return;
     }
     let current = true;
     setActiveDrama(null);
+    setActiveDramaLoading(true);
     void getDramaContent(activeId).then(
-      (drama) => { if (current) setActiveDrama(drama); },
-      () => { if (current) setActiveDrama(null); },
+      (drama) => { if (current) { setActiveDrama(drama); setActiveDramaLoading(false); } },
+      () => { if (current) { setActiveDrama(null); setActiveDramaLoading(false); } },
     );
     return () => { current = false; };
   }, [activeId]);
@@ -834,10 +843,11 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
     activeEntry,
     activePlayer,
     activeDrama,
+    activeDramaLoading,
     buffer,
     bufferEntries,
     preparedPlayers,
-  }), [screenFocused, scrolling, activeId, activeEntry, activePlayer, activeDrama, buffer, bufferEntries, preparedPlayers]);
+  }), [screenFocused, scrolling, activeId, activeEntry, activePlayer, activeDrama, activeDramaLoading, buffer, bufferEntries, preparedPlayers]);
 
   useEffect(() => {
     if (!buffer || !activePreviewTarget || !activePlayer || !screenFocused) return;
@@ -911,7 +921,7 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
               onContentSizeChange={handleContentSizeChange}
               onScroll={handleScroll}
               scrollEventThrottle={16}
-              renderItem={({ item: drama }) => {
+              renderItem={({ item: drama, index }) => {
                 const posterUrl = resolveApiImageUrl(drama.imageUrls.poster);
                 const preview = drama.previewVideos[0];
                 const previewTarget = preview ? { dramaId: drama.uuid, videoId: preview.uuid } : null;
@@ -942,6 +952,7 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
                     trackListener={(subscription) => buffer!.trackSubscription(activePreviewTarget, activePlayer!, subscription)}
                     drama={drama}
                     content={activeDrama}
+                    contentLoading={activeDramaLoading}
                     initialSaved={collectionSessionVersion === sessionVersion && collectionOwnerUuid === (user?.uuid ?? null) ? drama.previewVideos[0]?.isSaved ?? false : false}
                     savedWriteState={collectionWriteState.current}
                     savedWritePending={savedWriteTransition && collectionWriteState.current.pending}
@@ -957,6 +968,14 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
                     onShare={() => { void shareDrama(drama); }}
                     onSeekTouch={(active) => { gestureBlockedRef.current = active; }}
                   />}
+                  {/* 빼꼼 머리: 작품 순서와 안내 한 줄은 재생 컨트롤을 숨겨도 늘 보인다. */}
+                  <View pointerEvents="none" style={[styles.feedHead, { top: insets.top + 54 }]}>
+                    <View style={styles.feedHeadRow}>
+                      <AppText weight="bold" style={styles.feedName}>빼꼼</AppText>
+                      <AppText accessibilityLabel={`${dramas.length}편 중 ${index + 1}번째`} style={styles.feedCounter}>{index + 1} / {dramas.length}</AppText>
+                    </View>
+                    <AppText style={styles.feedHint}>작품마다 1화를 무료로 미리 봐요</AppText>
+                  </View>
                 </View>;
               }}
             /> : <View style={styles.feedPlaceholder} />}
@@ -974,9 +993,7 @@ const useStyles = createThemedStyles((colors) => ({
   playerVideo: { width: '100%', height: '100%' },
   playerTopBar: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingBottom: 18, backgroundColor: colors.mediaScrim },
   playerIconButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
-  playerHeading: { flex: 1, gap: 1 },
-  playerSubheading: { color: colors.onMediaMuted, fontSize: 11 },
-  playerHeadingTitle: { color: colors.onMedia, fontSize: 13 },
+  playerHeading: { flex: 1 },
   playerSpeedButton: { minWidth: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   playerSpeedText: { color: colors.onMedia, fontSize: 13 },
   playerSpeedMenu: { position: 'absolute', right: 67, zIndex: 5, backgroundColor: colors.night, borderRadius: 12, padding: 5 },
@@ -986,17 +1003,23 @@ const useStyles = createThemedStyles((colors) => ({
   playerSideActions: { position: 'absolute', right: 12, bottom: 224, alignItems: 'center', gap: 15 },
   playerSideAction: { minWidth: 50, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 4 },
   playerActionLabel: { color: colors.onMedia, fontSize: 10, lineHeight: 14 },
+  playerSavedLabel: { color: colors.lavender },
   playerPlayPause: { position: 'absolute', top: '43%', alignSelf: 'center', width: 68, height: 68, borderRadius: 34, backgroundColor: colors.mediaScrim, alignItems: 'center', justifyContent: 'center' },
   playerBottomControls: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 25, backgroundColor: colors.mediaScrim },
   playerStudio: { color: colors.onMediaMuted, fontSize: 12, lineHeight: 18 },
   playerTitleButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 7 },
   playerTitle: { flex: 1, color: colors.onMedia, fontSize: 21, lineHeight: 28 },
-  playerEpisodeInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  playerEpisodeText: { color: colors.onMedia, fontSize: 12 },
+  playerEpisodeInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.xs },
+  playerMeta: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  previewChip: { paddingHorizontal: spacing.xs, borderRadius: radius.xs, overflow: 'hidden', backgroundColor: colors.lavender, color: colors.onLavender, ...textSizes.badge11 },
+  playerEpisodeText: { flexShrink: 1, color: colors.onMedia, ...textSizes.caption12 },
   playerTime: { color: colors.onMedia, fontSize: 12, fontVariant: ['tabular-nums'] },
-  playerWatchButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 7, paddingHorizontal: 12, backgroundColor: colors.yolk, borderRadius: 9999 },
-  playerWatchLabel: { color: colors.onYolk, fontSize: 12 },
-  playerWatchMeta: { marginLeft: 'auto', paddingLeft: 8, borderLeftWidth: 1, borderLeftColor: colors.onYolk, color: colors.onYolk, fontSize: 10 },
+  playerWatchButton: { marginTop: spacing.xs },
+  feedHead: { position: 'absolute', left: spacing.md, right: spacing.md, alignItems: 'flex-start', gap: spacing.xxs },
+  feedHeadRow: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.xs },
+  feedName: { color: colors.onMedia, textShadowColor: colors.mediaShadow, textShadowRadius: 4, ...textSizes.body18 },
+  feedCounter: { paddingHorizontal: spacing.xs, borderRadius: radius.pill, overflow: 'hidden', backgroundColor: colors.mediaBack, color: colors.onMedia, fontVariant: ['tabular-nums'], ...textSizes.caption12 },
+  feedHint: { paddingHorizontal: spacing.xs, paddingVertical: spacing.xxs, borderRadius: radius.sm, overflow: 'hidden', backgroundColor: colors.mediaBack, color: colors.onMedia, ...textSizes.caption12 },
   playerSlider: { width: '100%', height: 34, marginTop: 2 },
   settingsBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 22, backgroundColor: colors.backdrop },
   settingsDialog: { width: '100%', maxWidth: 420, padding: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 20, borderCurve: 'continuous' },

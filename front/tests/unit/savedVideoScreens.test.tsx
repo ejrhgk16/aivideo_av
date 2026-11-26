@@ -114,6 +114,8 @@ function renderPreview(session = makeSession()) {
     _layout: TestRootLayout,
     'preview/[dramaId]/[videoId]': PreviewRoute,
     'target/[dramaId]/[videoId]': PreviewTarget,
+    'episode/[id]': EpisodeTarget,
+    'drama/[id]': () => <Text>작품 소개 화면</Text>,
     'auth/login': LoginRoute,
     away: AwayRoute,
   }, { initialUrl: '/preview/drama-1/preview-exact' });
@@ -248,11 +250,11 @@ test('preview save uses the selected route video and focus refresh preserves pla
   expect(screen.queryByRole('progressbar', { name: '로딩 중' })).not.toBeOnTheScreen();
   expect(getPreviewPlayback).toHaveBeenCalledWith('drama-1', 'preview-exact');
   expect(mockVideoPlayers).toHaveLength(1);
-  expect(screen.getByRole('button', { name: '저장 해제' })).toBeEnabled();
-  await userEvent.setup().press(screen.getByRole('button', { name: '저장 해제' }));
+  expect(screen.getByRole('button', { name: '저장', selected: true })).toBeEnabled();
+  await userEvent.setup().press(screen.getByRole('button', { name: '저장', selected: true }));
   expect(removeSavedVideo).toHaveBeenCalledWith('preview-exact');
   expect(saveVideo).not.toHaveBeenCalled();
-  expect(await screen.findByRole('button', { name: '작품 저장' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '저장', selected: false })).toBeOnTheScreen();
 
   player.currentTime = 23;
   testRouter.push('/away');
@@ -263,12 +265,39 @@ test('preview save uses the selected route video and focus refresh preserves pla
   await act(async () => {
     dramaReads[1].resolve(refreshedDrama);
   });
-  expect(await screen.findByRole('button', { name: '저장 해제' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '저장', selected: true })).toBeOnTheScreen();
   expect(getPreviewPlayback).toHaveBeenCalledTimes(1);
   expect(mockVideoPlayers).toHaveLength(1);
   expect(mockVideoPlayers[0]).toBe(player);
   expect(player.currentTime).toBe(23);
   expect(view.getPathnameWithParams()).toBe('/preview/drama-1/preview-exact');
+});
+
+test('preview shows one 1화 미리보기 chip and a primary that follows the home resume rule', async () => {
+  const view = renderPreview();
+  await waitFor(() => expect(dramaReads).toHaveLength(1));
+  const episode = (episodeNumber: number, overrides: Partial<DramaContent['episodes'][number]> = {}): DramaContent['episodes'][number] => ({
+    uuid: `ep-${episodeNumber}`, episodeNumber, title: null, synopsis: null, durationMs: 60_000, videoUuid: null,
+    isSaved: false, pricePoints: 0, isUnlocked: true, image: null, watchProgress: null, ...overrides,
+  });
+  await act(async () => {
+    dramaReads[0].resolve({ ...drama, episodes: [episode(1, { watchProgress: { positionMs: 0, isCompleted: false, lastPlayedAt: '2026-11-01T00:00:00Z' } }), episode(2)] });
+    previewReads[0].resolve(previewPlayback);
+  });
+  expect(await screen.findByText('1화 미리보기')).toBeOnTheScreen();
+  expect(screen.getByText('드라마')).toBeOnTheScreen();
+  expect(screen.queryByText(/본편|저장됨/)).toBeNull();
+  await userEvent.setup().press(screen.getByRole('button', { name: '1화 이어보기' }));
+  expect(await screen.findByText('drama-1:ep-1')).toBeOnTheScreen();
+  expect(view.getPathnameWithParams()).toBe('/episode/ep-1?dramaId=drama-1');
+});
+
+test('preview of a drama without episodes points its primary at the drama page', async () => {
+  const view = renderPreview();
+  await loadPreview();
+  await userEvent.setup().press(screen.getByRole('button', { name: '작품 소개 보기' }));
+  expect(await screen.findByText('작품 소개 화면')).toBeOnTheScreen();
+  expect(view.getPathnameWithParams()).toBe('/drama/drama-1');
 });
 
 test('preview records the selected video once using server duration after playback advances', async () => {
@@ -339,21 +368,21 @@ test('preview bookmark save and removal keep a user-paused player paused', async
   const playerCount = mockVideoPlayers.length;
   player.currentTime = 19;
 
-  fireEvent.press(screen.getByRole('button', { name: '저장 해제' }));
+  fireEvent.press(screen.getByRole('button', { name: '저장', selected: true }));
   await waitFor(() => expect(removeSavedVideo).toHaveBeenCalledTimes(1));
-  expect(screen.getByRole('button', { name: '저장 해제' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: '저장', selected: true })).toBeDisabled();
   expect(player.playing).toBe(false);
   act(() => savedWrites[0].resolve());
-  expect(await screen.findByRole('button', { name: '작품 저장' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '저장', selected: false })).toBeOnTheScreen();
   expect(player.playing).toBe(false);
   expect(player.play).toHaveBeenCalledTimes(playCalls);
   expect(mockVideoPlayers).toHaveLength(playerCount);
   expect(player.currentTime).toBe(19);
 
-  fireEvent.press(screen.getByRole('button', { name: '작품 저장' }));
+  fireEvent.press(screen.getByRole('button', { name: '저장', selected: false }));
   await waitFor(() => expect(saveVideo).toHaveBeenCalledTimes(1));
   act(() => savedWrites[1].resolve());
-  expect(await screen.findByRole('button', { name: '저장 해제' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '저장', selected: true })).toBeOnTheScreen();
   expect(player.playing).toBe(false);
   expect(player.play).toHaveBeenCalledTimes(playCalls);
   expect(mockVideoPlayers).toHaveLength(playerCount);
@@ -364,24 +393,24 @@ test('preview save locks duplicate taps, preserves state on failure, and permits
   deferWrites = true;
   renderPreview();
   await loadPreview();
-  const remove = screen.getByRole('button', { name: '저장 해제' });
+  const remove = screen.getByRole('button', { name: '저장', selected: true });
   fireEvent.press(remove);
   fireEvent.press(remove);
   expect(removeSavedVideo).toHaveBeenCalledTimes(1);
-  expect(screen.getByRole('button', { name: '저장 해제' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: '저장', selected: true })).toBeDisabled();
   act(() => savedWrites[0].reject(new Error('offline')));
   expect(await screen.findByRole('alert')).toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: '저장 해제' })).toBeEnabled();
-  fireEvent.press(screen.getByRole('button', { name: '저장 해제' }));
+  expect(screen.getByRole('button', { name: '저장', selected: true })).toBeEnabled();
+  fireEvent.press(screen.getByRole('button', { name: '저장', selected: true }));
   await waitFor(() => expect(removeSavedVideo).toHaveBeenCalledTimes(2));
   act(() => savedWrites[1].resolve());
-  expect(await screen.findByRole('button', { name: '작품 저장' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '저장', selected: false })).toBeOnTheScreen();
 });
 
 test('preview requires login for anonymous writes, disables during restoration, and ignores late writes after route or account change', async () => {
   const anonymous = renderPreview(makeSession({ user: null }));
   await loadPreview();
-  await userEvent.setup().press(screen.getByRole('button', { name: '저장 해제' }));
+  await userEvent.setup().press(screen.getByRole('button', { name: '저장', selected: true }));
   expect(await screen.findByText('로그인 화면')).toBeOnTheScreen();
   expect(anonymous.getPathname()).toBe('/auth/login');
   expect(saveVideo).not.toHaveBeenCalled();
@@ -397,7 +426,7 @@ test('preview requires login for anonymous writes, disables during restoration, 
   deferWrites = true;
   const routeChange = renderPreview();
   await loadPreview();
-  fireEvent.press(screen.getByRole('button', { name: '저장 해제' }));
+  fireEvent.press(screen.getByRole('button', { name: '저장', selected: true }));
   await waitFor(() => expect(removeSavedVideo).toHaveBeenCalledTimes(1));
   testRouter.push('/preview/drama-1/preview-next');
   await waitFor(() => expect(getPreviewPlayback).toHaveBeenCalledTimes(3));
@@ -409,12 +438,12 @@ test('preview requires login for anonymous writes, disables during restoration, 
   nextPreviewRead = 3;
   act(() => savedWrites[0].resolve());
   await waitFor(() => expect(routeChange.getPathnameWithParams()).toBe('/preview/drama-1/preview-next'));
-  expect(await screen.findByRole('button', { name: '작품 저장' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '저장', selected: false })).toBeOnTheScreen();
   routeChange.unmount();
 
   const accountChange = renderPreview();
   await loadPreview();
-  fireEvent.press(screen.getByRole('button', { name: '저장 해제' }));
+  fireEvent.press(screen.getByRole('button', { name: '저장', selected: true }));
   await waitFor(() => expect(removeSavedVideo).toHaveBeenCalledTimes(2));
   setSession(makeSession({ user: { uuid: 'user-2', displayName: null, accountType: 'MEMBER' }, sessionVersion: 2,
     isCurrentSession: (version) => version === 2 }));
@@ -424,7 +453,7 @@ test('preview requires login for anonymous writes, disables during restoration, 
     dramaReads[4].resolve(drama);
     previewReads[4].resolve(previewPlayback);
   });
-  expect(await screen.findByRole('button', { name: '저장 해제' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '저장', selected: true })).toBeOnTheScreen();
   expect(accountChange.getPathnameWithParams()).toBe('/preview/drama-1/preview-exact');
 });
 
@@ -457,7 +486,7 @@ test('recommendation save sends an anonymous user to auth login without writing'
   await waitFor(() => expect(mockVideoPlayers.length).toBeGreaterThan(0));
   const player = mockVideoPlayers[mockVideoPlayers.length - 1];
   emit(player, 'statusChange', { status: 'readyToPlay' });
-  await userEvent.setup().press(await screen.findByRole('button', { name: '작품 저장' }));
+  await userEvent.setup().press(await screen.findByRole('button', { name: '저장', selected: false }));
   expect(await screen.findByText('로그인 화면')).toBeOnTheScreen();
   expect(view.getPathname()).toBe('/auth/login');
   expect(saveVideo).not.toHaveBeenCalled();

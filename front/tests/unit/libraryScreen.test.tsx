@@ -1,15 +1,16 @@
 import React from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { AccessibilityInfo, StyleSheet, Text } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { Stack } from 'expo-router';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react-native';
 import { renderRouter, testRouter } from 'expo-router/testing-library';
-import { getSavedVideos, type SavedVideoItem, type SavedVideoPage, type WatchHistoryItem } from '@/features/playback/savedVideos';
+import { getErrorMessage } from '@/common/http/errorMessages';
+import { getSavedVideos, removeSavedVideo, saveVideo, type SavedVideoItem, type SavedVideoPage, type WatchHistoryItem } from '@/features/playback/savedVideos';
 import { getWatchHistory } from '@/features/playback/watchHistory';
 import { useUser, type User } from '@/features/user/UserProvider';
 import { LibraryScreen } from '@/screens/LibraryScreen';
 
-jest.mock('@/features/playback/savedVideos', () => ({ ...jest.requireActual('@/features/playback/savedVideos'), getSavedVideos: jest.fn() }));
+jest.mock('@/features/playback/savedVideos', () => ({ ...jest.requireActual('@/features/playback/savedVideos'), getSavedVideos: jest.fn(), removeSavedVideo: jest.fn(), saveVideo: jest.fn() }));
 jest.mock('@/features/playback/watchHistory', () => ({ ...jest.requireActual('@/features/playback/watchHistory'), getWatchHistory: jest.fn() }));
 jest.mock('@/features/user/UserProvider', () => ({ useUser: jest.fn() }));
 
@@ -100,15 +101,15 @@ test('saved library waits for restoration, loads cards, and routes preview and e
   expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   await act(async () => { requests.saved[0].resolve(savedPage([preview, episode])); await requests.saved[0].promise; });
   expect(await screen.findByRole('button', { name: '작품 하나 미리보기' })).toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: '작품 둘 에피소드 2화' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '작품 둘 2화' })).toBeOnTheScreen();
   fireEvent.press(screen.getByRole('button', { name: '작품 하나 미리보기' }));
   await screen.findByText('미리보기 화면');
   expect(view.getPathnameWithParams()).toBe('/preview/drama-1/preview-1');
   testRouter.back('/');
   await waitFor(() => expect(requests.savedPages).toEqual([1, 1]));
   await act(async () => { requests.saved[1].resolve(savedPage([preview, episode])); await requests.saved[1].promise; });
-  await screen.findByRole('button', { name: '작품 둘 에피소드 2화' });
-  fireEvent.press(screen.getByRole('button', { name: '작품 둘 에피소드 2화' }));
+  await screen.findByRole('button', { name: '작품 둘 2화' });
+  fireEvent.press(screen.getByRole('button', { name: '작품 둘 2화' }));
   await screen.findByText('회차 화면');
   expect(view.getPathnameWithParams()).toBe('/episode/episode-1?dramaId=drama-2');
   view.unmount();
@@ -121,7 +122,7 @@ test('saved cards show content kind and accurate short duration, including missi
   await act(async () => { requests.saved[0].resolve(savedPage([preview, episode, { ...preview, videoUuid: 'short', dramaTitle: '짧은 영상', durationMs: 2_000 }])); await requests.saved[0].promise; });
   const first = screen.getByRole('button', { name: '작품 하나 미리보기' });
   expect(first).toBeOnTheScreen();
-  const imageCard = screen.getByRole('button', { name: '작품 둘 에피소드 2화' });
+  const imageCard = screen.getByRole('button', { name: '작품 둘 2화' });
   const image = within(imageCard).UNSAFE_getByType(ExpoImage);
   // The native image layout is passed through ExpoImage's style prop; RNTL style matchers require host nodes.
   expect(StyleSheet.flatten(image.props.style)).toMatchObject({ width: 112, height: 63 });
@@ -129,7 +130,7 @@ test('saved cards show content kind and accurate short duration, including missi
   expect(screen.getByText('1분')).toBeOnTheScreen();
   expect(screen.getByText('2분 5초')).toBeOnTheScreen();
   expect(screen.getByText('2초')).toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: '작품 둘 에피소드 2화' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '작품 둘 2화' })).toBeOnTheScreen();
   view.unmount();
 });
 
@@ -163,7 +164,7 @@ test('history tab requests history only and routes preview and episode entries',
   expect(requests.historyPages).toEqual([1]);
   await act(async () => { requests.history[0].resolve(historyPage([historyPreview, historyEpisode])); await requests.history[0].promise; });
   expect(await screen.findByRole('button', { name: '작품 하나 미리보기' })).toBeOnTheScreen();
-  fireEvent.press(screen.getByRole('button', { name: '작품 둘 에피소드 2화' }));
+  fireEvent.press(screen.getByRole('button', { name: '작품 둘 2화' }));
   await screen.findByText('회차 화면');
   expect(view.getPathnameWithParams()).toBe('/episode/episode-1?dramaId=drama-2');
   testRouter.back('/');
@@ -194,7 +195,7 @@ test('history pagination blocks duplicate loads, retries the same page, deduplic
   expect(requests.historyPages).toEqual([1, 2, 2]);
   await act(async () => { requests.history[2].resolve(historyPage([historyPreview, historyEpisode], 2, false)); await requests.history[2].promise; });
   expect(screen.getAllByRole('button', { name: '작품 하나 미리보기' })).toHaveLength(1);
-  expect(screen.getByRole('button', { name: '작품 둘 에피소드 2화' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '작품 둘 2화' })).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '더 보기' })).toBeNull();
   view.unmount();
 });
@@ -235,7 +236,7 @@ test('session changes hide old cards and tab changes discard late responses', as
   await act(async () => { requests.saved[1].resolve(savedPage([preview])); await requests.saved[1].promise; });
   expect(screen.queryByRole('button', { name: '작품 하나 미리보기' })).toBeNull();
   await act(async () => { requests.history[0].resolve(historyPage([historyEpisode])); await requests.history[0].promise; });
-  expect(await screen.findByRole('button', { name: '작품 둘 에피소드 2화' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '작품 둘 2화' })).toBeOnTheScreen();
   view.unmount();
 });
 
@@ -256,7 +257,84 @@ test('focus refresh replaces saved videos and ignores a pending older page', asy
   await act(async () => { requests.saved[1].resolve(savedPage([episode], 2)); await requests.saved[1].promise; });
   expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   await act(async () => { requests.saved[2].resolve(savedPage([episode])); await requests.saved[2].promise; });
-  expect(await screen.findByRole('button', { name: '작품 둘 에피소드 2화' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '작품 둘 2화' })).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '작품 하나 미리보기' })).toBeNull();
+  view.unmount();
+});
+
+function installWrites() {
+  const writes: Deferred<void>[] = [];
+  const next = () => { const request = deferred<void>(); writes.push(request); return request.promise; };
+  jest.mocked(removeSavedVideo).mockReset().mockImplementation(next);
+  jest.mocked(saveVideo).mockReset().mockImplementation(next);
+  return writes;
+}
+const third: SavedVideoItem = { ...preview, videoUuid: 'preview-3', dramaUuid: 'drama-3', dramaTitle: '작품 셋' };
+const unsaveNames = () => screen.getAllByRole('button', { name: /저장 취소$/ }).map((button) => button.props.accessibilityLabel);
+
+test('library tabs are underline tabs and history rows have no un-save button', async () => {
+  const requests = installRequests();
+  const view = renderLibrary(undefined, 'history');
+  view.setSession(makeSession(makeUser('user-a'), 1, false));
+  expect(screen.getByRole('header', { name: '보관함' })).toBeOnTheScreen();
+  expect(screen.getByRole('tab', { name: '시청 기록' })).toHaveStyle({ borderBottomWidth: 2 });
+  await act(async () => { requests.history[0].resolve(historyPage([historyEpisode])); await requests.history[0].promise; });
+  expect(await screen.findByRole('button', { name: '작품 둘 2화' })).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: /저장 취소$/ })).toBeNull();
+  view.unmount();
+});
+
+test('un-saving waits for the server, offers undo, and undo restores the row in place', async () => {
+  const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+  const requests = installRequests();
+  const writes = installWrites();
+  const view = renderLibrary();
+  view.setSession(makeSession(makeUser('user-a'), 1, false));
+  await act(async () => { requests.saved[0].resolve(savedPage([preview, episode, third])); await requests.saved[0].promise; });
+  expect(unsaveNames()).toEqual(['작품 하나 미리보기 저장 취소', '작품 둘 2화 저장 취소', '작품 셋 미리보기 저장 취소']);
+
+  fireEvent.press(screen.getByRole('button', { name: '작품 둘 2화 저장 취소' }));
+  expect(removeSavedVideo).toHaveBeenCalledWith('episode-video-1');
+  expect(screen.getByRole('button', { name: '작품 둘 2화' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '작품 하나 미리보기 저장 취소' })).toBeDisabled();
+  fireEvent.press(screen.getByRole('button', { name: '작품 하나 미리보기 저장 취소' }));
+  expect(removeSavedVideo).toHaveBeenCalledTimes(1);
+
+  await act(async () => { writes[0].resolve(); await writes[0].promise; });
+  expect(screen.queryByRole('button', { name: '작품 둘 2화' })).toBeNull();
+  expect(screen.getByText('저장을 취소했어요.')).toBeOnTheScreen();
+  expect(announce).toHaveBeenLastCalledWith('저장을 취소했어요. 되돌리기 버튼으로 되돌릴 수 있어요.');
+
+  fireEvent.press(screen.getByRole('button', { name: '되돌리기' }));
+  expect(saveVideo).toHaveBeenCalledWith('episode-video-1', 'EPISODE');
+  expect(screen.queryByRole('button', { name: '되돌리기' })).toBeNull();
+  await act(async () => { writes[1].resolve(); await writes[1].promise; });
+  expect(unsaveNames()).toEqual(['작품 하나 미리보기 저장 취소', '작품 둘 2화 저장 취소', '작품 셋 미리보기 저장 취소']);
+  expect(screen.getByText('보관함에 다시 저장했어요.')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '작품 하나 미리보기 저장 취소' })).toBeEnabled();
+  announce.mockRestore();
+  view.unmount();
+});
+
+test('a failed un-save keeps the row and shows a warning, and a late write after a tab change is ignored', async () => {
+  const requests = installRequests();
+  const writes = installWrites();
+  const view = renderLibrary();
+  view.setSession(makeSession(makeUser('user-a'), 1, false));
+  await act(async () => { requests.saved[0].resolve(savedPage([preview, episode])); await requests.saved[0].promise; });
+
+  const failure = new Error('offline');
+  fireEvent.press(screen.getByRole('button', { name: '작품 하나 미리보기 저장 취소' }));
+  await act(async () => { writes[0].reject(failure); try { await writes[0].promise; } catch {} });
+  expect(screen.getByRole('button', { name: '작품 하나 미리보기' })).toBeOnTheScreen();
+  expect(screen.getByText(getErrorMessage(failure))).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '되돌리기' })).toBeNull();
+
+  fireEvent.press(screen.getByRole('button', { name: '작품 둘 2화 저장 취소' }));
+  fireEvent.press(screen.getByRole('tab', { name: '시청 기록' }));
+  await act(async () => { writes[1].resolve(); await writes[1].promise; });
+  expect(screen.queryByText('저장을 취소했어요.')).toBeNull();
+  await act(async () => { requests.history[0].resolve(historyPage([historyEpisode])); await requests.history[0].promise; });
+  expect(await screen.findByRole('button', { name: '작품 둘 2화' })).toBeOnTheScreen();
   view.unmount();
 });

@@ -158,6 +158,8 @@ function renderRecommendation(platform: 'ios' | 'web' = 'ios') {
     _layout: () => <Stack screenOptions={{ animation: 'none' }} />,
     index: () => <RecommendationScreen initialId={undefined} />,
     other: OtherRoute,
+    'episode/[id]': () => <Text>회차 화면</Text>,
+    'drama/[id]': () => <Text>작품 소개 화면</Text>,
   }, {
     initialUrl: '/',
     createNodeMock(element) {
@@ -271,8 +273,9 @@ async function resolvePreview(videoId: string) {
 }
 
 function expectActiveDramaTitle(title: string) {
-  // The active preview renders its title in both the heading and the title button.
-  expect(screen.getAllByText(title, { exact: true })).toHaveLength(2);
+  // Only the active preview mounts its controls, whose title button opens the drama.
+  expect(screen.getAllByText(title, { exact: true })).toHaveLength(1);
+  expect(screen.getByRole('button', { name: `${title} 작품 상세 보기` })).toBeOnTheScreen();
 }
 
 async function navigateToOther() {
@@ -593,7 +596,7 @@ test('recommendation mounts idle web players so canplay can make current and nei
   expect(current.play).not.toHaveBeenCalled();
   await ready(current);
   expect(current.play).toHaveBeenCalledTimes(1);
-  expect(screen.getByRole('button', { name: '작품 저장' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: '저장', selected: false })).toBeTruthy();
   await ready(neighbor);
   expect(neighbor.play).not.toHaveBeenCalled();
   act(() => current.pause());
@@ -711,9 +714,9 @@ test('drag follows the pointer and switches playback only after actual target ar
 test('recommendation bookmark saves the first preview and the collection retains it after control remount', async () => {
   await loadScreen({ count: 1 });
   await ready(playerFor('preview-drama-1'));
-  await act(async () => fireEvent.press(screen.getByRole('button', { name: '작품 저장' })));
+  await act(async () => fireEvent.press(screen.getByRole('button', { name: '저장', selected: false })));
   expect(saveVideo).toHaveBeenCalledWith('preview-drama-1', 'PREVIEW');
-  await waitFor(() => expect(screen.getByRole('button', { name: '저장 해제' })).toBeTruthy());
+  await waitFor(() => expect(screen.getByRole('button', { name: '저장', selected: true })).toBeTruthy());
 });
 
 test('recommendation records only the selected advancing preview with its server duration', async () => {
@@ -765,15 +768,15 @@ test('saving and removing the paused recommendation preview never resumes it', a
   act(() => fireEvent.press(screen.getByRole('button', { name: '일시정지' })));
   const plays = player.play.mock.calls.length;
   deferSavedWrites = true;
-  fireEvent.press(screen.getByRole('button', { name: '작품 저장' }));
-  expect(screen.getByRole('button', { name: '작품 저장' }).props.accessibilityState.busy).toBe(true);
+  fireEvent.press(screen.getByRole('button', { name: '저장', selected: false }));
+  expect(screen.getByRole('button', { name: '저장', selected: false }).props.accessibilityState.busy).toBe(true);
   await act(async () => mockSaveTasks[0].reject(new Error('offline')));
   await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
   expect(player.play.mock.calls.length).toBe(plays);
-  fireEvent.press(screen.getByRole('button', { name: '작품 저장' }));
+  fireEvent.press(screen.getByRole('button', { name: '저장', selected: false }));
   await act(async () => mockSaveTasks[1].resolve());
   expect(player.play.mock.calls.length).toBe(plays);
-  fireEvent.press(screen.getByRole('button', { name: '저장 해제' }));
+  fireEvent.press(screen.getByRole('button', { name: '저장', selected: true }));
   await act(async () => mockSaveTasks[2].resolve());
   expect(player.play.mock.calls.length).toBe(plays);
   expect(player.currentTime).toBe(17);
@@ -783,13 +786,13 @@ test('recommendation serializes A to B to A saves and ignores a focus read that 
   await loadScreen({ count: 2 });
   await ready(playerFor('preview-drama-1')); await ready(playerFor('preview-drama-2'));
   deferSavedWrites = true;
-  fireEvent.press(screen.getByRole('button', { name: '작품 저장' }));
-  fireEvent.press(screen.getByRole('button', { name: '작품 저장' }));
+  fireEvent.press(screen.getByRole('button', { name: '저장', selected: false }));
+  fireEvent.press(screen.getByRole('button', { name: '저장', selected: false }));
   expect(saveVideo).toHaveBeenCalledTimes(1);
   jest.useFakeTimers();
   const drag = startDrag(); drag.move(-300); drag.release(-300); await finishAnimation(500);
-  expect(screen.getByRole('button', { name: '작품 저장' }).props.accessibilityState.disabled).toBe(true);
-  fireEvent.press(screen.getByRole('button', { name: '작품 저장' }));
+  expect(screen.getByRole('button', { name: '저장', selected: false }).props.accessibilityState.disabled).toBe(true);
+  fireEvent.press(screen.getByRole('button', { name: '저장', selected: false }));
   expect(saveVideo).toHaveBeenCalledTimes(1);
   const back = startDrag(); back.move(300); back.release(300); await finishAnimation(0);
   expectActiveDramaTitle('drama-1');
@@ -802,19 +805,19 @@ test('recommendation serializes A to B to A saves and ignores a focus read that 
   await act(async () => mockSaveTasks[0].resolve());
   await act(async () => staleResponse.resolve(homeCollection([homeDrama('drama-new', 1)])));
   await resolvePreview('preview-drama-1');
-  await waitFor(() => expect(screen.getByRole('button', { name: '저장 해제' })).toBeTruthy());
+  await waitFor(() => expect(screen.getByRole('button', { name: '저장', selected: true })).toBeTruthy());
   expectActiveDramaTitle('drama-1');
 });
 
 test('a failed recommendation save releases the screen lock after its card unmounts', async () => {
   await loadScreen({ count: 2 });
   deferSavedWrites = true;
-  fireEvent.press(screen.getByRole('button', { name: '작품 저장' }));
+  fireEvent.press(screen.getByRole('button', { name: '저장', selected: false }));
   jest.useFakeTimers();
   const drag = startDrag(); drag.move(-300); drag.release(-300); await finishAnimation(500);
   await act(async () => mockSaveTasks[0].reject(new Error('offline')));
-  await waitFor(() => expect(screen.getByRole('button', { name: '작품 저장' }).props.accessibilityState.disabled).toBe(false));
-  fireEvent.press(screen.getByRole('button', { name: '작품 저장' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: '저장', selected: false }).props.accessibilityState.disabled).toBe(false));
+  fireEvent.press(screen.getByRole('button', { name: '저장', selected: false }));
   expect(saveVideo).toHaveBeenCalledTimes(2);
   await act(async () => mockSaveTasks[1].resolve());
 });
@@ -871,7 +874,7 @@ test('PanResponder preserves controls, cancel, half-page and edge behavior', asy
   await loadScreen({ count: 2 });
   expect(canStartGesture(18, 10)).toBe(false);
   expect(canStartGesture(0, 9)).toBe(false);
-  const save = screen.getByRole('button', { name: '작품 저장' });
+  const save = screen.getByRole('button', { name: '저장', selected: false });
   expect(save.props.onTouchStart).toBeUndefined();
   const slider = screen.UNSAFE_getByType(Slider);
   fireEvent(slider, 'touchStart');
@@ -903,23 +906,23 @@ test('PanResponder preserves controls, cancel, half-page and edge behavior', asy
 test('a tap on the background does not mount hidden buttons under its touch', async () => {
   await loadScreen({ count: 1, resolvePlayers: false });
   expect(screen.queryByRole('button', { name: '작품 공유' })).toBeNull();
-  expect(screen.queryByRole('button', { name: '작품 저장' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '저장', selected: false })).toBeNull();
   fireEvent.press(feedInstance());
-  expect(screen.queryByRole('button', { name: '작품 저장' })).toBeNull();
+  expect(screen.queryByRole('button', { name: '저장', selected: false })).toBeNull();
 });
 
 test('the first drag keeps its original visible background target and controls mounted until release', async () => {
   await loadScreen({ count: 3 });
   jest.useFakeTimers();
   const drag = startDrag(); drag.move(-120);
-  const saveButton = screen.getByRole('button', { name: '작품 저장' });
+  const saveButton = screen.getByRole('button', { name: '저장', selected: false });
   expect(screen.UNSAFE_getByType(Slider)).toBeTruthy();
   drag.release(-120);
   await advanceFrames(20);
-  expect(screen.getByRole('button', { name: '작품 저장' }).props.accessibilityLabel).toBe(saveButton.props.accessibilityLabel);
+  expect(screen.getByRole('button', { name: '저장', selected: false }).props.accessibilityLabel).toBe(saveButton.props.accessibilityLabel);
   expectActiveDramaTitle('drama-1');
   await nativeScrollArrival(0);
-  expect(screen.getByRole('button', { name: '작품 저장' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: '저장', selected: false })).toBeTruthy();
 });
 
 test('a vertical drag starting on a Pressable cancels its web click, while the next tap runs once', async () => {
@@ -1122,4 +1125,70 @@ test('an unready or failed preview does not block the following gesture', async 
   await waitFor(() => expect(getDramaContent).toHaveBeenLastCalledWith('drama-3'));
   await resolvePreview('preview-drama-3');
   expectActiveDramaTitle('drama-3');
+});
+
+type ContentEpisode = DramaContent['episodes'][number];
+const contentEpisode = (episodeNumber: number, overrides: Partial<ContentEpisode> = {}): ContentEpisode => ({
+  uuid: `ep-${episodeNumber}`, episodeNumber, title: `${episodeNumber}화`, synopsis: null, durationMs: 60_000, videoUuid: `video-${episodeNumber}`,
+  isSaved: false, pricePoints: 0, isUnlocked: true, image: null, watchProgress: null, ...overrides,
+});
+const watched = (isCompleted: boolean, lastPlayedAt: string) => ({ positionMs: isCompleted ? 60_000 : 0, isCompleted, lastPlayedAt });
+
+test('the 빼꼼 card head shows the order and hint line, and the preview carries one 1화 미리보기 chip', async () => {
+  await loadScreen({ count: 3 });
+  expect(screen.getAllByText('빼꼼').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('작품마다 1화를 무료로 미리 봐요').length).toBeGreaterThan(0);
+  expect(screen.getByLabelText('3편 중 1번째')).toHaveTextContent('1 / 3');
+  expect(screen.getAllByText('1화 미리보기')).toHaveLength(1);
+  expect(screen.queryByText(/본편|미리보기 · |저장됨/)).toBeNull();
+});
+
+test('the 빼꼼 primary uses the home resume label and opens the same episode', async () => {
+  jest.mocked(getDramaContent).mockImplementation(async (id) => ({
+    ...dramaContent(id),
+    episodes: [
+      contentEpisode(2, { watchProgress: watched(false, '2026-11-02T00:00:00Z') }),
+      contentEpisode(1, { watchProgress: watched(true, '2026-11-01T00:00:00Z') }),
+    ],
+  }));
+  const { getPathnameWithParams } = await loadScreen({ count: 1 });
+  const primary = await screen.findByRole('button', { name: '2화 이어보기' });
+  fireEvent.press(primary);
+  expect(await screen.findByText('회차 화면')).toBeOnTheScreen();
+  expect(getPathnameWithParams()).toBe('/episode/ep-2?dramaId=drama-1');
+});
+
+test('the 빼꼼 primary waits for the drama, opens the unlock dialog only for locked episodes, and falls back to the drama', async () => {
+  const content = deferred<DramaContent>();
+  jest.mocked(getDramaContent).mockImplementationOnce(() => content.promise);
+  await loadScreen({ count: 1 });
+  expect(screen.getByRole('button', { name: '1화 무료로 보기' })).toBeDisabled();
+  await act(async () => {
+    content.resolve({ ...dramaContent('drama-1'), episodes: [
+      contentEpisode(1, { watchProgress: watched(true, '2026-11-01T00:00:00Z') }),
+      contentEpisode(2, { pricePoints: 10, isUnlocked: false }),
+    ] });
+    await flush();
+  });
+  fireEvent.press(screen.getByRole('button', { name: '2화 보기' }));
+  expect(await screen.findByText('2화 열기')).toBeOnTheScreen();
+});
+
+test('the 빼꼼 primary opens an already unlocked paid episode without the unlock dialog', async () => {
+  jest.mocked(getDramaContent).mockImplementation(async (id) => ({
+    ...dramaContent(id),
+    episodes: [contentEpisode(1, { pricePoints: 10, isUnlocked: true })],
+  }));
+  const { getPathnameWithParams } = await loadScreen({ count: 1 });
+  fireEvent.press(await screen.findByRole('button', { name: '1화 보기' }));
+  expect(await screen.findByText('회차 화면')).toBeOnTheScreen();
+  expect(getPathnameWithParams()).toBe('/episode/ep-1?dramaId=drama-1');
+  expect(screen.queryByText('1화 열기')).toBeNull();
+});
+
+test('a 빼꼼 drama without episodes points its primary at the drama page', async () => {
+  const { getPathnameWithParams } = await loadScreen({ count: 1 });
+  fireEvent.press(await screen.findByRole('button', { name: '작품 소개 보기' }));
+  expect(await screen.findByText('작품 소개 화면')).toBeOnTheScreen();
+  expect(getPathnameWithParams()).toBe('/drama/drama-1');
 });
