@@ -12,6 +12,31 @@
     {
       "key": "moon",
       "prompt": "Use case: photorealistic-natural. Asset type: finished cinematic portrait artwork for a fictional Korean sci-fi short-drama catalog, vertical 2:3. Primary request: a lone fictional Korean woman age 30 in a near-future minimal silver jacket overlooking dense dark futuristic Seoul under an enormous moon. Photorealistic cinematic editorial film still, elegant violet-blue city with restrained warm lights, tactile realistic jacket, atmospheric city depth and enormous detailed moon. Person medium foreground in the upper-middle, seen from behind in a slight three-quarter profile, gazing at the city and moon. Restrained premium science-fiction mood, subtle film grain, sophisticated believable photography. Dark subdued lower third for a later programmatic title. No text, titles, letters, logos, UI, captions, borders or watermarks. One complete finished poster image."
+    },
+    {
+      "key": "apothecary",
+      "source": "Seedream 4.5 (Higgsfield), vertical 2:3, cropped to a text-free region and resized to 1024x1536",
+      "prompt": "A fictional Korean woman physician in an indigo hanbok inside a Joseon-era apothecary at night, red lantern and candlelight, wall of herb drawers. Photorealistic cinematic editorial film still, subtle film grain. No text, titles, letters, logos, UI, captions, borders or watermarks."
+    },
+    {
+      "key": "contract",
+      "source": "Seedream 4.5 (Higgsfield), vertical 2:3, cropped to a text-free region and resized to 1024x1536",
+      "prompt": "A fictional Korean woman in a dark suit walking down a glass-walled office corridor at night, a blurred older executive far behind her, cool steel-blue light. Photorealistic cinematic editorial film still, subtle film grain. No text, titles, letters, logos, UI, captions, borders or watermarks."
+    },
+    {
+      "key": "summer",
+      "source": "Seedream 4.5 (Higgsfield), vertical 2:3, cropped to a text-free region and resized to 1024x1536",
+      "prompt": "Four fictional Korean high school students in summer uniforms on a seaside school rooftop with a guitar and a drum, bright afternoon. Photorealistic cinematic editorial film still, subtle film grain. No text, titles, letters, logos, UI, captions, borders or watermarks."
+    },
+    {
+      "key": "passbook",
+      "source": "Seedream 4.5 (Higgsfield), vertical 2:3, resized to 1024x1536",
+      "prompt": "A single continuous photograph: a fictional Korean woman in a knit cardigan sitting on the wooden floor of an old Korean house holding a bundle of plain blank old bankbooks, amber afternoon light through a lattice window. Photorealistic cinematic editorial film still, subtle film grain. No text, titles, letters, logos, UI, captions, borders or watermarks."
+    },
+    {
+      "key": "shadow",
+      "source": "Seedream 4.5 (Higgsfield), vertical 2:3, cropped to a text-free region and resized to 1024x1536",
+      "prompt": "A fictional Korean man on a Seoul rooftop terrace at dusk with two shadows on the wall, violet and orange sky. Photorealistic cinematic editorial film still, subtle film grain. No text, titles, letters, logos, UI, captions, borders or watermarks."
     }
   ]
 }

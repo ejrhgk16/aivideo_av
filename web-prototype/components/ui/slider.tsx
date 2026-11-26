@@ -8,8 +8,12 @@ function Slider({
   value,
   min = 0,
   max = 100,
+  valueText,
   ...props
-}: SliderPrimitive.Root.Props) {
+}: SliderPrimitive.Root.Props & {
+  // 스크린리더가 읽을 값(예: '12초 / 60초')
+  valueText?: (value: number) => string;
+}) {
   const _values = Array.isArray(value)
     ? value
     : Array.isArray(defaultValue)
@@ -41,6 +45,8 @@ function Slider({
           <SliderPrimitive.Thumb
             data-slot="slider-thumb"
             key={index}
+            aria-label={props['aria-label']}
+            getAriaValueText={valueText ? (_, v) => valueText(v) : undefined}
             className="border-ring ring-ring/50 relative size-3 rounded-full border bg-white transition-[color,box-shadow] after:absolute after:-inset-2 hover:ring-3 focus-visible:ring-3 focus-visible:outline-hidden active:ring-3 block shrink-0 select-none disabled:pointer-events-none disabled:opacity-50"
           />
         ))}
