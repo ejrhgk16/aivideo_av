@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { FlatList, Modal, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { AppText, Button, EmptyState, Icon, LoadingState, Page } from '@/components/ui';
+import { FlatList, Modal, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
+import { AppText, Button, EmptyState, Icon, isKeyboardPress, KEYBOARD_PRESS_GUARD_MS, LoadingState, Page, Peeka } from '@/components/ui';
 import { createThemedStyles, useColors } from '@/common/theme/theme';
+import { radius, spacing, textSizes } from '@/common/theme/tokens';
 import { getErrorMessage } from '@/common/http/errorMessages';
 import { getPointHistory, type PointHistoryItem, type PointTransactionType } from '@/features/economy/pointHistory';
 import { useUser } from '@/features/user/UserProvider';
@@ -16,6 +17,10 @@ type DemoState = {
   adCount: number;
   pending: PendingDemo | null;
 };
+
+const AD_REWARD_POINTS = 10;
+const AD_DAILY_LIMIT = 5;
+const AD_SECONDS = 5;
 
 const packs = [
   { points: 100, price: '₩1,100' },
@@ -68,7 +73,7 @@ function formatHistoryTime(value: string): string {
 }
 
 function formatPointChange(value: number): string {
-  return `${value > 0 ? '+' : ''}${value.toLocaleString('ko-KR')} P`;
+  return `${value > 0 ? '+' : ''}${value.toLocaleString('ko-KR')}P`;
 }
 
 export function PointsScreen() {
@@ -77,7 +82,6 @@ export function PointsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ tab?: string }>();
   const { points, user, isRestoring, sessionVersion, isCurrentSession } = useUser();
-  const { width } = useWindowDimensions();
   const [selectedTab, setSelectedTab] = useState<PointsTab | null>(null);
   useEffect(() => setSelectedTab(null), [params.tab]);
   const tab = selectedTab ?? (params.tab === 'history' ? 'history' : 'charge');
@@ -98,6 +102,8 @@ export function PointsScreen() {
   const nextDemoId = useRef(0);
   const pendingId = useRef<number | null>(null);
   const currentDemo = demo?.owner === ownerKey ? demo : null;
+  const [adSeconds, setAdSeconds] = useState(0);
+  const openedAt = useRef(0);
 
   const loadPage = useCallback(async (
     page: number,
@@ -184,9 +190,11 @@ export function PointsScreen() {
   };
 
   const openDemo = (kind: PendingDemo['kind'], amount: number, price?: string) => {
-    if (!focused.current || isRestoring || (kind === 'ad' && (currentDemo?.adCount ?? 0) >= 5)) return;
+    if (!focused.current || isRestoring || (kind === 'ad' && (currentDemo?.adCount ?? 0) >= AD_DAILY_LIMIT)) return;
     const id = ++nextDemoId.current;
     pendingId.current = id;
+    openedAt.current = Date.now();
+    setAdSeconds(0);
     const pending = { id, kind, amount, price };
     setDemo((previous) => {
       const base = previous?.owner === ownerKey
@@ -204,12 +212,13 @@ export function PointsScreen() {
 
   const confirmDemo = (id: number) => {
     if (!focused.current || demoOwner.current !== ownerKey || pendingId.current !== id || isRestoring) return;
+    if (currentDemo?.pending?.kind === 'ad' && adSeconds < AD_SECONDS) return;
     pendingId.current = null;
     const createdAt = new Date().toISOString();
     setDemo((previous) => {
       if (previous?.owner !== ownerKey || previous.pending?.id !== id) return previous;
       const pending = previous.pending;
-      if (pending.kind === 'ad' && previous.adCount >= 5) return { ...previous, pending: null };
+      if (pending.kind === 'ad' && previous.adCount >= AD_DAILY_LIMIT) return { ...previous, pending: null };
       const balanceAfter = previous.balance + pending.amount;
       const item: PointHistoryItem = {
         uuid: `demo-${id}`,
@@ -240,7 +249,7 @@ export function PointsScreen() {
         {item.episode ? <AppText style={styles.historyDetail} numberOfLines={1}>
           {item.episode.dramaTitle} · {item.episode.episodeNumber}화
         </AppText> : null}
-        <AppText style={styles.historyMeta}>{`거래 후 잔액 ${item.balanceAfter.toLocaleString('ko-KR')} P`}</AppText>
+        <AppText style={styles.historyMeta}>{`거래 후 잔액 ${item.balanceAfter.toLocaleString('ko-KR')}P`}</AppText>
       </View>
       <AppText weight="semibold" style={[styles.historyAmount, item.amount > 0 ? styles.pointIncrease : styles.pointDecrease]}>
         {formatPointChange(item.amount)}
@@ -261,13 +270,30 @@ export function PointsScreen() {
           : <EmptyState title="포인트 이용 내역이 없어요" description="포인트가 추가되거나 사용되면 이곳에 표시돼요." />;
 
   const goBack = () => router.canGoBack() ? router.back() : router.replace('/account');
-  const amount = currentDemo ? currentDemo.balance.toLocaleString('ko-KR') : points === null ? '—' : points.toLocaleString('ko-KR');
+  const balanceValue = currentDemo ? currentDemo.balance : points;
+  const amount = balanceValue === null ? '—' : balanceValue.toLocaleString('ko-KR');
   const pointsDescription = currentDemo ? '이 포인트는 화면을 나가면 초기화돼요'
-    : points === null ? '로그인 후 포인트를 확인할 수 있어요'
-      : '마음에 드는 드라마의 다음 회차를 열어보세요.';
-  const titleSize = width <= 700 ? 25 : 32;
-  const balanceSize = width <= 700 ? 58 : 64;
+    : points === null ? '로그인 후 포인트를 확인할 수 있어요' : null;
   const pending = currentDemo?.pending ?? null;
+  const adsLeft = AD_DAILY_LIMIT - (currentDemo?.adCount ?? 0);
+  const adDone = adSeconds >= AD_SECONDS;
+  const pendingAd = pending?.kind === 'ad' ? pending.id : null;
+
+  // 광고 창은 5초 동안 주 버튼을 막는다. 실제 광고는 아직 없어 시간만 센다.
+  useEffect(() => {
+    if (pendingAd === null) return;
+    const timer = setInterval(() => setAdSeconds((value) => {
+      if (value + 1 >= AD_SECONDS) clearInterval(timer);
+      return Math.min(value + 1, AD_SECONDS);
+    }), 1000);
+    return () => clearInterval(timer);
+  }, [pendingAd]);
+
+  const confirmPack = (event: GestureResponderEvent) => {
+    // 창을 연 Enter가 그대로 충전되지 않게, 창이 열린 직후의 키보드 입력은 버린다.
+    if (isKeyboardPress(event) && Date.now() - openedAt.current < KEYBOARD_PRESS_GUARD_MS) return;
+    if (pending) confirmDemo(pending.id);
+  };
 
   const historyHeader = <>
     {currentDemo?.items.length ? <View style={styles.demoHistory}>
@@ -279,56 +305,44 @@ export function PointsScreen() {
 
   return <Page scroll={tab === 'charge'} contentStyle={[styles.page, !active && styles.chargePage]}>
     <Pressable accessibilityRole="button" accessibilityLabel="뒤로 가기" onPress={goBack} style={styles.backButton}>
-      <Icon name="arrow-left" size={20} />
-      <AppText weight="semibold">뒤로 가기</AppText>
+      <Icon name="chevron-left" size={20} />
+      <AppText weight="semibold" style={styles.backLabel}>뒤로 가기</AppText>
     </Pressable>
-    <View style={styles.heading}>
-      <AppText weight="bold" style={[styles.headingTitle, { fontSize: titleSize, lineHeight: titleSize + 8 }]}>
-        이야기를 계속하는 방법
-      </AppText>
-    </View>
+    <AppText weight="bold" accessibilityRole="header" style={styles.headingTitle}>포인트</AppText>
     <View style={styles.balanceArea}>
       <AppText style={styles.balanceLabel}>{currentDemo ? '체험 포인트' : '사용 가능한 포인트'}</AppText>
-      <AppText weight="bold" style={[styles.balance, { fontSize: balanceSize }]}>{amount} <AppText weight="bold" style={styles.balanceP}>P</AppText></AppText>
-      <AppText style={styles.balanceDescription}>{pointsDescription}</AppText>
+      <AppText weight="bold" style={styles.balance}>{amount}<AppText weight="bold" style={styles.balanceP}>P</AppText></AppText>
+      {pointsDescription ? <AppText style={styles.balanceDescription}>{pointsDescription}</AppText> : null}
     </View>
     <View style={styles.tabs} accessibilityRole="tablist">
       {(['charge', 'history'] as const).map((item) => {
         const selected = tab === item;
         return <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected }}
           style={[styles.tab, selected && styles.activeTab]} onPress={() => setSelectedTab(item)}>
-          <AppText weight={selected ? 'semibold' : 'regular'} style={[styles.tabLabel, selected && styles.activeLabel]}>
+          <AppText weight={selected ? 'semibold' : 'medium'} style={[styles.tabLabel, selected && styles.activeLabel]}>
             {item === 'charge' ? '충전하기' : '이용 내역'}
           </AppText>
         </Pressable>;
       })}
     </View>
     {tab === 'charge' ? <View style={styles.chargeContent}>
-      <Pressable accessibilityRole="button" accessibilityLabel="광고 보고 포인트 받기"
-        accessibilityState={{ disabled: isRestoring || (currentDemo?.adCount ?? 0) >= 5 }}
-        disabled={isRestoring || (currentDemo?.adCount ?? 0) >= 5}
-        onPress={() => openDemo('ad', 10)} style={styles.rewardCard}>
-        <View style={styles.giftIcon}><Icon name="gift" size={22} color={colors.accent} /></View>
+      <Pressable accessibilityRole="button" accessibilityLabel="광고 보고 10P 받기"
+        accessibilityState={{ disabled: isRestoring || adsLeft <= 0 }}
+        disabled={isRestoring || adsLeft <= 0}
+        onPress={() => openDemo('ad', AD_REWARD_POINTS)} style={[styles.rewardCard, adsLeft <= 0 && styles.rewardCardDone]}>
+        <View style={styles.giftIcon}><Icon name="gift" size={22} color={adsLeft <= 0 ? colors.muted : colors.accent} /></View>
         <View style={styles.rewardCopy}>
-          <AppText weight="semibold">광고 보고 포인트 받기</AppText>
-          <AppText style={styles.rewardMeta}>광고 보상 체험 · {currentDemo?.adCount ?? 0}/5회</AppText>
+          <AppText weight="semibold" style={adsLeft <= 0 ? styles.rewardTitleDone : undefined}>광고 보고 10P 받기</AppText>
+          <AppText style={styles.rewardMeta}>{adsLeft <= 0 ? '오늘 5번 모두 받았어요 · 내일 다시 받을 수 있어요' : `오늘 ${adsLeft}번 남음`}</AppText>
         </View>
-        <View style={styles.rewardValue}>
-          <AppText weight="bold" style={styles.rewardPoints}>+10 P</AppText>
-          <Icon name="chevron-right" size={18} color={colors.muted} />
-        </View>
+        {adsLeft > 0 ? <Icon name="chevron-right" size={18} color={colors.muted} /> : null}
       </Pressable>
-      <View style={styles.packHeading}>
-        <AppText weight="semibold" style={styles.packTitle}>필요한 만큼 충전해요</AppText>
-        <AppText style={styles.exampleLabel}>예시 가격</AppText>
-      </View>
       {packs.map((pack) => <Pressable key={pack.points} accessibilityRole="button"
-        accessibilityLabel={`${pack.points} P 충전 체험`} onPress={() => openDemo('pack', pack.points, pack.price)}
+        accessibilityLabel={`${pack.points}P 충전 체험`} onPress={() => openDemo('pack', pack.points, pack.price)}
         disabled={isRestoring} accessibilityState={{ disabled: isRestoring }}
         style={styles.packCard}>
-        <View style={styles.packIcon}><AppText weight="bold" style={styles.packIconText}>P</AppText></View>
-        <AppText weight="bold" style={[styles.packPoints, { fontSize: width <= 700 ? 21 : 23 }]}>{pack.points}<AppText weight="bold" style={styles.packP}> P</AppText></AppText>
-        <View style={styles.priceBadge}><AppText weight="semibold" style={styles.priceText}>{pack.price}</AppText></View>
+        <AppText weight="bold" style={styles.packPoints}>{pack.points}<AppText weight="bold" style={styles.packP}>P</AppText></AppText>
+        <AppText weight="semibold" style={styles.priceText}>{pack.price}</AppText>
       </Pressable>)}
       <AppText style={styles.notice}>실제 결제되지 않으며 체험 포인트는 이 화면을 나가면 초기화돼요.</AppText>
       <View style={styles.footerNote}><Icon name="check-circle" size={16} color={colors.muted} />
@@ -360,79 +374,103 @@ export function PointsScreen() {
     />}
     <Modal visible={!!pending} transparent animationType="fade" onRequestClose={() => closeDemo(pending?.id)}>
       <View style={styles.modalBackdrop}>
-        <View style={styles.modalCard} accessibilityRole="alert">
-          <View style={styles.modalIcon}><Icon name={pending?.kind === 'ad' ? 'gift' : 'credit-card'} size={24} color={colors.accent} /></View>
-          <AppText weight="bold" style={styles.modalTitle}>{pending?.kind === 'ad' ? '광고 체험' : '충전 체험'}</AppText>
-          {pending?.kind === 'pack' ? <>
-            <AppText weight="semibold" style={styles.modalAmount}>{pending.amount.toLocaleString('ko-KR')} P</AppText>
-            <AppText style={styles.modalPrice}>{pending.price}</AppText>
-          </> : <AppText style={styles.modalDescription}>체험을 완료하면 10 P가 추가돼요.</AppText>}
-          <AppText style={styles.modalDescription}>실제 결제되지 않는 화면 체험이에요.</AppText>
-          <Button label={pending?.kind === 'ad' ? '체험 완료' : '체험 충전하기'} onPress={() => pending && confirmDemo(pending.id)} style={styles.modalPrimary} />
-          <Button label="취소" variant="ghost" onPress={() => closeDemo(pending?.id)} style={styles.modalCancel} />
-        </View>
+        {pending?.kind === 'ad' ? <View style={styles.modalCard} accessibilityRole="alert" accessibilityLabel="광고 보고 10P 받기">
+          <AppText weight="semibold" style={styles.trial}>체험판</AppText>
+          <Peeka slot={adDone ? 'loading' : 'loadingEgg'} size={88} />
+          <AppText weight="bold" accessibilityRole="header" style={styles.modalTitle}>광고 보고 10P 받기</AppText>
+          <AppText style={styles.modalDescription} accessibilityLiveRegion="polite">
+            {adDone ? '광고가 끝났어요. 10P를 받아 가세요.' : '광고를 5초 보면 10P를 받을 수 있어요. '}
+            {adDone ? null : <AppText weight="bold" style={styles.modalCountdown}>{`${AD_SECONDS - adSeconds}초 남음`}</AppText>}
+          </AppText>
+          <View style={styles.adTrack} accessible accessibilityRole="progressbar" accessibilityLabel="광고 진행"
+            accessibilityValue={{ min: 0, max: AD_SECONDS, now: adSeconds }}>
+            <View style={[styles.adFill, { width: `${(adSeconds / AD_SECONDS) * 100}%` }]} />
+          </View>
+          <Button label={adDone ? '10P 받기' : `${AD_SECONDS - adSeconds}초 후 10P 받기`} disabled={!adDone}
+            onPress={() => confirmDemo(pending.id)} style={styles.modalPrimary} />
+          <Button label="취소" variant="ghost" onPress={() => closeDemo(pending.id)} style={styles.modalCancel} />
+          <AppText style={styles.modalFineprint}>{adDone ? '실제 광고가 아닌 화면 체험이에요.' : '5초가 지나기 전에 닫으면 포인트가 지급되지 않아요.'}</AppText>
+        </View> : pending ? <View style={styles.modalCard} accessibilityRole="alert" accessibilityLabel={`${pending.amount.toLocaleString('ko-KR')}P를 충전할까요?`}>
+          <AppText weight="semibold" style={styles.trial}>체험판</AppText>
+          <View style={styles.modalIcon}><Icon name="credit-card" size={40} color={colors.accent} /></View>
+          <AppText weight="bold" accessibilityRole="header" style={styles.modalTitle}>{`${pending.amount.toLocaleString('ko-KR')}P를 충전할까요?`}</AppText>
+          <AppText style={styles.modalDescription}>다음 회차를 바로 이어볼 수 있어요.</AppText>
+          <View style={styles.summary}>
+            <View style={styles.summaryRow}><AppText style={styles.summaryLabel}>선택한 포인트</AppText>
+              <AppText weight="semibold" style={styles.summaryValue}>{`${pending.amount.toLocaleString('ko-KR')}P`}</AppText></View>
+            <View style={styles.summaryRow}><AppText style={styles.summaryLabel}>가격</AppText>
+              <AppText weight="semibold" style={styles.summaryValue}>{pending.price}</AppText></View>
+            <View style={[styles.summaryRow, styles.summaryTotal]}><AppText style={styles.summaryLabel}>충전 후 잔액</AppText>
+              <AppText weight="bold" style={styles.summaryValue}>{`${((currentDemo?.balance ?? 0) + pending.amount).toLocaleString('ko-KR')}P`}</AppText></View>
+          </View>
+          <Button label={`${pending.amount.toLocaleString('ko-KR')}P 충전하기`} onPress={confirmPack} style={styles.modalPrimary} />
+          <Button label="취소" variant="ghost" onPress={() => closeDemo(pending.id)} style={styles.modalCancel} />
+          <AppText style={styles.modalFineprint}>실제 결제되지 않는 화면 체험이에요.</AppText>
+        </View> : null}
       </View>
     </Modal>
   </Page>;
 }
 
 const useStyles = createThemedStyles((colors) => ({
-  page: { paddingTop: 16, paddingBottom: 28, gap: 22, width: '100%', maxWidth: 780, alignSelf: 'center' },
-  chargePage: { paddingHorizontal: 22 },
-  backButton: { alignSelf: 'flex-start', minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 9 },
-  heading: { gap: 7 },
-  headingTitle: { color: colors.text, letterSpacing: -0.7 },
-  balanceArea: { alignItems: 'flex-start', gap: 5, paddingTop: 5 },
-  balanceLabel: { color: colors.muted, fontSize: 14 },
-  balance: { color: colors.text, lineHeight: 75, letterSpacing: -2 },
-  balanceP: { color: colors.accent, fontSize: 31, letterSpacing: 0 },
-  balanceDescription: { color: colors.muted, fontSize: 13, lineHeight: 20 },
-  tabs: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 12, padding: 4, marginTop: -4, minHeight: 49 },
-  tab: { flex: 1, minHeight: 41, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
-  activeTab: { backgroundColor: colors.elevated },
-  tabLabel: { fontSize: 14, color: colors.muted },
+  page: { paddingTop: spacing.md, paddingBottom: spacing.xl, gap: spacing.lg, width: '100%', maxWidth: 780, alignSelf: 'center' },
+  chargePage: { paddingHorizontal: spacing.md },
+  backButton: { alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, marginBottom: -spacing.sm },
+  backLabel: { ...textSizes.label14 },
+  headingTitle: { color: colors.text, ...textSizes.heading24 },
+  balanceArea: { alignItems: 'flex-start', gap: spacing.xxs },
+  balanceLabel: { color: colors.muted, ...textSizes.label14 },
+  balance: { color: colors.text, ...textSizes.heading32 },
+  balanceP: { color: colors.accent, ...textSizes.body18 },
+  balanceDescription: { color: colors.muted, ...textSizes.caption12 },
+  tabs: { flexDirection: 'row', gap: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
+  tab: { minHeight: 46, justifyContent: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  activeTab: { borderBottomColor: colors.accent },
+  tabLabel: { ...textSizes.label14, color: colors.muted },
   activeLabel: { color: colors.text },
-  chargeContent: { gap: 13 },
-  rewardCard: { minHeight: 86, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: 8, borderWidth: 1, borderColor: colors.borderStrong, padding: 13 },
-  giftIcon: { width: 48, height: 48, borderRadius: 15, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center' },
-  rewardCopy: { flex: 1, minWidth: 0, gap: 4 },
-  rewardMeta: { color: colors.muted, fontSize: 12, lineHeight: 18 },
-  rewardValue: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  rewardPoints: { color: colors.accent, fontSize: 15 },
-  packHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 7 },
-  packTitle: { fontSize: 18, flexShrink: 1 },
-  exampleLabel: { color: colors.muted, fontSize: 12 },
-  packCard: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: 8, padding: 13 },
-  packIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center' },
-  packIconText: { color: colors.accent, fontSize: 18 },
-  packPoints: { flex: 1, color: colors.text },
-  packP: { color: colors.muted, fontSize: 13 },
-  priceBadge: { backgroundColor: colors.elevated, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 9, flexShrink: 0 },
-  priceText: { fontSize: 13 },
-  notice: { color: colors.muted, fontSize: 12, lineHeight: 19, textAlign: 'center', marginTop: 2 },
-  footerNote: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 1 },
-  footerText: { color: colors.muted, fontSize: 12, lineHeight: 18 },
-  chargeDemoHistory: { marginTop: 12 },
+  chargeContent: { gap: spacing.sm },
+  rewardCard: { minHeight: 80, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.borderStrong, padding: spacing.sm },
+  rewardCardDone: { backgroundColor: 'transparent', borderColor: colors.border },
+  giftIcon: { width: 48, height: 48, borderRadius: radius.pill, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center' },
+  rewardCopy: { flex: 1, minWidth: 0, gap: spacing.xxs },
+  rewardTitleDone: { color: colors.muted },
+  rewardMeta: { color: colors.muted, ...textSizes.caption12 },
+  packCard: { minHeight: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.md, paddingHorizontal: spacing.md },
+  packPoints: { color: colors.text, ...textSizes.body18 },
+  packP: { color: colors.muted, ...textSizes.label14 },
+  priceText: { color: colors.text, ...textSizes.label14 },
+  notice: { color: colors.muted, ...textSizes.caption12, textAlign: 'center' },
+  footerNote: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs },
+  footerText: { color: colors.muted, ...textSizes.caption12 },
+  chargeDemoHistory: { marginTop: spacing.sm },
   historyList: { flex: 1, minHeight: 120 },
-  historyListContent: { gap: 0, paddingBottom: 20, flexGrow: 1 },
-  historySectionTitle: { color: colors.text, fontSize: 17, marginBottom: 8 },
-  demoHistory: { marginBottom: 18 },
-  historyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border, paddingVertical: 13 },
-  historyIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  historyCopy: { flex: 1, minWidth: 0, gap: 2 },
-  historyDetail: { color: colors.muted, fontSize: 12, lineHeight: 18 },
+  historyListContent: { gap: 0, paddingBottom: spacing.lg, flexGrow: 1 },
+  historySectionTitle: { color: colors.text, ...textSizes.body18, marginBottom: spacing.xs },
+  demoHistory: { marginBottom: spacing.lg },
+  historyRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border, paddingVertical: spacing.sm },
+  historyIcon: { width: 40, height: 40, borderRadius: radius.pill, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  historyCopy: { flex: 1, minWidth: 0, gap: spacing.xxs },
+  historyDetail: { color: colors.muted, ...textSizes.caption12 },
   pointIncrease: { color: colors.accent },
   pointDecrease: { color: colors.text },
-  historyAmount: { fontSize: 16, flexShrink: 0 },
-  historyMeta: { color: colors.muted, fontSize: 11, lineHeight: 16 },
-  historyFooter: { alignItems: 'center', gap: 8, padding: 12 },
-  modalBackdrop: { flex: 1, padding: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.backdrop },
-  modalCard: { width: '100%', maxWidth: 400, alignItems: 'center', gap: 10, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 24 },
-  modalIcon: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
-  modalTitle: { fontSize: 21, lineHeight: 29 },
-  modalAmount: { color: colors.accent, fontSize: 24, lineHeight: 32 },
-  modalPrice: { color: colors.muted, fontSize: 15 },
-  modalDescription: { color: colors.muted, fontSize: 13, lineHeight: 20, textAlign: 'center' },
-  modalPrimary: { alignSelf: 'stretch', marginTop: 7 },
+  historyAmount: { ...textSizes.body16, flexShrink: 0 },
+  historyMeta: { color: colors.muted, ...textSizes.badge11 },
+  historyFooter: { alignItems: 'center', gap: spacing.xs, padding: spacing.sm },
+  modalBackdrop: { flex: 1, padding: spacing.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.backdrop },
+  modalCard: { width: '100%', maxWidth: 400, alignItems: 'center', gap: spacing.sm, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: spacing.lg },
+  trial: { color: colors.muted, ...textSizes.badge11 },
+  modalIcon: { width: 88, height: 88, borderRadius: radius.pill, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center' },
+  modalTitle: { color: colors.text, ...textSizes.heading24, textAlign: 'center' },
+  modalDescription: { color: colors.muted, ...textSizes.label14, textAlign: 'center' },
+  modalCountdown: { color: colors.text, ...textSizes.label14 },
+  adTrack: { alignSelf: 'stretch', height: 3, borderRadius: radius.pill, backgroundColor: colors.border, overflow: 'hidden' },
+  adFill: { height: 3, backgroundColor: colors.accent },
+  summary: { alignSelf: 'stretch', gap: spacing.sm, padding: spacing.md, backgroundColor: colors.background, borderRadius: radius.md },
+  summaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  summaryTotal: { paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
+  summaryLabel: { color: colors.muted, ...textSizes.label14 },
+  summaryValue: { color: colors.text, ...textSizes.label14 },
+  modalPrimary: { alignSelf: 'stretch', marginTop: spacing.xs },
   modalCancel: { alignSelf: 'stretch' },
+  modalFineprint: { color: colors.muted, ...textSizes.caption12, textAlign: 'center' },
 }));

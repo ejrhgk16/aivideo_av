@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { Animated, Modal, Platform } from 'react-native';
+import { Image } from 'expo-image';
 import { ApiError } from '@/common/http/api';
 import { getErrorMessage } from '@/common/http/errorMessages';
 import type { DramaContent } from '@/features/drama/dramaContent';
@@ -110,17 +111,17 @@ test('dismiss keeps the selected episode visible until fade and native dismissal
     const nativeModal = modal();
     fireEvent(nativeModal, 'show');
     finishAnimation();
-    fireEvent.press(screen.getByRole('button', { name: '팝업 닫기' }));
+    fireEvent.press(screen.getByRole('button', { name: '닫기' }));
     fireEvent(nativeModal, 'requestClose');
     dialog.rerender(
       <EpisodeUnlockDialog episode={null} dramaTitle="작품 A" onClose={dialog.onClose}
         onCharge={dialog.onCharge} onPurchased={dialog.onPurchased} />,
     );
 
-    expect(screen.getByText('작품 A · 9화')).toBeOnTheScreen();
-    expect(screen.getByText('50 P')).toBeOnTheScreen();
-    expect(screen.getByText('120 P')).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: '구매하기' })).toBeDisabled();
+    expect(screen.getByText('9화 열기')).toBeOnTheScreen();
+    expect(screen.getByText('50P')).toBeOnTheScreen();
+    expect(screen.getByText('120P')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '50P로 9화 열기' })).toBeDisabled();
     expect(dialog.onClose).not.toHaveBeenCalled();
     expect(mockedPurchase).not.toHaveBeenCalled();
 
@@ -144,7 +145,7 @@ test('purchase updates points once but waits for fade and iOS dismissal before o
     const nativeModal = modal();
     fireEvent(nativeModal, 'show');
     finishAnimation();
-    const purchaseButton = screen.getByRole('button', { name: '구매하기' });
+    const purchaseButton = screen.getByRole('button', { name: '50P로 9화 열기' });
     fireEvent.press(purchaseButton);
     fireEvent.press(purchaseButton);
     expect(mockedPurchase).toHaveBeenCalledTimes(1);
@@ -152,8 +153,8 @@ test('purchase updates points once but waits for fade and iOS dismissal before o
     await act(async () => { await Promise.resolve(); });
     expect(session.setPoints).toHaveBeenCalledWith(70);
     expect(dialog.onPurchased).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: '구매 중…' })).toBeDisabled();
-    expect(screen.getByText('보유 포인트로 바로 구매할 수 있어요.')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: '여는 중…' })).toBeDisabled();
+    expect(screen.getByText('열기 버튼을 누를 때만 포인트를 사용해요.')).toBeOnTheScreen();
 
     fireEvent(nativeModal, 'dismiss');
     expect(dialog.onPurchased).not.toHaveBeenCalled();
@@ -177,7 +178,7 @@ test('purchase error stays during dismissal and a later episode opens with fresh
     const nativeModal = modal();
     fireEvent(nativeModal, 'show');
     finishAnimation();
-    fireEvent.press(screen.getByRole('button', { name: '구매하기' }));
+    fireEvent.press(screen.getByRole('button', { name: '50P로 9화 열기' }));
     await act(async () => { await Promise.resolve(); });
     expect(screen.getByText('요청에 실패했어요.')).toBeOnTheScreen();
 
@@ -195,7 +196,7 @@ test('purchase error stays during dismissal and a later episode opens with fresh
       <EpisodeUnlockDialog episode={nextEpisode} dramaTitle="작품 A" onClose={dialog.onClose}
         onCharge={dialog.onCharge} onPurchased={dialog.onPurchased} />,
     );
-    expect(screen.getByText('작품 A · 10화')).toBeOnTheScreen();
+    expect(screen.getByText('10화 열기')).toBeOnTheScreen();
     expect(screen.queryByText('요청에 실패했어요.')).not.toBeOnTheScreen();
     expect(screen.getByRole('button', { name: '포인트 충전하기' })).toBeOnTheScreen();
     expect(dialog.onPurchased).not.toHaveBeenCalled();
@@ -238,7 +239,7 @@ test('anonymous users are offered login and do not call the purchase API', () =>
     mockedUseUser.mockReturnValue(session);
     const dialog = renderDialog();
     const nativeModal = modal();
-    expect(screen.getByText('로그인 후 회차를 구매할 수 있어요.')).toBeOnTheScreen();
+    expect(screen.getByText('로그인 후 회차를 열 수 있어요.')).toBeOnTheScreen();
     fireEvent.press(screen.getByRole('button', { name: '로그인하기' }));
     finishAnimation();
     fireEvent(nativeModal, 'dismiss');
@@ -255,7 +256,7 @@ test('session change ignores an old purchase and permits a purchase in the new s
     let resolvePurchase!: (value: EpisodePurchaseResponse) => void;
     mockedPurchase.mockReturnValueOnce(new Promise((resolve) => { resolvePurchase = resolve; }));
     const dialog = renderDialog();
-    fireEvent.press(screen.getByRole('button', { name: '구매하기' }));
+    fireEvent.press(screen.getByRole('button', { name: '50P로 9화 열기' }));
     session = makeSession({ sessionVersion: 1, isCurrentSession: (version) => version === 1 });
     mockedUseUser.mockReturnValue(session);
     dialog.rerender(
@@ -275,7 +276,7 @@ test('session change ignores an old purchase and permits a purchase in the new s
       chargedPoints: 50,
       availablePoints: 80,
     });
-    fireEvent.press(screen.getByRole('button', { name: '구매하기' }));
+    fireEvent.press(screen.getByRole('button', { name: '50P로 9화 열기' }));
     await act(async () => { await Promise.resolve(); });
     expect(session.setPoints).toHaveBeenCalledWith(80);
   } finally {
@@ -288,7 +289,7 @@ test('session change during purchase dismissal animation cancels navigation', as
   try {
     const dialog = renderDialog();
     const nativeModal = modal();
-    fireEvent.press(screen.getByRole('button', { name: '구매하기' }));
+    fireEvent.press(screen.getByRole('button', { name: '50P로 9화 열기' }));
     await act(async () => { await Promise.resolve(); });
     session = makeSession({ sessionVersion: 1, isCurrentSession: (version) => version === 1 });
     mockedUseUser.mockReturnValue(session);
@@ -311,7 +312,7 @@ test('401 handled by session expiration is not shown as a purchase error', async
     let rejectPurchase!: (error: Error) => void;
     mockedPurchase.mockReturnValueOnce(new Promise((_resolve, reject) => { rejectPurchase = reject; }));
     const dialog = renderDialog();
-    fireEvent.press(screen.getByRole('button', { name: '구매하기' }));
+    fireEvent.press(screen.getByRole('button', { name: '50P로 9화 열기' }));
     session = makeSession({ sessionExpired: true });
     mockedUseUser.mockReturnValue(session);
     dialog.rerender(
@@ -324,4 +325,55 @@ test('401 handled by session expiration is not shown as a purchase error', async
   } finally {
     restorePlatform();
   }
+});
+
+function mascot() {
+  // 마스코트는 장식이라 접근성 트리에서 숨긴다. 어떤 그림 파일인지는 Image의 source로만 확인할 수 있다.
+  return JSON.stringify(screen.UNSAFE_getByType(Image).props.source);
+}
+
+test('enough points show the hatched chick, the balance after opening and one "{price}P로 N화 열기" button', () => {
+  renderDialog({ episode: { ...episode, title: '마지막 인사' } });
+  expect(screen.getByRole('header', { name: '9화 열기' })).toBeOnTheScreen();
+  expect(screen.getByText('작품 A · 마지막 인사')).toBeOnTheScreen();
+  expect(screen.getByText('사용 후 잔액')).toBeOnTheScreen();
+  expect(screen.getByText('70P')).toBeOnTheScreen();
+  expect(screen.getByText('한 번 연 회차는 다시 볼 때 무료예요.')).toBeOnTheScreen();
+  expect(mascot()).toContain('loading.png');
+  expect(screen.getAllByRole('button').map((button) => button.props.accessibilityLabel)).toEqual(['닫기', '50P로 9화 열기']);
+});
+
+test('short points show the egg, a warning with the missing amount and the charge button without balance after', () => {
+  session = makeSession({ points: 30 });
+  mockedUseUser.mockReturnValue(session);
+  renderDialog();
+  expect(mascot()).toContain('locked.png');
+  expect(screen.getByText('포인트가 20P 모자라요. 충전하면 바로 열 수 있어요.')).toBeOnTheScreen();
+  expect(screen.queryByText('사용 후 잔액')).not.toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '포인트 충전하기' })).toBeOnTheScreen();
+});
+
+test('keyboard presses within 0.8s of opening are ignored while touch presses are accepted at once', async () => {
+  const now = jest.spyOn(Date, 'now').mockReturnValue(1_000);
+  try {
+    renderDialog();
+    const open = screen.getByRole('button', { name: '50P로 9화 열기' });
+    now.mockReturnValue(1_799);
+    fireEvent.press(open, { type: 'keyup' });
+    fireEvent.press(open, { type: 'click', detail: 0 });
+    expect(mockedPurchase).not.toHaveBeenCalled();
+
+    now.mockReturnValue(1_800);
+    fireEvent.press(open, { type: 'keyup' });
+    expect(mockedPurchase).toHaveBeenCalledTimes(1);
+    await act(async () => { await Promise.resolve(); });
+  } finally {
+    now.mockRestore();
+  }
+
+  mockedPurchase.mockClear();
+  renderDialog();
+  fireEvent.press(screen.getAllByRole('button', { name: '50P로 9화 열기' }).at(-1)!, { type: 'click', detail: 1 });
+  expect(mockedPurchase).toHaveBeenCalledTimes(1);
+  await act(async () => { await Promise.resolve(); });
 });
