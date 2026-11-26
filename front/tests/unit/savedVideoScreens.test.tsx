@@ -11,6 +11,7 @@ import type { HomeCollection, HomeCollectionDrama } from '@/features/home/homeRe
 import { getPreviewPlayback } from '@/features/playback/previewPlayback';
 import type { PreviewPlayback } from '@/features/playback/playbackResponses';
 import { removeSavedVideo, saveVideo } from '@/features/playback/savedVideos';
+import { getWatchHistory } from '@/features/playback/watchHistory';
 import { saveWatchProgress } from '@/features/playback/watchProgress';
 import { useUser } from '@/features/user/UserProvider';
 import type { User } from '@/features/user/sessionClient';
@@ -27,6 +28,7 @@ jest.mock('@/features/playback/watchProgress', () => {
   const actual = jest.requireActual<typeof import('@/features/playback/watchProgress')>('@/features/playback/watchProgress');
   return { ...actual, saveWatchProgress: jest.fn() };
 });
+jest.mock('@/features/playback/watchHistory', () => ({ getWatchHistory: jest.fn() }));
 jest.mock('@/features/user/UserProvider', () => ({ useUser: jest.fn() }));
 
 type Session = ReturnType<typeof useUser>;
@@ -88,6 +90,11 @@ function PreviewTarget() {
   return <Text>{`${dramaId}:${videoId}`}</Text>;
 }
 
+function EpisodeTarget() {
+  const { id, dramaId } = useLocalSearchParams<{ id: string; dramaId: string }>();
+  return <Text>{`${dramaId}:${id}`}</Text>;
+}
+
 function AwayRoute() { return <Text>away fixture</Text>; }
 function LoginRoute() { return <Text>로그인 화면</Text>; }
 function TestRootLayout() { return <Stack screenOptions={{ headerShown: false, animation: 'none' }} />; }
@@ -118,6 +125,7 @@ function renderHome(session = makeSession()) {
     _layout: TestRootLayout,
     index: HomeRoute,
     'preview/[dramaId]/[videoId]': PreviewTarget,
+    'episode/[id]': EpisodeTarget,
     'auth/login': LoginRoute,
     away: AwayRoute,
   });
@@ -192,6 +200,8 @@ beforeEach(() => {
   jest.mocked(saveVideo).mockReset();
   jest.mocked(removeSavedVideo).mockReset();
   jest.mocked(saveWatchProgress).mockReset();
+  jest.mocked(getWatchHistory).mockReset();
+  jest.mocked(getWatchHistory).mockResolvedValue({ items: [], page: 1, hasNext: false });
   jest.mocked(getDramaContent).mockImplementation(() => {
     const request = deferred<DramaContent>();
     dramaReads.push(request);
@@ -453,41 +463,67 @@ test('recommendation save sends an anonymous user to auth login without writing'
   expect(saveVideo).not.toHaveBeenCalled();
 });
 
-test('home hero opens the current first preview for members and anonymous users without save writes', async () => {
+const heroContent = (uuid: string): DramaContent => ({
+  ...drama, uuid, title: `작품 ${uuid}`, previewVideos: [],
+  episodes: [{ uuid: `${uuid}-ep1`, episodeNumber: 1, title: null, synopsis: null, durationMs: 60_000, videoUuid: null, isSaved: false, pricePoints: 0, isUnlocked: true, image: null, watchProgress: null }],
+});
+
+test('home hero primary opens the first free episode for members and anonymous users without save writes', async () => {
+  jest.mocked(getDramaContent).mockImplementation(async (uuid) => heroContent(uuid));
   featuredQueue.push({ ...emptyCollection('HOME_FEATURED'), dramas: [hero('drama-hero', 'hero-preview')] });
   const memberView = renderHome();
-  await screen.findByRole('button', { name: '분위기 미리보기' });
-  await userEvent.setup().press(await screen.findByRole('button', { name: '분위기 미리보기' }));
-  await waitFor(() => expect(memberView.getPathnameWithParams()).toBe('/preview/drama-hero/hero-preview'));
-  expect(screen.getByText('drama-hero:hero-preview')).toBeOnTheScreen();
+  await userEvent.setup().press(await screen.findByRole('button', { name: '1화 무료로 보기' }));
+  await waitFor(() => expect(memberView.getPathnameWithParams()).toBe('/episode/drama-hero-ep1?dramaId=drama-hero'));
+  expect(screen.getByText('drama-hero:drama-hero-ep1')).toBeOnTheScreen();
   expect(saveVideo).not.toHaveBeenCalled();
   memberView.unmount();
 
   featuredQueue.push({ ...emptyCollection('HOME_FEATURED'), dramas: [hero('drama-hero', 'hero-preview')] });
   const anonymousView = renderHome(makeSession({ user: null }));
-  await userEvent.setup().press(await screen.findByRole('button', { name: '분위기 미리보기' }));
-  await waitFor(() => expect(anonymousView.getPathnameWithParams()).toBe('/preview/drama-hero/hero-preview'));
+  await userEvent.setup().press(await screen.findByRole('button', { name: '1화 무료로 보기' }));
+  await waitFor(() => expect(anonymousView.getPathnameWithParams()).toBe('/episode/drama-hero-ep1?dramaId=drama-hero'));
   expect(saveVideo).not.toHaveBeenCalled();
+  expect(getWatchHistory).toHaveBeenCalledTimes(1);
 });
 
-test('home hero without a preview is disabled and changing the hero selects its own first preview', async () => {
+test('home hero save toggles the first preview for members and sends anonymous users to login', async () => {
+  jest.mocked(getDramaContent).mockImplementation(async (uuid) => heroContent(uuid));
+  featuredQueue.push({ ...emptyCollection('HOME_FEATURED'), dramas: [hero('drama-hero', 'hero-preview')] });
+  const memberView = renderHome();
+  await userEvent.setup().press(await screen.findByRole('button', { name: '저장', selected: false }));
+  expect(saveVideo).toHaveBeenCalledWith('hero-preview', 'PREVIEW');
+  expect(await screen.findByRole('button', { name: '저장', selected: true })).toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole('button', { name: '저장' }));
+  expect(removeSavedVideo).toHaveBeenCalledWith('hero-preview');
+  expect(await screen.findByRole('button', { name: '저장', selected: false })).toBeOnTheScreen();
+  memberView.unmount();
+
+  featuredQueue.push({ ...emptyCollection('HOME_FEATURED'), dramas: [hero('drama-hero', 'hero-preview')] });
+  const anonymousView = renderHome(makeSession({ user: null }));
+  await userEvent.setup().press(await screen.findByRole('button', { name: '저장' }));
+  expect(await screen.findByText('로그인 화면')).toBeOnTheScreen();
+  expect(anonymousView.getPathname()).toBe('/auth/login');
+  expect(saveVideo).toHaveBeenCalledTimes(1);
+});
+
+test('home hero save is disabled without a preview and changing the hero saves its own first preview', async () => {
+  jest.mocked(getDramaContent).mockImplementation(async (uuid) => heroContent(uuid));
   featuredQueue.push({ ...emptyCollection('HOME_FEATURED'), dramas: [hero('drama-empty', null)] });
   const noPreview = renderHome();
-  expect(await screen.findByRole('button', { name: '분위기 미리보기' })).toBeDisabled();
-  expect(noPreview.getPathname()).toBe('/');
+  expect(await screen.findByRole('button', { name: '저장' })).toBeDisabled();
   noPreview.unmount();
 
   featuredQueue.push({ ...emptyCollection('HOME_FEATURED'), dramas: [hero('drama-hero', 'hero-preview'), hero('drama-next', 'next-preview')] });
-  const changingHero = renderHome();
-  await screen.findByRole('button', { name: '분위기 미리보기' });
-  await userEvent.setup().press(screen.getByRole('button', { name: '작품 drama-next 추천 보기' }));
-  await userEvent.setup().press(screen.getByRole('button', { name: '분위기 미리보기' }));
-  await waitFor(() => expect(changingHero.getPathnameWithParams()).toBe('/preview/drama-next/next-preview'));
-  expect(screen.getByText('drama-next:next-preview')).toBeOnTheScreen();
+  renderHome();
+  await userEvent.setup().press(await screen.findByRole('button', { name: '작품 drama-next 대표 작품으로 보기, 2편 중 2번째' }));
+  await userEvent.setup().press(screen.getByRole('button', { name: '저장' }));
+  expect(saveVideo).toHaveBeenCalledWith('next-preview', 'PREVIEW');
+  expect(getDramaContent).toHaveBeenLastCalledWith('drama-next');
 });
 
 test('home does not request personalized collections during session restoration', async () => {
   renderHome(makeSession({ isRestoring: true }));
   expect(getHomeCollection).not.toHaveBeenCalled();
-  expect(screen.queryByRole('button', { name: '분위기 미리보기' })).toBeNull();
+  expect(getWatchHistory).not.toHaveBeenCalled();
+  expect(screen.queryByRole('button', { name: '1화 무료로 보기' })).toBeNull();
 });
