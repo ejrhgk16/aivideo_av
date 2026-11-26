@@ -6,6 +6,8 @@ let cached:Experience=serverSnapshot;
 let lastRaw:string|null=null;
 let storageFailed=false;
 export function getServerSnapshot(){return serverSnapshot}
+// 저장이 안 되는 브라우저인지 화면에서 물어볼 때 쓴다.
+export const isStorageAvailable=()=>!storageFailed;
 export function getSnapshot(){
  if(typeof window==='undefined')return serverSnapshot;
  try{if(!storageFailed){const raw=localStorage.getItem(KEY);if(raw!==lastRaw){lastRaw=raw;cached=readExperience(raw)}}}catch{storageFailed=true}
