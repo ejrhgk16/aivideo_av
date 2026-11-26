@@ -39,6 +39,7 @@ npm --prefix front run start -- --port 8081
 ## 전역 상태
 
 - 루트의 단일 `UserProvider`가 사용자·포인트·Access/세션·재생 설정(`subtitlesEnabled`, `preferredSubtitleLanguage`, `autoplayNext`)을 소유한다. 자막 표시와 선호 언어는 메모리 상태로 로그인·화면 전환 뒤에도 유지하며 Provider가 새로 만들어지면 각각 `true`와 `'ko'`로 시작한다. `SafeAreaProvider`도 루트에 하나만 두며 세션 변경 시 내비게이션을 재마운트하지 않는다.
+- 화면 모드(라이트 크림·다크 먹색)는 앱이 저장하지 않고 기기 설정을 따른다. `common/theme/theme.ts`의 `useColors`·`createThemedStyles`가 `useColorScheme()`으로 매 렌더마다 읽으며, 앱 안의 모드 선택값과 저장소는 없다.
 - 첫 이용 설정 시안의 입력·동의·보호자 요청 대기 상태는 `AuthOnboardingScreen`이 로컬로 소유한다. 이 시안은 `UserProvider` 세션을 변경하지 않고 서버로 전송하지 않는다.
 - 저장 여부·현재 영상의 진행률 tracker·저장/시청 목록은 해당 화면에서 관리한다. feature의 API 호출은 `common/http/api.ts`를 통해 `features/user/sessionClient.ts`를 사용한다.
 - 포인트 체험 잔액·내역·광고 횟수는 `PointsScreen` 로컬 상태이며 탭 전환 동안 유지하고 화면 이탈·계정/세션 변경 시 초기화한다. 실제 `UserProvider` 포인트와 API 거래는 변경하지 않는다.

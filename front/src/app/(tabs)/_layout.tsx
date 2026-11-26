@@ -1,6 +1,7 @@
 import Feather from '@expo/vector-icons/Feather';
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
-import { colors, typography } from '@/common/theme/tokens';
+import { typography } from '@/common/theme/tokens';
+import { createThemedStyles, useColors } from '@/common/theme/theme';
 
 const tabs = [
   { name: 'index', label: '홈', icon: 'home' },
@@ -11,6 +12,7 @@ const tabs = [
 ] as const;
 
 export default function TabLayout() {
+  const colors = useColors();
   return <NativeTabs backgroundColor={colors.surface} tintColor={colors.accent}
     iconColor={{ default: colors.muted, selected: colors.accent }}
     labelStyle={{ default: { fontFamily: typography.medium, fontSize: 11, color: colors.muted }, selected: { color: colors.accent } }}

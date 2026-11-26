@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { FlatList, Modal, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { AppText, Button, EmptyState, Icon, LoadingState, Page } from '@/components/ui';
-import { colors } from '@/common/theme/tokens';
+import { createThemedStyles, useColors } from '@/common/theme/theme';
 import { getErrorMessage } from '@/common/http/errorMessages';
 import { getPointHistory, type PointHistoryItem, type PointTransactionType } from '@/features/economy/pointHistory';
 import { useUser } from '@/features/user/UserProvider';
@@ -72,6 +72,8 @@ function formatPointChange(value: number): string {
 }
 
 export function PointsScreen() {
+  const styles = useStyles();
+  const colors = useColors();
   const router = useRouter();
   const params = useLocalSearchParams<{ tab?: string }>();
   const { points, user, isRestoring, sessionVersion, isCurrentSession } = useUser();
@@ -230,7 +232,7 @@ export function PointsScreen() {
   const renderHistoryItem = useCallback(({ item }: { item: PointHistoryItem }) => (
     <View style={styles.historyRow}>
       <View style={styles.historyIcon}>
-        <Icon name={transactionIcons[item.transactionType]} size={18} color={item.amount > 0 ? colors.accent : '#A1ACBA'} />
+        <Icon name={transactionIcons[item.transactionType]} size={18} color={item.amount > 0 ? colors.accent : colors.muted} />
       </View>
       <View style={styles.historyCopy}>
         <AppText weight="semibold" numberOfLines={1}>{transactionLabels[item.transactionType]}</AppText>
@@ -244,7 +246,7 @@ export function PointsScreen() {
         {formatPointChange(item.amount)}
       </AppText>
     </View>
-  ), []);
+  ), [colors, styles]);
 
   const historyEmpty = isRestoring
     ? <LoadingState />
@@ -281,7 +283,6 @@ export function PointsScreen() {
       <AppText weight="semibold">뒤로 가기</AppText>
     </Pressable>
     <View style={styles.heading}>
-      <AppText weight="medium" style={styles.eyebrow}>MORE STORIES, MORE MOMENTS</AppText>
       <AppText weight="bold" style={[styles.headingTitle, { fontSize: titleSize, lineHeight: titleSize + 8 }]}>
         이야기를 계속하는 방법
       </AppText>
@@ -314,7 +315,7 @@ export function PointsScreen() {
         </View>
         <View style={styles.rewardValue}>
           <AppText weight="bold" style={styles.rewardPoints}>+10 P</AppText>
-          <Icon name="chevron-right" size={18} color="#A3B194" />
+          <Icon name="chevron-right" size={18} color={colors.muted} />
         </View>
       </Pressable>
       <View style={styles.packHeading}>
@@ -330,7 +331,7 @@ export function PointsScreen() {
         <View style={styles.priceBadge}><AppText weight="semibold" style={styles.priceText}>{pack.price}</AppText></View>
       </Pressable>)}
       <AppText style={styles.notice}>실제 결제되지 않으며 체험 포인트는 이 화면을 나가면 초기화돼요.</AppText>
-      <View style={styles.footerNote}><Icon name="check-circle" size={16} color="#99A88C" />
+      <View style={styles.footerNote}><Icon name="check-circle" size={16} color={colors.muted} />
         <AppText style={styles.footerText}>한 번 연 회차는 다시 볼 때 무료예요.</AppText></View>
       {currentDemo?.items.length ? <View style={styles.chargeDemoHistory}>
         <AppText weight="semibold" style={styles.historySectionTitle}>체험 내역</AppText>
@@ -375,64 +376,63 @@ export function PointsScreen() {
   </Page>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => ({
   page: { paddingTop: 16, paddingBottom: 28, gap: 22, width: '100%', maxWidth: 780, alignSelf: 'center' },
   chargePage: { paddingHorizontal: 22 },
   backButton: { alignSelf: 'flex-start', minHeight: 42, flexDirection: 'row', alignItems: 'center', gap: 9 },
   heading: { gap: 7 },
-  eyebrow: { color: '#A1ACBA', fontSize: 10, lineHeight: 15, letterSpacing: 1.8 },
   headingTitle: { color: colors.text, letterSpacing: -0.7 },
   balanceArea: { alignItems: 'flex-start', gap: 5, paddingTop: 5 },
-  balanceLabel: { color: '#A1ACBA', fontSize: 14 },
+  balanceLabel: { color: colors.muted, fontSize: 14 },
   balance: { color: colors.text, lineHeight: 75, letterSpacing: -2 },
   balanceP: { color: colors.accent, fontSize: 31, letterSpacing: 0 },
-  balanceDescription: { color: '#939FAD', fontSize: 13, lineHeight: 20 },
-  tabs: { flexDirection: 'row', backgroundColor: '#171B22', borderRadius: 12, padding: 4, marginTop: -4, minHeight: 49 },
+  balanceDescription: { color: colors.muted, fontSize: 13, lineHeight: 20 },
+  tabs: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 12, padding: 4, marginTop: -4, minHeight: 49 },
   tab: { flex: 1, minHeight: 41, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
-  activeTab: { backgroundColor: '#30363F' },
-  tabLabel: { fontSize: 14, color: '#A1ACBA' },
+  activeTab: { backgroundColor: colors.elevated },
+  tabLabel: { fontSize: 14, color: colors.muted },
   activeLabel: { color: colors.text },
   chargeContent: { gap: 13 },
-  rewardCard: { minHeight: 86, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#232B1D', borderRadius: 15, borderWidth: 1, borderColor: '#CBF46A25', padding: 13 },
-  giftIcon: { width: 48, height: 48, borderRadius: 15, backgroundColor: '#334325', alignItems: 'center', justifyContent: 'center' },
+  rewardCard: { minHeight: 86, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderRadius: 8, borderWidth: 1, borderColor: colors.borderStrong, padding: 13 },
+  giftIcon: { width: 48, height: 48, borderRadius: 15, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center' },
   rewardCopy: { flex: 1, minWidth: 0, gap: 4 },
-  rewardMeta: { color: '#A3B194', fontSize: 12, lineHeight: 18 },
+  rewardMeta: { color: colors.muted, fontSize: 12, lineHeight: 18 },
   rewardValue: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   rewardPoints: { color: colors.accent, fontSize: 15 },
   packHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 7 },
   packTitle: { fontSize: 18, flexShrink: 1 },
-  exampleLabel: { color: '#939FAD', fontSize: 12 },
-  packCard: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#171C23', borderRadius: 14, padding: 13 },
-  packIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#2B3325', alignItems: 'center', justifyContent: 'center' },
+  exampleLabel: { color: colors.muted, fontSize: 12 },
+  packCard: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: 8, padding: 13 },
+  packIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center' },
   packIconText: { color: colors.accent, fontSize: 18 },
   packPoints: { flex: 1, color: colors.text },
-  packP: { color: '#A1ACBA', fontSize: 13 },
-  priceBadge: { backgroundColor: '#2A313B', borderRadius: 9, paddingHorizontal: 12, paddingVertical: 9, flexShrink: 0 },
+  packP: { color: colors.muted, fontSize: 13 },
+  priceBadge: { backgroundColor: colors.elevated, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 9, flexShrink: 0 },
   priceText: { fontSize: 13 },
-  notice: { color: '#99A88C', fontSize: 12, lineHeight: 19, textAlign: 'center', marginTop: 2 },
+  notice: { color: colors.muted, fontSize: 12, lineHeight: 19, textAlign: 'center', marginTop: 2 },
   footerNote: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 1 },
-  footerText: { color: '#778491', fontSize: 12, lineHeight: 18 },
+  footerText: { color: colors.muted, fontSize: 12, lineHeight: 18 },
   chargeDemoHistory: { marginTop: 12 },
   historyList: { flex: 1, minHeight: 120 },
   historyListContent: { gap: 0, paddingBottom: 20, flexGrow: 1 },
   historySectionTitle: { color: colors.text, fontSize: 17, marginBottom: 8 },
   demoHistory: { marginBottom: 18 },
-  historyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#252A32', paddingVertical: 13 },
-  historyIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#171C23', alignItems: 'center', justifyContent: 'center' },
+  historyRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border, paddingVertical: 13 },
+  historyIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
   historyCopy: { flex: 1, minWidth: 0, gap: 2 },
-  historyDetail: { color: '#A1ACBA', fontSize: 12, lineHeight: 18 },
+  historyDetail: { color: colors.muted, fontSize: 12, lineHeight: 18 },
   pointIncrease: { color: colors.accent },
   pointDecrease: { color: colors.text },
   historyAmount: { fontSize: 16, flexShrink: 0 },
-  historyMeta: { color: '#939FAD', fontSize: 11, lineHeight: 16 },
+  historyMeta: { color: colors.muted, fontSize: 11, lineHeight: 16 },
   historyFooter: { alignItems: 'center', gap: 8, padding: 12 },
-  modalBackdrop: { flex: 1, padding: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000000B8' },
-  modalCard: { width: '100%', maxWidth: 400, alignItems: 'center', gap: 10, borderRadius: 22, backgroundColor: '#171A20', borderWidth: 1, borderColor: '#30363F', padding: 24 },
-  modalIcon: { width: 54, height: 54, borderRadius: 27, backgroundColor: '#2B3325', alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  modalBackdrop: { flex: 1, padding: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.backdrop },
+  modalCard: { width: '100%', maxWidth: 400, alignItems: 'center', gap: 10, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 24 },
+  modalIcon: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
   modalTitle: { fontSize: 21, lineHeight: 29 },
   modalAmount: { color: colors.accent, fontSize: 24, lineHeight: 32 },
-  modalPrice: { color: '#A1ACBA', fontSize: 15 },
-  modalDescription: { color: '#A1ACBA', fontSize: 13, lineHeight: 20, textAlign: 'center' },
+  modalPrice: { color: colors.muted, fontSize: 15 },
+  modalDescription: { color: colors.muted, fontSize: 13, lineHeight: 20, textAlign: 'center' },
   modalPrimary: { alignSelf: 'stretch', marginTop: 7 },
   modalCancel: { alignSelf: 'stretch' },
-});
+}));

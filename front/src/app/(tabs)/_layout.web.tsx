@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Icon } from '@/components/ui';
-import { colors, typography } from '@/common/theme/tokens';
+import { typography } from '@/common/theme/tokens';
+import { createThemedStyles, useColors } from '@/common/theme/theme';
 
 const tabs = [
   { name: 'index', label: '홈', icon: 'home' },
@@ -12,6 +13,7 @@ const tabs = [
 
 // NativeTabs uses platform image rendering, unavailable in a browser.
 export default function WebTabLayout() {
+  const colors = useColors();
   return <Tabs screenOptions={{
     headerShown: false,
     tabBarActiveTintColor: colors.accent,

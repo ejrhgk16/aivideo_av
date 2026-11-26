@@ -14,10 +14,12 @@ front (Expo / React Native) ── HTTP API ──> back (NestJS)
 | `src/screens/` | Screen UI and local state. |
 | `src/components/` | Reusable UI components. |
 | `src/common/` | Shared HTTP, storage, environment, theme, and utilities. |
+| `src/common/theme/tokens.ts`, `theme.ts` | PEEKA design tokens (light cream / dark ink palettes, type sizes, spacing, radius) and the hooks (`useColors`, `createThemedStyles`) that pick the palette from the device color scheme. Screens use these instead of hard-coded colors. |
 | `src/features/` | Feature state, API calls, and response types in `*Responses.ts`. |
 | `src/features/auth/authAge.ts` | Pure KST birth-date validation and age calculation for the auth screens. |
 | `src/screens/AuthLoginScreen.tsx`, `AuthOnboardingScreen.tsx` | Social login preview and first-use terms/birth-date setup; draft input stays local to onboarding. |
 | `assets/` | Static images, icons, fonts, and licenses. |
+| `assets/images/peeka/` | PEEKA mascot images, one file per slot (`logo`, `strip`, `loading`, `loading-egg`, `empty`, `locked`), rendered through `Peeka` in `components/ui.tsx`. |
 | `tests/` | Frontend test suites, shared setup, and test support. |
 | `scripts/test-front.cjs` | Frontend test entry point. |
 | `jest.config.cjs` | Jest/Expo test configuration. |

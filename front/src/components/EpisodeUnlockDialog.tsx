@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Modal, Platform, Pressable, View } from 'react-native';
 import { AppText, Button, Icon } from '@/components/ui';
 import { ApiError } from '@/common/http/api';
 import { getErrorMessage } from '@/common/http/errorMessages';
-import { colors } from '@/common/theme/tokens';
+import { createThemedStyles, useColors } from '@/common/theme/theme';
 import type { DramaContent } from '@/features/drama/dramaContent';
 import { purchaseEpisode } from '@/features/economy/episodePurchase';
 import { useUser } from '@/features/user/UserProvider';
@@ -27,6 +27,8 @@ export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge, on
   onCharge: () => void;
   onPurchased: (episode: Episode) => void;
 }) {
+  const styles = useStyles();
+  const colors = useColors();
   const { user, points, setPoints, sessionVersion, isCurrentSession, sessionExpired } = useUser();
   const inFlight = useRef(false);
   const purchaseRequest = useRef(0);
@@ -229,11 +231,11 @@ export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge, on
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 22, backgroundColor: '#000B' },
+const useStyles = createThemedStyles((colors) => ({
+  backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 22, backgroundColor: colors.backdrop },
   dialog: { width: '100%', maxWidth: 420, alignItems: 'center', gap: 15, padding: 28, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 22, borderCurve: 'continuous' },
   close: { position: 'absolute', top: 13, right: 13, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  lockIcon: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center', backgroundColor: '#CBF46A18', borderRadius: 28, marginTop: 6 },
+  lockIcon: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.elevated, borderRadius: 28, marginTop: 6 },
   title: { color: colors.text, textAlign: 'center', fontSize: 21, lineHeight: 29 },
   subtitle: { color: colors.muted, textAlign: 'center', fontSize: 13, lineHeight: 20 },
   summary: { width: '100%', gap: 12, padding: 16, marginTop: 3, backgroundColor: colors.background, borderRadius: 13 },
@@ -245,4 +247,4 @@ const styles = StyleSheet.create({
   chargeButton: { width: '100%', minHeight: 48, marginTop: 2 },
   dismiss: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 14 },
   dismissLabel: { color: colors.muted, fontSize: 13, lineHeight: 20 },
-});
+}));

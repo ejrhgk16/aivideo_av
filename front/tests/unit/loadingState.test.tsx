@@ -1,6 +1,8 @@
 import { render, screen } from '@testing-library/react-native';
-import { colors } from '@/common/theme/tokens';
+import { palettes } from '@/common/theme/tokens';
 import { LoadingState } from '@/components/ui';
+
+const colors = palettes.light;
 
 describe('LoadingState', () => {
   it('shows an accessible large spinner without visible loading copy by default', () => {

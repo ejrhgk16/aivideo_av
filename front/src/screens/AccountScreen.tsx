@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Modal, Pressable, StyleSheet, Switch, useWindowDimensions, View } from 'react-native';
+import { Modal, Pressable, Switch, useWindowDimensions, View } from 'react-native';
 import { AppText, Button, Icon, LoadingState, Page, SectionTitle } from '@/components/ui';
 import { AppTopBar } from '@/components/AppTopBar';
-import { LinearGradient } from 'expo-linear-gradient';
-import { colors } from '@/common/theme/tokens';
+import { createThemedStyles, useColors } from '@/common/theme/theme';
 import { useUser } from '@/features/user/UserProvider';
 
 type AccountDialog = 'settings' | 'help' | 'about' | null;
 
 export function AccountScreen() {
+  const styles = useStyles();
+  const colors = useColors();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const { user, points, isRestoring, subtitlesEnabled, setSubtitlesEnabled, logout } = useUser();
@@ -45,12 +46,12 @@ export function AccountScreen() {
     : `사용 가능한 포인트는 ${amount} P예요`;
 
   if (isRestoring) return <Page header={<AppTopBar />} scroll={false} contentStyle={styles.page}>
-    <SectionTitle title="나의 작은 영화관" eyebrow="MY SPACE" />
+    <SectionTitle title="나의 작은 영화관" />
     <LoadingState />
   </Page>;
 
   return <Page header={<AppTopBar />} contentStyle={styles.page}>
-    <SectionTitle title="나의 작은 영화관" eyebrow="MY SPACE" />
+    <SectionTitle title="나의 작은 영화관" />
     <View style={styles.profile}>
       <View style={styles.avatar}><Icon name="user" size={27} color={colors.accent} /></View>
       <View style={styles.copy}>
@@ -65,7 +66,6 @@ export function AccountScreen() {
     </View> : null}
 
     <Pressable accessibilityRole="button" accessibilityLabel={`내 포인트 ${amount}${points === null ? '' : ' P'}, 충전하기`} onPress={() => router.push('/points')} style={[styles.pointsCard, { borderRadius: width <= 700 ? 18 : 20 }]}>
-      <LinearGradient pointerEvents="none" colors={['#272F22', '#171C18']} style={StyleSheet.absoluteFill} />
       <View style={styles.pointsCopy}>
         <AppText weight="medium" style={styles.pointsLabel}>내 포인트</AppText>
         <View style={styles.pointsAmountRow}>
@@ -111,7 +111,7 @@ export function AccountScreen() {
             <SettingItem label="화질" />
             <AppText style={styles.muted}>일부 설정 기능은 준비 중이에요.</AppText>
           </View> : dialog === 'help' ? <AppText style={styles.dialogCopy}>포인트 잔액과 이용 내역을 확인할 수 있어요. 광고와 충전은 실제 결제 없이 체험할 수 있어요. 체험 포인트는 포인트 화면을 나가면 초기화돼요.</AppText>
-            : <AppText style={styles.dialogCopy}>AI DRAMA{ '\n' }드라마를 위한 체험 화면</AppText>}
+            : <AppText style={styles.dialogCopy}>peeka{ '\n' }드라마를 위한 체험 화면</AppText>}
           <Button label="닫기" onPress={closeDialog} />
         </View>
       </View>}
@@ -120,6 +120,8 @@ export function AccountScreen() {
 }
 
 function MenuItem({ icon, label, onPress }: { icon: 'list' | 'clock' | 'settings' | 'help-circle' | 'info'; label: string; onPress: () => void }) {
+  const styles = useStyles();
+  const colors = useColors();
   return <Pressable accessibilityRole="button" onPress={onPress} style={styles.menuItem}>
     <Icon name={icon} size={19} color={colors.muted} />
     <AppText style={styles.menuLabel}>{label}</AppText>
@@ -128,13 +130,14 @@ function MenuItem({ icon, label, onPress }: { icon: 'list' | 'clock' | 'settings
 }
 
 function SettingItem({ label }: { label: string }) {
+  const styles = useStyles();
   return <View style={styles.settingItem}>
     <AppText style={styles.menuLabel}>{label}</AppText>
     <AppText style={styles.settingDisabled}>준비 중</AppText>
   </View>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => ({
   page: { gap: 24 },
   profile: { flexDirection: 'row', alignItems: 'center', gap: 15 },
   authActions: { flexDirection: 'row', gap: 10 },
@@ -144,23 +147,23 @@ const styles = StyleSheet.create({
   muted: { color: colors.muted, lineHeight: 21, fontSize: 13 },
   accountBadge: { alignSelf: 'flex-start', backgroundColor: colors.surface, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, marginTop: -12 },
   badgeText: { color: colors.muted, fontSize: 12 },
-  pointsCard: { width: '100%', maxWidth: 780, alignSelf: 'center', minHeight: 126, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#CBF46A18', paddingHorizontal: 20, paddingVertical: 18 },
+  pointsCard: { width: '100%', maxWidth: 780, alignSelf: 'center', minHeight: 126, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, overflow: 'hidden', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: 20, paddingVertical: 18 },
   pointsCopy: { flex: 1, minWidth: 0, gap: 6 },
-  pointsLabel: { color: '#B8C3B1', fontSize: 14 },
+  pointsLabel: { color: colors.muted, fontSize: 14 },
   pointsAmountRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7 },
-  pointsAmount: { color: '#E1F8C3', lineHeight: 52 },
-  pointsUnit: { color: '#E1F8C3', fontSize: 23, lineHeight: 30 },
-  pointsHint: { color: '#B8C3B1', fontSize: 12, lineHeight: 18 },
+  pointsAmount: { color: colors.text, lineHeight: 52 },
+  pointsUnit: { color: colors.text, fontSize: 24, lineHeight: 30 },
+  pointsHint: { color: colors.muted, fontSize: 12, lineHeight: 18 },
   chargeLink: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 4 },
   chargeLabel: { color: colors.text, fontSize: 13 },
   menu: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', marginTop: -12 },
   menuItem: { minHeight: 56, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', gap: 13, borderBottomWidth: 1, borderBottomColor: colors.border },
   menuLabel: { flex: 1, fontSize: 14 },
-  modalBackdrop: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#00000099' },
+  modalBackdrop: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: colors.backdrop },
   dialog: { backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.border, padding: 22, gap: 20 },
   dialogTitle: { fontSize: 20, lineHeight: 28 },
   dialogCopy: { color: colors.muted, lineHeight: 23 },
   settingList: { gap: 15 },
   settingItem: { flexDirection: 'row', alignItems: 'center', minHeight: 34 },
   settingDisabled: { color: colors.muted, fontSize: 12 },
-});
+}));

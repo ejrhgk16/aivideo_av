@@ -1,13 +1,15 @@
 import { Redirect, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { colors } from '@/common/theme/tokens';
+import { ActivityIndicator, Text, View } from 'react-native';
+import { createThemedStyles, useColors } from '@/common/theme/theme';
 import { ApiError } from '@/common/http/api';
 import { getErrorMessage } from '@/common/http/errorMessages';
 import { useUser } from '@/features/user/UserProvider';
 import { useLogin } from '@/features/user/useLogin';
 
 export default function LoginRoute() {
+  const styles = useStyles();
+  const colors = useColors();
   const { loginId = 'admin', password = 'admin' } = useLocalSearchParams<{ loginId?: string; password?: string }>();
   const { user, isRestoring, restoreError } = useUser();
   const login = useLogin();
@@ -41,7 +43,7 @@ export default function LoginRoute() {
   </View>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => ({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, backgroundColor: colors.background },
   message: { color: colors.text },
-});
+}));
