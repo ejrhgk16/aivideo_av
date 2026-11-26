@@ -14,5 +14,6 @@ AI DRAMA 백엔드 REST API의 현재 계약을 도메인별로 기록한다. �
 | [03-programming](03-programming/README.md) | 홈·랭킹·추천 편성 |
 | [04-playback](04-playback/README.md) | 저장·시청 진행·재생 |
 | [05-economy](05-economy/README.md) | 포인트 잔액·이용 내역·회차 구매 |
+| [06-analytics](06-analytics/README.md) | 관리자 지표용 빼꼼 노출·본편 재생 이벤트 수집(제안) |
 
-현재 identity 도메인은 로그인·갱신·로그아웃 API를, content와 programming 도메인은 공개 콘텐츠 조회 API를 제공한다. Economy는 본인 포인트 이용 내역 조회와 개발 환경의 포인트 지급·회차 구매 API를 제공한다. 결제 충전과 광고 보상 API는 아직 구현되지 않았다.
+현재 identity 도메인은 로그인·갱신·로그아웃 API를, content와 programming 도메인은 공개 콘텐츠 조회 API를 제공한다. Economy는 본인 포인트 이용 내역 조회와 개발 환경의 포인트 지급·회차 구매 API를 제공한다. 결제 충전과 광고 보상 API는 아직 구현되지 않았다. Analytics는 관리자 지표용 이벤트 수집 계약 제안이며 아직 구현되지 않았다.
