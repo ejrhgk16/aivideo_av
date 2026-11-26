@@ -109,7 +109,7 @@ export function AccountScreen() {
             <AppText style={styles.muted}>일부 설정 기능은 준비 중이에요.</AppText>
           </View> : dialog === 'help' ? <AppText style={styles.dialogCopy}>포인트 잔액과 이용 내역을 확인할 수 있어요. 광고와 충전은 실제 결제 없이 체험할 수 있어요. 체험 포인트는 포인트 화면을 나가면 초기화돼요.</AppText>
             : <AppText style={styles.dialogCopy}>peeka{ '\n' }드라마를 위한 체험 화면</AppText>}
-          <Button label="닫기" onPress={closeDialog} />
+          <Button label="닫기" variant="secondary" onPress={closeDialog} />
         </View>
       </View>}
     </Modal>
