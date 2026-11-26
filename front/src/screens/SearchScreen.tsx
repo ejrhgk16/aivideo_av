@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image } from 'expo-image';
-import { Pressable, ScrollView, StyleSheet, TextInput, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { AppText, Button, EmptyState, Icon, LoadingState, Page, SectionTitle } from '@/components/ui';
+import { AppText, Button, EmptyState, Icon, LoadingState, Page } from '@/components/ui';
 import { AppTopBar } from '@/components/AppTopBar';
 import { getDramaList, getGenres, type DramaSummary, type GenreSummary } from '@/features/drama/dramaContent';
 import { SessionChangedError } from '@/common/http/api';
 import { getErrorMessage } from '@/common/http/errorMessages';
 import { resolveApiImageUrl } from '@/common/media';
-import { typography } from '@/common/theme/tokens';
+import { radius, spacing, textSizes, typography } from '@/common/theme/tokens';
 import { createThemedStyles, useColors } from '@/common/theme/theme';
 import { useUser } from '@/features/user/UserProvider';
 
@@ -20,7 +20,6 @@ export function SearchScreen() {
   const colors = useColors();
   const router = useRouter();
   const params = useLocalSearchParams<{ genre?: string }>();
-  const { width } = useWindowDimensions();
   const { user, isRestoring, sessionVersion, isCurrentSession } = useUser();
   const [query, setQuery] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('all');
@@ -226,29 +225,40 @@ export function SearchScreen() {
     void loadPage(nextPage.current, false, generation.current, sessionVersion);
   };
   const currentGenre = genres.find((item) => item.code === selectedGenre);
-  const posterWidth = Math.min(Math.max((Math.min(width, 960) - 58) / 2, 140), 230);
   const term = query.trim();
+  const genreName = currentGenre?.name ?? '';
+  const resultTitle = term ? (selectedGenre === 'all' ? `‘${term}’ 검색 결과` : `‘${term}’ · ${genreName}`)
+    : selectedGenre === 'all' ? '모든 작품' : genreName;
+  // 목록은 쪽 단위로 받으므로, 뒤에 더 있으면 지금까지 받은 수를 "이상"으로 적는다.
+  const resultCount = status === 'loaded' ? ` · ${dramas.length}편${hasNext ? ' 이상' : ''}` : '';
 
   const contentLoading = genresStatus === 'loading' || (genresStatus === 'loaded' && status === 'loading');
 
   return (
     <Page header={<AppTopBar />} contentStyle={styles.page}>
-      <SectionTitle title="어떤 이야기를 찾으세요?" />
+      <AppText weight="bold" accessibilityRole="header" style={styles.title}>찾기</AppText>
       <View style={styles.searchField}>
         <Icon name="search" size={21} color={colors.muted} />
-        <TextInput style={styles.input} accessibilityLabel="작품 제목이나 장르 검색" placeholder="작품 제목이나 장르를 검색해요" placeholderTextColor={colors.muted} value={query} onChangeText={applySearchText} returnKeyType="search" autoCapitalize="none" autoCorrect={false} />
+        <TextInput style={styles.input} accessibilityLabel="작품 제목이나 장르 검색" placeholder="작품명, 장르로 찾아보세요" placeholderTextColor={colors.muted} value={query} onChangeText={applySearchText} returnKeyType="search" autoCapitalize="none" autoCorrect={false} />
         {query.length > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="검색어 지우기" style={styles.clear} onPress={() => applySearchText('')}><Icon name="x" size={18} color={colors.muted} /></Pressable> : null}
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filters}>
         {[{ code: 'all', name: '전체' }, ...genres].map((item) => <Pressable key={item.code} accessibilityRole="button" accessibilityState={{ disabled: !genresReady.current, selected: selectedGenre === item.code }} disabled={!genresReady.current} style={[styles.filter, selectedGenre === item.code && styles.activeFilter]} onPress={() => applyGenre(item.code)}><AppText weight={selectedGenre === item.code ? 'semibold' : 'regular'} style={[styles.filterLabel, selectedGenre === item.code && styles.activeFilterLabel]}>{item.name}</AppText></Pressable>)}
       </ScrollView>
-      <View style={styles.resultHeading}><AppText weight="semibold" style={styles.resultTitle}>{term ? `'${term}' 검색 결과` : selectedGenre === 'all' ? '모든 이야기' : `${currentGenre?.name ?? ''} 이야기`}</AppText><AppText style={styles.count}>{status === 'loaded' ? `불러온 작품 ${dramas.length}개` : ''}</AppText></View>
+      {/* TODO(backend): 순위순 정렬이 생기면 결과 머리말 오른쪽에 순위순·최신순 정렬을 붙인다. 지금 목록은 최신순(sort=latest)만 있다. */}
+      <AppText weight="semibold" numberOfLines={1} accessibilityLiveRegion="polite" style={styles.resultHeading}>{resultTitle}{resultCount}</AppText>
       {contentLoading ? <LoadingState />
         : genresStatus === 'error' ? <EmptyState title="장르를 불러오지 못했어요" description="잠시 후 다시 확인해 주세요." action="다시 시도" onAction={retryGenres} />
           : status === 'loading' ? <LoadingState />
             : status === 'error' ? <EmptyState title="작품을 불러오지 못했어요" description={getErrorMessage(listError)} action="다시 시도" onAction={retryList} />
               : dramas.length > 0 ? <>
-                <View style={styles.grid}>{dramas.map((drama) => <Pressable key={drama.uuid} accessibilityRole="button" accessibilityLabel={drama.title + ' 작품 소개'} style={{ width: posterWidth, gap: 10 }} onPress={() => router.push({ pathname: '/drama/[id]', params: { id: drama.uuid } })}><View style={[styles.poster, { height: posterWidth * 1.48 }]}>{drama.imageUrls.poster ? <Image source={{ uri: resolveApiImageUrl(drama.imageUrls.poster) ?? undefined }} accessibilityLabel={drama.title + ' 표지'} contentFit="cover" style={StyleSheet.absoluteFill} /> : <View accessibilityLabel={drama.title + ' 표지 없음'} style={[StyleSheet.absoluteFill, styles.placeholder]} />}</View><AppText weight="semibold" numberOfLines={1}>{drama.title}</AppText><AppText style={styles.genreText}>{drama.genres.map((item) => item.name).join(' · ') || '장르 정보 없음'}</AppText></Pressable>)}</View>
+                <View>{dramas.map((drama) => <Pressable key={drama.uuid} accessibilityRole="button" accessibilityLabel={drama.title + ' 작품 소개'} style={styles.row} onPress={() => router.push({ pathname: '/drama/[id]', params: { id: drama.uuid } })}>
+                  {drama.imageUrls.poster ? <Image source={{ uri: resolveApiImageUrl(drama.imageUrls.poster) ?? undefined }} accessibilityLabel={drama.title + ' 표지'} contentFit="cover" style={styles.poster} /> : <View accessibilityLabel={drama.title + ' 표지 없음'} style={[styles.poster, styles.placeholder]} />}
+                  <View style={styles.rowCopy}>
+                    <AppText weight="bold" numberOfLines={1} style={styles.rowTitle}>{drama.title}</AppText>
+                    <AppText numberOfLines={2} style={styles.rowMeta}>{drama.shortDescription || drama.genres.map((item) => item.name).join(' · ') || '장르 정보 없음'}</AppText>
+                  </View>
+                </Pressable>)}</View>
                 {nextLoading ? <LoadingState compact /> : nextError ? <View style={styles.footer}><AppText>작품을 더 불러오지 못했어요</AppText><Button label="다시 시도" variant="secondary" onPress={loadNextPage} /></View> : hasNext ? <Button label="더 보기" variant="secondary" onPress={loadNextPage} /> : null}
               </> : <EmptyState title="아직 찾는 이야기가 없어요" description="다른 제목을 검색하거나 장르를 바꿔보세요." action="모든 작품 보기" onAction={() => { setQuery(''); applyGenre('all', ''); }} />}
     </Page>
@@ -256,22 +266,23 @@ export function SearchScreen() {
 }
 
 const useStyles = createThemedStyles((colors) => ({
-  page: { flexGrow: 1, paddingHorizontal: 22, paddingTop: 26, paddingBottom: 30, gap: 0 },
-  searchField: { marginTop: 25, minHeight: 54, paddingLeft: 15, paddingRight: 7, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, borderCurve: 'continuous', flexDirection: 'row', alignItems: 'center', gap: 10 },
-  input: { flex: 1, fontFamily: typography.regular, color: colors.text, fontSize: 14, paddingVertical: 14, minWidth: 0 },
-  clear: { width: 40, height: 44, justifyContent: 'center', alignItems: 'center' },
+  page: { flexGrow: 1, paddingHorizontal: spacing.md, paddingTop: spacing.lg, paddingBottom: spacing.xl, gap: 0 },
+  title: { color: colors.text, ...textSizes.heading24 },
+  searchField: { marginTop: spacing.md, minHeight: 54, paddingLeft: spacing.md, paddingRight: spacing.xs, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.pill, borderCurve: 'continuous', flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  input: { flex: 1, fontFamily: typography.regular, color: colors.text, ...textSizes.label14, paddingVertical: 14, minWidth: 0 },
+  clear: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' },
   filterScroll: { flexGrow: 0, flexShrink: 0 },
-  filters: { alignItems: 'center', gap: 8, paddingTop: 18, paddingBottom: 28 },
-  filter: { paddingHorizontal: 18, minHeight: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: 23, borderCurve: 'continuous' },
-  activeFilter: { backgroundColor: colors.accent, borderColor: colors.accent },
-  filterLabel: { fontSize: 12, lineHeight: 18, color: colors.muted },
+  filters: { alignItems: 'center', gap: spacing.xs, paddingTop: spacing.md, paddingBottom: spacing.lg },
+  filter: { paddingHorizontal: spacing.md, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.pill, borderCurve: 'continuous', backgroundColor: colors.surface },
+  activeFilter: { backgroundColor: colors.text, borderColor: colors.text },
+  filterLabel: { ...textSizes.label14, color: colors.muted },
   activeFilterLabel: { color: colors.background },
-  resultHeading: { flexDirection: 'row', alignItems: 'center', gap: 15, justifyContent: 'space-between', marginBottom: 20 },
-  resultTitle: { fontSize: 16, flex: 1 },
-  count: { fontSize: 11, color: colors.muted },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14 },
-  footer: { marginTop: 20, alignItems: 'center', gap: 10 },
-  poster: { overflow: 'hidden', borderRadius: 14, borderCurve: 'continuous', backgroundColor: colors.surface },
-  placeholder: { backgroundColor: colors.surface },
-  genreText: { fontSize: 11, color: colors.muted },
+  resultHeading: { ...textSizes.label14, color: colors.text, marginBottom: spacing.xxs },
+  footer: { marginTop: spacing.md, alignItems: 'center', gap: spacing.xs },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
+  poster: { width: 64, height: 90, borderRadius: radius.sm, borderCurve: 'continuous', backgroundColor: colors.elevated },
+  placeholder: { backgroundColor: colors.elevated },
+  rowCopy: { flex: 1, minWidth: 0, gap: spacing.xxs },
+  rowTitle: { ...textSizes.body16, color: colors.text },
+  rowMeta: { ...textSizes.label14, color: colors.muted },
 }));
