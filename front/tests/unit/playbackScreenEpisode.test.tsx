@@ -105,6 +105,10 @@ function LoginRoute() {
   return <Text>로그인 화면</Text>;
 }
 
+function PointsRoute() {
+  return <Text>포인트 화면</Text>;
+}
+
 function DramaRoute() {
   return null;
 }
@@ -117,6 +121,7 @@ function renderEpisode(session = makeSession()) {
     'auth/login': LoginRoute,
     away: AwayRoute,
     'drama/[id]': DramaRoute,
+    points: PointsRoute,
   }, { initialUrl: '/episode/episode-1?dramaId=drama-1' });
   return view;
 }
@@ -150,7 +155,7 @@ function resolvePlayback(view: ReturnType<typeof renderEpisode>, result: Episode
   });
 }
 
-function emit(player: (typeof mockVideoPlayers)[number], name: 'timeUpdate' | 'sourceLoad' | 'statusChange' | 'playingChange', payload: Record<string, unknown>) {
+function emit(player: (typeof mockVideoPlayers)[number], name: 'timeUpdate' | 'sourceLoad' | 'statusChange' | 'playingChange' | 'playToEnd', payload: Record<string, unknown>) {
   act(() => player.emit(name, payload));
 }
 
@@ -253,7 +258,7 @@ test('playback keeps paid access denied separate from missing media and offers a
   await userEvent.setup().press(await screen.findByRole('button', { name: '다시 시도' }));
   await waitFor(() => expect(getEpisodePlayback).toHaveBeenCalledTimes(4));
   act(() => playbackRequests[3].resolve(playback));
-  expect(await screen.findByRole('button', { name: '작품 저장' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '저장', selected: false })).toBeOnTheScreen();
   offline.unmount();
 });
 
@@ -292,8 +297,8 @@ test('logged in playback records once after real progress and after resumed forw
 test('episode bookmark uses the playback video UUID and server saved state', async () => {
   const view = renderEpisode();
   await resolvePlayback(view, { ...playback, isSaved: true });
-  expect(screen.getByRole('button', { name: '저장 해제' })).toBeEnabled();
-  await userEvent.setup().press(screen.getByRole('button', { name: '저장 해제' }));
+  expect(screen.getByRole('button', { name: '저장', selected: true })).toBeEnabled();
+  await userEvent.setup().press(screen.getByRole('button', { name: '저장', selected: true }));
   expect(removeSavedVideo).toHaveBeenCalledWith('video-1');
   expect(saveVideo).not.toHaveBeenCalled();
 });
@@ -306,20 +311,20 @@ test('saving and removing an episode bookmark keep a user-paused player paused',
   const playCalls = player.play.mock.calls.length;
   player.currentTime = 31;
 
-  await userEvent.setup().press(screen.getByRole('button', { name: '작품 저장' }));
-  expect(screen.getByRole('button', { name: '작품 저장' })).toBeDisabled();
+  await userEvent.setup().press(screen.getByRole('button', { name: '저장', selected: false }));
+  expect(screen.getByRole('button', { name: '저장', selected: false })).toBeDisabled();
   expect(player.playing).toBe(false);
   act(() => savedWrites[0].resolve());
-  expect(await screen.findByRole('button', { name: '저장 해제' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '저장', selected: true })).toBeOnTheScreen();
   expect(player.playing).toBe(false);
   expect(player.play).toHaveBeenCalledTimes(playCalls);
   expect(player.currentTime).toBe(31);
 
-  fireEvent.press(screen.getByRole('button', { name: '저장 해제' }));
+  fireEvent.press(screen.getByRole('button', { name: '저장', selected: true }));
   await waitFor(() => expect(removeSavedVideo).toHaveBeenCalledTimes(1));
   expect(player.playing).toBe(false);
   act(() => savedWrites[1].resolve());
-  expect(await screen.findByRole('button', { name: '작품 저장' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '저장', selected: false })).toBeOnTheScreen();
   expect(screen.getByText('저장')).toBeOnTheScreen();
   expect(player.playing).toBe(false);
   expect(player.play).toHaveBeenCalledTimes(playCalls);
@@ -330,19 +335,19 @@ test('saving and removing an episode bookmark keep a user-paused player paused',
 test('episode save locks duplicate taps, preserves saved state on failure, and permits retry', async () => {
   deferWrites = true;
   await resolvePlayback(renderEpisode(), { ...playback, isSaved: true });
-  const remove = screen.getByRole('button', { name: '저장 해제' });
+  const remove = screen.getByRole('button', { name: '저장', selected: true });
   fireEvent.press(remove);
   fireEvent.press(remove);
   expect(removeSavedVideo).toHaveBeenCalledTimes(1);
-  expect(screen.getByRole('button', { name: '저장 해제' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: '저장', selected: true })).toBeDisabled();
   act(() => savedWrites[0].reject(new Error('offline')));
-  expect(await screen.findByRole('button', { name: '저장 해제' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '저장', selected: true })).toBeOnTheScreen();
   expect(screen.getByRole('alert')).toBeOnTheScreen();
 
-  await userEvent.setup().press(screen.getByRole('button', { name: '저장 해제' }));
+  await userEvent.setup().press(screen.getByRole('button', { name: '저장', selected: true }));
   expect(removeSavedVideo).toHaveBeenCalledTimes(2);
   act(() => savedWrites[1].resolve());
-  expect(await screen.findByRole('button', { name: '작품 저장' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '저장', selected: false })).toBeOnTheScreen();
 });
 
 test('episode focus metadata cannot overwrite pending or completed saves and matches both episode and video UUID', async () => {
@@ -368,7 +373,7 @@ test('episode focus metadata cannot overwrite pending or completed saves and mat
     mismatchedRead.resolve(mismatchedDrama);
     await mismatchedRead.promise;
   });
-  expect(screen.getByRole('button', { name: '작품 저장' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '저장', selected: false })).toBeOnTheScreen();
 
   testRouter.push('/away');
   await screen.findByText('away fixture');
@@ -377,14 +382,14 @@ test('episode focus metadata cannot overwrite pending or completed saves and mat
   testRouter.back('/episode/episode-1?dramaId=drama-1');
   expect(view.getPathnameWithParams()).toBe('/episode/episode-1?dramaId=drama-1');
   await waitFor(() => expect(getDramaContent).toHaveBeenCalledTimes(3));
-  await userEvent.setup().press(screen.getByRole('button', { name: '작품 저장' }));
+  await userEvent.setup().press(screen.getByRole('button', { name: '저장', selected: false }));
   const metadata = { ...mismatchedDrama, episodes: mismatchedDrama.episodes.map((episode) => ({ ...episode,
     isSaved: episode.uuid === 'episode-1' && episode.videoUuid === 'video-1' })) };
   await act(async () => {
     pendingRead.resolve(metadata);
     await pendingRead.promise;
   });
-  expect(screen.getByRole('button', { name: '작품 저장' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '저장', selected: false })).toBeOnTheScreen();
 
   testRouter.push('/away');
   await screen.findByText('away fixture');
@@ -394,20 +399,20 @@ test('episode focus metadata cannot overwrite pending or completed saves and mat
   expect(view.getPathnameWithParams()).toBe('/episode/episode-1?dramaId=drama-1');
   await waitFor(() => expect(getDramaContent).toHaveBeenCalledTimes(4));
   act(() => savedWrites[0].resolve());
-  expect(await screen.findByRole('button', { name: '저장 해제' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '저장', selected: true })).toBeOnTheScreen();
   await act(async () => {
     staleRead.resolve({ ...drama, episodes: [
       { uuid: 'episode-1', episodeNumber: 1, title: null, synopsis: null, durationMs: 90_000, videoUuid: 'video-1', isSaved: false, pricePoints: 0, isUnlocked: true, image: null, watchProgress: null },
     ] });
     await staleRead.promise;
   });
-  expect(await screen.findByRole('button', { name: '저장 해제' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '저장', selected: true })).toBeOnTheScreen();
 });
 
 test('anonymous episode saves open login, and a late write after account change is ignored', async () => {
   const anonymous = renderEpisode(makeSession({ user: null }));
   await resolvePlayback(anonymous);
-  await userEvent.setup().press(screen.getByRole('button', { name: '작품 저장' }));
+  await userEvent.setup().press(screen.getByRole('button', { name: '저장', selected: false }));
   expect(await screen.findByText('로그인 화면')).toBeOnTheScreen();
   expect(anonymous.getPathname()).toBe('/auth/login');
   expect(saveVideo).not.toHaveBeenCalled();
@@ -416,7 +421,7 @@ test('anonymous episode saves open login, and a late write after account change 
   deferWrites = true;
   const authenticated = renderEpisode();
   await resolvePlayback(authenticated);
-  await userEvent.setup().press(screen.getByRole('button', { name: '작품 저장' }));
+  await userEvent.setup().press(screen.getByRole('button', { name: '저장', selected: false }));
   expect(saveVideo).toHaveBeenCalledWith('video-1', 'EPISODE');
   const requestCountBeforeAccountChange = jest.mocked(getEpisodePlayback).mock.calls.length;
   setSession(makeSession({ user: { uuid: 'user-2', displayName: null, accountType: 'MEMBER' }, sessionVersion: 2,
@@ -425,7 +430,7 @@ test('anonymous episode saves open login, and a late write after account change 
   expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   act(() => savedWrites[0].resolve());
   act(() => playbackRequests[requestCountBeforeAccountChange].resolve({ ...playback, isSaved: false }));
-  expect(await screen.findByRole('button', { name: '작품 저장' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '저장', selected: false })).toBeOnTheScreen();
   expect(screen.queryByRole('progressbar', { name: '로딩 중' })).not.toBeOnTheScreen();
 });
 
@@ -491,7 +496,7 @@ test('anonymous, buffered, blurred, and expired-session playback never creates p
     isCurrentSession: (version) => version === 2 }));
   await waitFor(() => expect(getEpisodePlayback).toHaveBeenCalledTimes(3));
   act(() => playbackRequests[2].resolve(playback));
-  expect(await screen.findByRole('button', { name: '작품 저장' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '저장', selected: false })).toBeOnTheScreen();
   emit(player, 'timeUpdate', { currentTime: 22 });
   emit(player, 'timeUpdate', { currentTime: 22.5 });
   await act(async () => Promise.resolve());
@@ -658,4 +663,91 @@ test('hides the current caption on video error and replaces it after a session c
   expect(screen.queryByText('회차 자막')).not.toBeOnTheScreen();
   emit(mockVideoPlayers[mockVideoPlayers.length - 1], 'timeUpdate', { currentTime: 1 });
   expect(await screen.findByText('다음 회차 자막')).toBeOnTheScreen();
+});
+
+type Episode = DramaContent['episodes'][number];
+const endEpisode = (overrides: Partial<Episode> & Pick<Episode, 'uuid' | 'episodeNumber'>): Episode => ({
+  title: null, synopsis: null, durationMs: 90_000, videoUuid: `video-${overrides.episodeNumber}`, isSaved: false,
+  pricePoints: 0, isUnlocked: true, image: null, watchProgress: null, ...overrides,
+});
+
+async function playToEnd(episodes: Episode[], session = makeSession()) {
+  jest.mocked(getDramaContent).mockResolvedValue({ ...drama, episodes });
+  const view = await resolvePlayback(renderEpisode(session));
+  await waitFor(() => expect(getDramaContent).toHaveBeenCalled());
+  await act(async () => undefined);
+  const player = mockVideoPlayers[mockVideoPlayers.length - 1];
+  emit(player, 'playingChange', { isPlaying: false });
+  emit(player, 'playToEnd', {});
+  return { view, player };
+}
+
+test('end card offers the free next episode with one primary and never advances by itself', async () => {
+  const { view, player } = await playToEnd([
+    endEpisode({ uuid: 'episode-1', episodeNumber: 1 }),
+    endEpisode({ uuid: 'episode-2', episodeNumber: 2, title: '엇갈린 밤', synopsis: '문이 닫히기 전에 돌아와.' }),
+  ]);
+  expect(screen.getByText('1화 끝')).toBeOnTheScreen();
+  expect(screen.getByRole('header', { name: '다음 · 2화 엇갈린 밤' })).toBeOnTheScreen();
+  expect(screen.getByText('“문이 닫히기 전에 돌아와.”')).toBeOnTheScreen();
+  expect(screen.queryByText(/내 포인트/)).not.toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '재생' })).not.toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '다음 화' })).not.toBeOnTheScreen();
+  expect(view.getPathname()).toBe('/episode/episode-1');
+
+  fireEvent(screen.UNSAFE_getByType(Slider), 'slidingComplete', 30);
+  expect(screen.queryByText('1화 끝')).not.toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '재생' })).toBeOnTheScreen();
+  emit(player, 'playToEnd', {});
+  emit(player, 'playingChange', { isPlaying: true });
+  expect(screen.queryByText('1화 끝')).not.toBeOnTheScreen();
+  emit(player, 'playingChange', { isPlaying: false });
+  emit(player, 'playToEnd', {});
+  await userEvent.setup().press(screen.getByRole('button', { name: '2화 보기' }));
+  await waitFor(() => expect(view.getPathnameWithParams()).toBe('/episode/episode-2?dramaId=drama-1'));
+});
+
+test('end card for a locked next episode shows price and balance and opens the unlock dialog', async () => {
+  await playToEnd([
+    endEpisode({ uuid: 'episode-1', episodeNumber: 1 }),
+    endEpisode({ uuid: 'episode-2', episodeNumber: 2, title: '2화', pricePoints: 50, isUnlocked: false }),
+  ]);
+  expect(screen.getByRole('header', { name: '다음 · 2화' })).toBeOnTheScreen();
+  expect(screen.getByText('2화 · 50P · 내 포인트 120P')).toBeOnTheScreen();
+  expect(screen.queryByRole('header', { name: '2화 열기' })).not.toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole('button', { name: '50P로 2화 열기' }));
+  expect(await screen.findByRole('header', { name: '2화 열기' })).toBeOnTheScreen();
+});
+
+test('end card sends a member without enough points to charge, and plays an opened paid episode directly', async () => {
+  const short = await playToEnd([
+    endEpisode({ uuid: 'episode-1', episodeNumber: 1 }),
+    endEpisode({ uuid: 'episode-2', episodeNumber: 2, pricePoints: 50, isUnlocked: false }),
+  ], makeSession({ points: 10 }));
+  expect(screen.getByText('2화 · 50P · 내 포인트 10P')).toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole('button', { name: '포인트 충전하기' }));
+  expect(await screen.findByText('포인트 화면')).toBeOnTheScreen();
+  expect(short.view.getPathname()).toBe('/points');
+  short.view.unmount();
+
+  const opened = await playToEnd([
+    endEpisode({ uuid: 'episode-1', episodeNumber: 1 }),
+    endEpisode({ uuid: 'episode-2', episodeNumber: 2, pricePoints: 50, isUnlocked: true }),
+  ]);
+  expect(screen.queryByText(/50P/)).not.toBeOnTheScreen();
+  await userEvent.setup().press(screen.getByRole('button', { name: '2화 보기' }));
+  await waitFor(() => expect(opened.view.getPathnameWithParams()).toBe('/episode/episode-2?dramaId=drama-1'));
+});
+
+test('last episode end card has no primary and replays from the start', async () => {
+  const { player } = await playToEnd([endEpisode({ uuid: 'episode-1', episodeNumber: 1 })]);
+  expect(screen.getByRole('header', { name: '마지막 화까지 다 봤어요' })).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: /화 보기|화 열기|충전/ })).not.toBeOnTheScreen();
+  player.currentTime = 90;
+  player.play.mockClear();
+  await userEvent.setup().press(screen.getByRole('button', { name: '처음부터 다시 보기' }));
+  expect(player.currentTime).toBe(0);
+  expect(player.play).toHaveBeenCalledTimes(1);
+  expect(screen.queryByText('1화 끝')).not.toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '일시정지' })).toBeOnTheScreen();
 });
