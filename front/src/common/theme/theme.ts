@@ -1,11 +1,27 @@
+import { createContext, useContext } from 'react';
 import { StyleSheet, useColorScheme } from 'react-native';
 import { palettes, type Palette } from '@/common/theme/tokens';
 
 export type ColorSchemeName = keyof typeof palettes;
+/** 'system'이면 기기 모드를 따르고, 나머지는 앱 안에서 고른 모드다. */
+export type ThemePreference = 'system' | ColorSchemeName;
 
-/** 기기의 화면 모드를 따른다. 앱 안에 따로 저장하는 모드 선택값은 없다. */
+type ThemePreferenceState = { preference: ThemePreference; setPreference: (next: ThemePreference) => void };
+
+// ThemeProvider 밖(부품 단위 테스트 등)에서는 기기 모드를 따르고 선택을 저장하지 않는다.
+export const ThemePreferenceContext = createContext<ThemePreferenceState>({ preference: 'system', setPreference: () => {} });
+
 export function useColorSchemeName(): ColorSchemeName {
-  return useColorScheme() === 'dark' ? 'dark' : 'light';
+  const system = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const { preference } = useContext(ThemePreferenceContext);
+  return preference === 'system' ? system : preference;
+}
+
+/** 지금 보이는 모드의 반대(라이트↔다크)를 골라 저장한다. */
+export function useToggleColorScheme(): () => void {
+  const scheme = useColorSchemeName();
+  const { setPreference } = useContext(ThemePreferenceContext);
+  return () => setPreference(scheme === 'dark' ? 'light' : 'dark');
 }
 
 export function useColors(): Palette {
