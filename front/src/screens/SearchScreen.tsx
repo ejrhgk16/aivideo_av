@@ -230,7 +230,7 @@ export function SearchScreen() {
   const resultTitle = term ? (selectedGenre === 'all' ? `‘${term}’ 검색 결과` : `‘${term}’ · ${genreName}`)
     : selectedGenre === 'all' ? '모든 작품' : genreName;
   // 목록은 쪽 단위로 받으므로, 뒤에 더 있으면 지금까지 받은 수를 "이상"으로 적는다.
-  const resultCount = status === 'loaded' ? ` · ${dramas.length}편${hasNext ? ' 이상' : ''}` : '';
+  const resultCount = status === 'loaded' ? `· ${dramas.length}편${hasNext ? ' 이상' : ''}` : '';
 
   const contentLoading = genresStatus === 'loading' || (genresStatus === 'loaded' && status === 'loading');
 
@@ -246,7 +246,11 @@ export function SearchScreen() {
         {[{ code: 'all', name: '전체' }, ...genres].map((item) => <Pressable key={item.code} accessibilityRole="button" accessibilityState={{ disabled: !genresReady.current, selected: selectedGenre === item.code }} disabled={!genresReady.current} style={[styles.filter, selectedGenre === item.code && styles.activeFilter]} onPress={() => applyGenre(item.code)}><AppText weight={selectedGenre === item.code ? 'semibold' : 'regular'} style={[styles.filterLabel, selectedGenre === item.code && styles.activeFilterLabel]}>{item.name}</AppText></Pressable>)}
       </ScrollView>
       {/* TODO(backend): 순위순 정렬이 생기면 결과 머리말 오른쪽에 순위순·최신순 정렬을 붙인다. 지금 목록은 최신순(sort=latest)만 있다. */}
-      <AppText weight="semibold" numberOfLines={1} accessibilityLiveRegion="polite" style={styles.resultHeading}>{resultTitle}{resultCount}</AppText>
+      {/* 좁은 화면에서 긴 검색어는 머리말만 줄이고 편수는 항상 보이게 둔다. */}
+      <View accessibilityLiveRegion="polite" style={styles.resultHeader}>
+        <AppText weight="semibold" numberOfLines={1} style={[styles.resultHeading, styles.resultTitle]}>{resultTitle}</AppText>
+        {resultCount ? <AppText weight="semibold" style={styles.resultHeading}>{resultCount}</AppText> : null}
+      </View>
       {contentLoading ? <LoadingState />
         : genresStatus === 'error' ? <EmptyState title="장르를 불러오지 못했어요" description="잠시 후 다시 확인해 주세요." action="다시 시도" onAction={retryGenres} />
           : status === 'loading' ? <LoadingState />
@@ -277,7 +281,9 @@ const useStyles = createThemedStyles((colors) => ({
   activeFilter: { backgroundColor: colors.text, borderColor: colors.text },
   filterLabel: { ...textSizes.label14, color: colors.muted },
   activeFilterLabel: { color: colors.background },
-  resultHeading: { ...textSizes.label14, color: colors.text, marginBottom: spacing.xxs },
+  resultHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, marginBottom: spacing.xxs },
+  resultHeading: { ...textSizes.label14, color: colors.text },
+  resultTitle: { flexShrink: 1, minWidth: 0 },
   footer: { marginTop: spacing.md, alignItems: 'center', gap: spacing.xs },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   poster: { width: 64, height: 90, borderRadius: radius.sm, borderCurve: 'continuous', backgroundColor: colors.elevated },

@@ -111,7 +111,8 @@ test('uses all genres and server results, then appends the next page without dup
   expect(getDramaList).toHaveBeenCalledWith(expect.objectContaining({ page: 1 }));
   await resolvePage(requests[0], page([dramas[0]], 1, true));
   expect(getGenreFilter('액션', false)).toBeOnTheScreen();
-  expect(screen.getByText('모든 작품 · 1편 이상')).toBeOnTheScreen();
+  expect(screen.getByText('모든 작품')).toBeOnTheScreen();
+  expect(screen.getByText('· 1편 이상')).toBeOnTheScreen();
 
   const user = userEvent.setup();
   await user.press(screen.getByRole('button', { name: '더 보기' }));
@@ -119,7 +120,8 @@ test('uses all genres and server results, then appends the next page without dup
   await resolvePage(requests[1], page([dramas[0], dramas[1]], 2, false));
   expect(await screen.findByRole('button', { name: '둘째 작품 작품 소개' })).toBeOnTheScreen();
   expect(screen.getAllByRole('button', { name: '첫 작품 작품 소개' })).toHaveLength(1);
-  expect(screen.getByText('모든 작품 · 2편')).toBeOnTheScreen();
+  expect(screen.getByText('모든 작품')).toBeOnTheScreen();
+  expect(screen.getByText('· 2편')).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '더 보기' })).toBeNull();
   view.unmount();
 });
@@ -146,11 +148,30 @@ test('debounces search for 300ms and sends server conditions without locally fil
   await resolvePage(requests[1], page([makeDrama('server-result', '서버가 찾은 결과')], 1, false));
   expect(await screen.findByRole('button', { name: '서버가 찾은 결과 작품 소개' })).toBeOnTheScreen();
   expect(screen.queryByRole('progressbar', { name: '로딩 중' })).toBeNull();
-  expect(screen.getByText('‘봄’ 검색 결과 · 1편')).toBeOnTheScreen();
+  expect(screen.getByText('‘봄’ 검색 결과')).toBeOnTheScreen();
+  expect(screen.getByText('· 1편')).toBeOnTheScreen();
   const completedSearchCalls = jest.mocked(getDramaList).mock.calls.length;
   await user.type(screen.getByLabelText('작품 제목이나 장르 검색'), ' ');
   await act(async () => { jest.advanceTimersByTime(300); });
   expect(getDramaList).toHaveBeenCalledTimes(completedSearchCalls);
+  view.unmount();
+});
+
+test('keeps the result count visible when a long search term truncates the header', async () => {
+  const requests = setupRequests();
+  const view = renderSearch();
+  await waitFor(() => expect(requests).toHaveLength(1));
+  await resolvePage(requests[0], page(dramas));
+  jest.useFakeTimers();
+  const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+  const longTerm = '아주 길고 긴 검색어가 좁은 화면을 가득 채우는 경우';
+  await user.paste(screen.getByLabelText('작품 제목이나 장르 검색'), longTerm);
+  await act(async () => { jest.advanceTimersByTime(300); });
+  await resolvePage(requests[1], page([dramas[0]], 1, false));
+  expect(await screen.findByRole('button', { name: '첫 작품 작품 소개' })).toBeOnTheScreen();
+  // 좁은 화면에서는 검색어 머리말만 한 줄로 줄이고, 편수는 줄임 대상이 아닌 별도 글자로 남긴다.
+  expect(screen.getByText(`‘${longTerm}’ 검색 결과`)).toHaveProp('numberOfLines', 1);
+  expect(screen.getByText('· 1편')).not.toHaveProp('numberOfLines');
   view.unmount();
 });
 
@@ -173,7 +194,8 @@ test('shows results as rows with a result header naming the genre and search ter
   const view = renderSearch(makeSession(null, 1, false), '/?genre=ACTION');
   await waitFor(() => expect(requests).toHaveLength(1));
   await resolvePage(requests[0], page([{ ...makeDrama('drama-2', '둘째 작품', action), shortDescription: '한 줄 소개' }]));
-  expect(screen.getByText('액션 · 1편')).toBeOnTheScreen();
+  expect(screen.getAllByText('액션')).toHaveLength(2); // 장르 칩과 결과 머리말
+  expect(screen.getByText('· 1편')).toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '둘째 작품 작품 소개' })).toBeOnTheScreen();
   expect(screen.getByText('한 줄 소개')).toBeOnTheScreen();
   jest.useFakeTimers();
