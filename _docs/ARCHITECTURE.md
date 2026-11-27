@@ -75,6 +75,7 @@ The active `front/` app owns the `/auth/login` preview and `/auth/onboarding` fi
 | `back/README.md` | Backend environment, execution, database operations, and tests. |
 | `_docs/AI_DRAMA_data_model/` | Table and domain definitions. |
 | `_docs/plans/` | Plan catalog, per-plan task state, and human-readable task instructions. |
+| `_docs/handoff/backend-todo.md` | Backend work the PEEKA screens left as placeholders, metric collection order, and open review items. |
 | `.agents/skills/` | Project workflow skills. |
 | `.codex/agents/` | Task and child agent definitions. |
 | `.codex/hooks.json`, `.codex/hooks/` | Hook registration and task/file/command/result guards. |
