@@ -1,15 +1,16 @@
 import React from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { AccessibilityInfo, FlatList, StyleSheet, Text } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { Stack } from 'expo-router';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react-native';
 import { renderRouter, testRouter } from 'expo-router/testing-library';
-import { getSavedVideos, type SavedVideoItem, type SavedVideoPage, type WatchHistoryItem } from '@/features/playback/savedVideos';
+import { getErrorMessage } from '@/common/http/errorMessages';
+import { getSavedVideos, removeSavedVideo, saveVideo, type SavedVideoItem, type SavedVideoPage, type WatchHistoryItem } from '@/features/playback/savedVideos';
 import { getWatchHistory } from '@/features/playback/watchHistory';
 import { useUser, type User } from '@/features/user/UserProvider';
 import { LibraryScreen } from '@/screens/LibraryScreen';
 
-jest.mock('@/features/playback/savedVideos', () => ({ ...jest.requireActual('@/features/playback/savedVideos'), getSavedVideos: jest.fn() }));
+jest.mock('@/features/playback/savedVideos', () => ({ ...jest.requireActual('@/features/playback/savedVideos'), getSavedVideos: jest.fn(), removeSavedVideo: jest.fn(), saveVideo: jest.fn() }));
 jest.mock('@/features/playback/watchHistory', () => ({ ...jest.requireActual('@/features/playback/watchHistory'), getWatchHistory: jest.fn() }));
 jest.mock('@/features/user/UserProvider', () => ({ useUser: jest.fn() }));
 
@@ -100,15 +101,15 @@ test('saved library waits for restoration, loads cards, and routes preview and e
   expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   await act(async () => { requests.saved[0].resolve(savedPage([preview, episode])); await requests.saved[0].promise; });
   expect(await screen.findByRole('button', { name: '작품 하나 미리보기' })).toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: '작품 둘 에피소드 2화' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '작품 둘 2화' })).toBeOnTheScreen();
   fireEvent.press(screen.getByRole('button', { name: '작품 하나 미리보기' }));
   await screen.findByText('미리보기 화면');
   expect(view.getPathnameWithParams()).toBe('/preview/drama-1/preview-1');
   testRouter.back('/');
   await waitFor(() => expect(requests.savedPages).toEqual([1, 1]));
   await act(async () => { requests.saved[1].resolve(savedPage([preview, episode])); await requests.saved[1].promise; });
-  await screen.findByRole('button', { name: '작품 둘 에피소드 2화' });
-  fireEvent.press(screen.getByRole('button', { name: '작품 둘 에피소드 2화' }));
+  await screen.findByRole('button', { name: '작품 둘 2화' });
+  fireEvent.press(screen.getByRole('button', { name: '작품 둘 2화' }));
   await screen.findByText('회차 화면');
   expect(view.getPathnameWithParams()).toBe('/episode/episode-1?dramaId=drama-2');
   view.unmount();
@@ -121,7 +122,7 @@ test('saved cards show content kind and accurate short duration, including missi
   await act(async () => { requests.saved[0].resolve(savedPage([preview, episode, { ...preview, videoUuid: 'short', dramaTitle: '짧은 영상', durationMs: 2_000 }])); await requests.saved[0].promise; });
   const first = screen.getByRole('button', { name: '작품 하나 미리보기' });
   expect(first).toBeOnTheScreen();
-  const imageCard = screen.getByRole('button', { name: '작품 둘 에피소드 2화' });
+  const imageCard = screen.getByRole('button', { name: '작품 둘 2화' });
   const image = within(imageCard).UNSAFE_getByType(ExpoImage);
   // The native image layout is passed through ExpoImage's style prop; RNTL style matchers require host nodes.
   expect(StyleSheet.flatten(image.props.style)).toMatchObject({ width: 112, height: 63 });
@@ -129,7 +130,7 @@ test('saved cards show content kind and accurate short duration, including missi
   expect(screen.getByText('1분')).toBeOnTheScreen();
   expect(screen.getByText('2분 5초')).toBeOnTheScreen();
   expect(screen.getByText('2초')).toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: '작품 둘 에피소드 2화' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '작품 둘 2화' })).toBeOnTheScreen();
   view.unmount();
 });
 
@@ -163,7 +164,7 @@ test('history tab requests history only and routes preview and episode entries',
   expect(requests.historyPages).toEqual([1]);
   await act(async () => { requests.history[0].resolve(historyPage([historyPreview, historyEpisode])); await requests.history[0].promise; });
   expect(await screen.findByRole('button', { name: '작품 하나 미리보기' })).toBeOnTheScreen();
-  fireEvent.press(screen.getByRole('button', { name: '작품 둘 에피소드 2화' }));
+  fireEvent.press(screen.getByRole('button', { name: '작품 둘 2화' }));
   await screen.findByText('회차 화면');
   expect(view.getPathnameWithParams()).toBe('/episode/episode-1?dramaId=drama-2');
   testRouter.back('/');
@@ -194,7 +195,7 @@ test('history pagination blocks duplicate loads, retries the same page, deduplic
   expect(requests.historyPages).toEqual([1, 2, 2]);
   await act(async () => { requests.history[2].resolve(historyPage([historyPreview, historyEpisode], 2, false)); await requests.history[2].promise; });
   expect(screen.getAllByRole('button', { name: '작품 하나 미리보기' })).toHaveLength(1);
-  expect(screen.getByRole('button', { name: '작품 둘 에피소드 2화' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '작품 둘 2화' })).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '더 보기' })).toBeNull();
   view.unmount();
 });
@@ -235,7 +236,7 @@ test('session changes hide old cards and tab changes discard late responses', as
   await act(async () => { requests.saved[1].resolve(savedPage([preview])); await requests.saved[1].promise; });
   expect(screen.queryByRole('button', { name: '작품 하나 미리보기' })).toBeNull();
   await act(async () => { requests.history[0].resolve(historyPage([historyEpisode])); await requests.history[0].promise; });
-  expect(await screen.findByRole('button', { name: '작품 둘 에피소드 2화' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '작품 둘 2화' })).toBeOnTheScreen();
   view.unmount();
 });
 
@@ -256,7 +257,248 @@ test('focus refresh replaces saved videos and ignores a pending older page', asy
   await act(async () => { requests.saved[1].resolve(savedPage([episode], 2)); await requests.saved[1].promise; });
   expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   await act(async () => { requests.saved[2].resolve(savedPage([episode])); await requests.saved[2].promise; });
-  expect(await screen.findByRole('button', { name: '작품 둘 에피소드 2화' })).toBeOnTheScreen();
+  expect(await screen.findByRole('button', { name: '작품 둘 2화' })).toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '작품 하나 미리보기' })).toBeNull();
+  view.unmount();
+});
+
+function installWrites() {
+  const writes: Deferred<void>[] = [];
+  const next = () => { const request = deferred<void>(); writes.push(request); return request.promise; };
+  jest.mocked(removeSavedVideo).mockReset().mockImplementation(next);
+  jest.mocked(saveVideo).mockReset().mockImplementation(next);
+  return writes;
+}
+const third: SavedVideoItem = { ...preview, videoUuid: 'preview-3', dramaUuid: 'drama-3', dramaTitle: '작품 셋' };
+const unsaveNames = () => screen.getAllByRole('button', { name: /저장 취소$/ }).map((button) => button.props.accessibilityLabel);
+
+test('library tabs are underline tabs and history rows have no un-save button', async () => {
+  const requests = installRequests();
+  const view = renderLibrary(undefined, 'history');
+  view.setSession(makeSession(makeUser('user-a'), 1, false));
+  expect(screen.getByRole('header', { name: '보관함' })).toBeOnTheScreen();
+  expect(screen.getByRole('tab', { name: '시청 기록' })).toHaveStyle({ borderBottomWidth: 2 });
+  await act(async () => { requests.history[0].resolve(historyPage([historyEpisode])); await requests.history[0].promise; });
+  expect(await screen.findByRole('button', { name: '작품 둘 2화' })).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: /저장 취소$/ })).toBeNull();
+  view.unmount();
+});
+
+test('un-saving waits for the server, offers undo, and undo restores the row in place', async () => {
+  const announce = jest.spyOn(AccessibilityInfo, 'announceForAccessibility');
+  const requests = installRequests();
+  const writes = installWrites();
+  const view = renderLibrary();
+  view.setSession(makeSession(makeUser('user-a'), 1, false));
+  await act(async () => { requests.saved[0].resolve(savedPage([preview, episode, third])); await requests.saved[0].promise; });
+  expect(unsaveNames()).toEqual(['작품 하나 미리보기 저장 취소', '작품 둘 2화 저장 취소', '작품 셋 미리보기 저장 취소']);
+
+  fireEvent.press(screen.getByRole('button', { name: '작품 둘 2화 저장 취소' }));
+  expect(removeSavedVideo).toHaveBeenCalledWith('episode-video-1');
+  expect(screen.getByRole('button', { name: '작품 둘 2화' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '작품 하나 미리보기 저장 취소' })).toBeDisabled();
+  fireEvent.press(screen.getByRole('button', { name: '작품 하나 미리보기 저장 취소' }));
+  expect(removeSavedVideo).toHaveBeenCalledTimes(1);
+
+  await act(async () => { writes[0].resolve(); await writes[0].promise; });
+  expect(screen.queryByRole('button', { name: '작품 둘 2화' })).toBeNull();
+  expect(screen.getByText('저장을 취소했어요.')).toBeOnTheScreen();
+  expect(announce).toHaveBeenLastCalledWith('저장을 취소했어요. 되돌리기 버튼으로 되돌릴 수 있어요.');
+
+  fireEvent.press(screen.getByRole('button', { name: '되돌리기' }));
+  expect(saveVideo).toHaveBeenCalledWith('episode-video-1', 'EPISODE');
+  expect(screen.queryByRole('button', { name: '되돌리기' })).toBeNull();
+  await act(async () => { writes[1].resolve(); await writes[1].promise; });
+  expect(unsaveNames()).toEqual(['작품 하나 미리보기 저장 취소', '작품 둘 2화 저장 취소', '작품 셋 미리보기 저장 취소']);
+  expect(screen.getByText('보관함에 다시 저장했어요.')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '작품 하나 미리보기 저장 취소' })).toBeEnabled();
+  announce.mockRestore();
+  view.unmount();
+});
+
+test('a failed un-save keeps the row and shows a warning, and a late write after a tab change is ignored', async () => {
+  const requests = installRequests();
+  const writes = installWrites();
+  const view = renderLibrary();
+  view.setSession(makeSession(makeUser('user-a'), 1, false));
+  await act(async () => { requests.saved[0].resolve(savedPage([preview, episode])); await requests.saved[0].promise; });
+
+  const failure = new Error('offline');
+  fireEvent.press(screen.getByRole('button', { name: '작품 하나 미리보기 저장 취소' }));
+  await act(async () => { writes[0].reject(failure); try { await writes[0].promise; } catch {} });
+  expect(screen.getByRole('button', { name: '작품 하나 미리보기' })).toBeOnTheScreen();
+  expect(screen.getByText(getErrorMessage(failure))).toBeOnTheScreen();
+  expect(screen.queryByRole('button', { name: '되돌리기' })).toBeNull();
+
+  fireEvent.press(screen.getByRole('button', { name: '작품 둘 2화 저장 취소' }));
+  fireEvent.press(screen.getByRole('tab', { name: '시청 기록' }));
+  await act(async () => { writes[1].resolve(); await writes[1].promise; });
+  expect(screen.queryByText('저장을 취소했어요.')).toBeNull();
+  await act(async () => { requests.history[0].resolve(historyPage([historyEpisode])); await requests.history[0].promise; });
+  expect(await screen.findByRole('button', { name: '작품 둘 2화' })).toBeOnTheScreen();
+  view.unmount();
+});
+
+test('loading more after un-saving re-reads the shifted page so no saved video is skipped', async () => {
+  const requests = installRequests();
+  const writes = installWrites();
+  const view = renderLibrary();
+  view.setSession(makeSession(makeUser('user-a'), 1, false));
+  const savedItem = (index: number): SavedVideoItem => ({ ...preview, videoUuid: `saved-${index}`, dramaUuid: `drama-${index}`, dramaTitle: `저장 ${index}` });
+  const all = Array.from({ length: 62 }, (_, index) => savedItem(index));
+  await act(async () => { requests.saved[0].resolve(savedPage(all.slice(0, 30), 1, true)); await requests.saved[0].promise; });
+
+  fireEvent.press(screen.getByRole('button', { name: '저장 0 미리보기 저장 취소' }));
+  await act(async () => { writes[0].resolve(); await writes[0].promise; });
+  expect(screen.queryByRole('button', { name: '저장 0 미리보기' })).toBeNull();
+
+  // 서버에서 한 개가 빠져 원래 31번째 항목이 1페이지 끝으로 당겨졌으므로 1페이지를 다시 읽어야 한다.
+  fireEvent.press(screen.getByRole('button', { name: '더 보기' }));
+  expect(requests.savedPages).toEqual([1, 1]);
+  await act(async () => { requests.saved[1].resolve(savedPage(all.slice(1, 31), 1, true)); await requests.saved[1].promise; });
+  const listedUuids = () => (screen.UNSAFE_getByType(FlatList).props.data as SavedVideoItem[]).map((item) => item.videoUuid);
+  expect(listedUuids()).toEqual(all.slice(1, 31).map((item) => item.videoUuid));
+
+  fireEvent.press(screen.getByRole('button', { name: '더 보기' }));
+  expect(requests.savedPages).toEqual([1, 1, 2]);
+  await act(async () => { requests.saved[2].resolve(savedPage(all.slice(31, 61), 2, true)); await requests.saved[2].promise; });
+  expect(listedUuids()).toEqual(all.slice(1, 61).map((item) => item.videoUuid));
+  view.unmount();
+});
+
+// 서버 목록을 흉내 낸다. 페이지 응답은 요청을 처리하는 시점의 서버 목록으로 만든다.
+const listedUuids = () => (screen.UNSAFE_getByType(FlatList).props.data as SavedVideoItem[]).map((item) => item.videoUuid);
+const savedItem = (index: number): SavedVideoItem => ({ ...preview, videoUuid: `saved-${index}`, dramaUuid: `drama-${index}`, dramaTitle: `저장 ${index}` });
+function savedServer(requests: ReturnType<typeof installRequests>, count: number) {
+  let list = Array.from({ length: count }, (_, index) => savedItem(index));
+  const serve = async (request: number) => {
+    const page = requests.savedPages[request];
+    await act(async () => { requests.saved[request].resolve(savedPage(list.slice((page - 1) * 30, page * 30), page, list.length > page * 30)); await requests.saved[request].promise; });
+  };
+  return {
+    serve,
+    remove: (index: number) => { list = list.filter((item) => item.videoUuid !== `saved-${index}`); },
+    // 다시 저장하면 savedAt이 새로 정해져 saved_at DESC 목록의 맨 앞에 온다.
+    saveAgain: (index: number) => { list = [savedItem(index), ...list.filter((item) => item.videoUuid !== `saved-${index}`)]; },
+    // 남은 항목이 없을 때까지 더 보기를 누르고 그때의 서버 목록으로 답한다.
+    loadAll: async () => {
+      for (let round = 0; round < 10 && screen.queryByRole('button', { name: '더 보기' }); round += 1) {
+        fireEvent.press(screen.getByRole('button', { name: '더 보기' }));
+        await serve(requests.savedPages.length - 1);
+      }
+      expect(screen.queryByRole('button', { name: '더 보기' })).toBeNull();
+    },
+    uuids: () => list.map((item) => item.videoUuid),
+  };
+}
+const unsave = (index: number) => fireEvent.press(screen.getByRole('button', { name: `저장 ${index} 미리보기 저장 취소` }));
+
+test('loading more while an un-save is pending re-reads page one and skips no saved video', async () => {
+  const requests = installRequests();
+  const writes = installWrites();
+  const server = savedServer(requests, 61);
+  const view = renderLibrary();
+  view.setSession(makeSession(makeUser('user-a'), 1, false));
+  await server.serve(0);
+
+  unsave(0);
+  fireEvent.press(screen.getByRole('button', { name: '더 보기' }));
+  // 저장 취소 응답 전이라도 서버가 이미 지웠을 수 있으므로 당겨진 1페이지를 다시 읽는다.
+  expect(requests.savedPages).toEqual([1, 1]);
+  server.remove(0);
+  await server.serve(1);
+  await act(async () => { writes[0].resolve(); await writes[0].promise; });
+  expect(screen.queryByRole('button', { name: '저장 0 미리보기' })).toBeNull();
+
+  await server.loadAll();
+  expect(listedUuids()).toEqual(server.uuids());
+  expect(listedUuids()).toHaveLength(60);
+  view.unmount();
+});
+
+test('an un-save that starts while a later page is loading does not leave a gap', async () => {
+  const requests = installRequests();
+  const writes = installWrites();
+  const server = savedServer(requests, 61);
+  const view = renderLibrary();
+  view.setSession(makeSession(makeUser('user-a'), 1, false));
+  await server.serve(0);
+
+  fireEvent.press(screen.getByRole('button', { name: '더 보기' }));
+  expect(requests.savedPages).toEqual([1, 2]);
+  unsave(0);
+  // 서버가 저장 해제를 먼저 처리하면 2페이지는 원래 32번째부터 시작한다.
+  server.remove(0);
+  await server.serve(1);
+  await act(async () => { writes[0].resolve(); await writes[0].promise; });
+
+  await server.loadAll();
+  expect(listedUuids()).toEqual(server.uuids());
+  expect(listedUuids()).toHaveLength(60);
+  view.unmount();
+});
+
+test('a failed un-save after loading more keeps the row and loses no saved video', async () => {
+  const requests = installRequests();
+  const writes = installWrites();
+  const server = savedServer(requests, 61);
+  const view = renderLibrary();
+  view.setSession(makeSession(makeUser('user-a'), 1, false));
+  await server.serve(0);
+
+  unsave(0);
+  fireEvent.press(screen.getByRole('button', { name: '더 보기' }));
+  expect(requests.savedPages).toEqual([1, 1]);
+  await server.serve(1);
+  const failure = new Error('offline');
+  await act(async () => { writes[0].reject(failure); try { await writes[0].promise; } catch {} });
+  expect(screen.getByRole('button', { name: '저장 0 미리보기' })).toBeOnTheScreen();
+  expect(screen.getByText(getErrorMessage(failure))).toBeOnTheScreen();
+
+  // 실패한 저장 취소는 세지 않으므로 다음 더 보기는 2페이지부터 읽는다.
+  fireEvent.press(screen.getByRole('button', { name: '더 보기' }));
+  expect(requests.savedPages).toEqual([1, 1, 2]);
+  await server.serve(2);
+  await server.loadAll();
+  expect(listedUuids()).toEqual(server.uuids());
+  expect(listedUuids()).toHaveLength(61);
+  view.unmount();
+});
+
+test('undo waits for a pending un-save and stays consistent with loads in flight', async () => {
+  const requests = installRequests();
+  const writes = installWrites();
+  const server = savedServer(requests, 61);
+  const view = renderLibrary();
+  view.setSession(makeSession(makeUser('user-a'), 1, false));
+  await server.serve(0);
+
+  unsave(0);
+  server.remove(0);
+  await act(async () => { writes[0].resolve(); await writes[0].promise; });
+  // 다른 저장 취소가 진행 중이면 되돌리기를 누를 수 없다.
+  unsave(1);
+  expect(screen.getByRole('button', { name: '되돌리기' })).toBeDisabled();
+  fireEvent.press(screen.getByRole('button', { name: '되돌리기' }));
+  expect(saveVideo).not.toHaveBeenCalled();
+
+  fireEvent.press(screen.getByRole('button', { name: '더 보기' }));
+  expect(requests.savedPages).toEqual([1, 1]);
+  server.remove(1);
+  await server.serve(1);
+  await act(async () => { writes[1].resolve(); await writes[1].promise; });
+
+  // 더 보기 요청 중에 되돌리기가 서버에 먼저 반영되고 응답은 나중에 온다.
+  fireEvent.press(screen.getByRole('button', { name: '더 보기' }));
+  fireEvent.press(screen.getByRole('button', { name: '되돌리기' }));
+  expect(saveVideo).toHaveBeenCalledWith('saved-1', 'PREVIEW');
+  server.saveAgain(1);
+  await server.serve(requests.savedPages.length - 1);
+  await act(async () => { writes[2].resolve(); await writes[2].promise; });
+  expect(screen.getByText('보관함에 다시 저장했어요.')).toBeOnTheScreen();
+
+  await server.loadAll();
+  expect(listedUuids()).toEqual(server.uuids());
+  expect(listedUuids()).toHaveLength(60);
   view.unmount();
 });

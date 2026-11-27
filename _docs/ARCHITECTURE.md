@@ -18,6 +18,7 @@ admin (Next.js) ── SQL ──> shared MySQL <── back (schema owner)
 | `src/common/theme/tokens.ts`, `theme.ts` | PEEKA design tokens (light cream / dark ink palettes, type sizes, spacing, radius) and the hooks (`useColors`, `createThemedStyles`) that pick the palette from the device color scheme. Screens use these instead of hard-coded colors. |
 | `src/features/` | Feature state, API calls, and response types in `*Responses.ts`. |
 | `src/features/auth/authAge.ts` | Pure KST birth-date validation and age calculation for the auth screens. |
+| `src/features/drama/resumePoint.ts` | Pure start/resume rule shared by the home hero, the 빼꼼 feed, and the preview player: which episode the primary button opens and its label ("1화 무료로 보기", "8화 이어보기", "9화 보기", "24화 다시 보기"). |
 | `src/screens/AuthLoginScreen.tsx`, `AuthOnboardingScreen.tsx` | Social login preview and first-use terms/birth-date setup; draft input stays local to onboarding. |
 | `assets/` | Static images, icons, fonts, and licenses. |
 | `assets/images/peeka/` | PEEKA mascot images, one file per slot (`logo`, `strip`, `loading`, `loading-egg`, `empty`, `locked`), rendered through `Peeka` in `components/ui.tsx`. |

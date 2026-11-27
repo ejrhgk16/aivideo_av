@@ -13,7 +13,9 @@ import { ApiError, SessionChangedError } from '@/common/http/api';
 import { resolveApiImageUrl } from '@/common/media';
 import { getErrorMessage } from '@/common/http/errorMessages';
 import { createThemedStyles, useColors } from '@/common/theme/theme';
+import { radius, spacing, textSizes } from '@/common/theme/tokens';
 import { getDramaContent, type DramaContent } from '@/features/drama/dramaContent';
+import { resumeLabel, resumePoint } from '@/features/drama/resumePoint';
 import { getPreviewPlayback, type PreviewPlayback } from '@/features/playback/previewPlayback';
 import { removeSavedVideo, saveVideo } from '@/features/playback/savedVideos';
 import { createWatchProgressTracker, saveWatchProgress } from '@/features/playback/watchProgress';
@@ -145,8 +147,9 @@ function PreviewVideo({ drama, url, videoId, durationMs, initialSaved, savedWrit
       if (mounted.current && isCurrentSession(version)) setSaving(false);
     }
   };
-  const episodes = [...drama.episodes].sort((first, second) => first.episodeNumber - second.episodeNumber);
-  const firstEpisode = episodes[0] ?? null;
+  // 주 버튼은 홈 대표 작품·빼꼼과 같은 규칙(resumePoint)으로 문구와 회차를 정한다.
+  const resume = resumePoint(drama);
+  const watchLabel = resumeLabel(resume, 0, false);
 
   const clearHideTimer = useCallback(() => {
     if (hideTimer.current) clearTimeout(hideTimer.current);
@@ -236,14 +239,17 @@ function PreviewVideo({ drama, url, videoId, durationMs, initialSaved, savedWrit
     player.pause();
     router.push({ pathname: '/drama/[id]', params: { id: drama.uuid, tab: 'episodes' } });
   };
-  const watchFromFirstEpisode = () => {
-    if (!firstEpisode) return;
+  const watchResume = () => {
     player.pause();
-    if (firstEpisode.pricePoints > 0) {
-      setLockedEpisode(firstEpisode);
+    if (!resume) {
+      router.push({ pathname: '/drama/[id]', params: { id: drama.uuid } });
       return;
     }
-    router.replace({ pathname: '/episode/[id]', params: { id: firstEpisode.uuid, dramaId: drama.uuid } });
+    if (resume.episode.pricePoints > 0 && !resume.episode.isUnlocked) {
+      setLockedEpisode(resume.episode);
+      return;
+    }
+    router.replace({ pathname: '/episode/[id]', params: { id: resume.episode.uuid, dramaId: drama.uuid } });
   };
   const formatTime = (seconds: number) => {
     const whole = Math.floor(Math.max(0, seconds));
@@ -276,7 +282,7 @@ function PreviewVideo({ drama, url, videoId, durationMs, initialSaved, savedWrit
         <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="닫기" style={styles.iconButton}>
           <Icon name="x" color={colors.onMedia} />
         </Pressable>
-        <View style={styles.heading}><AppText style={styles.episodeTitle}>미리보기</AppText></View>
+        <View style={styles.heading} />
         <Pressable onPress={() => setSpeedMenuOpen((open) => !open)} accessibilityRole="button" accessibilityLabel="재생 속도" style={styles.speedButton}>
           <AppText weight="semibold" style={styles.speedText}>{playbackRate}x</AppText>
         </Pressable>
@@ -294,9 +300,9 @@ function PreviewVideo({ drama, url, videoId, durationMs, initialSaved, savedWrit
         </Pressable>)}
       </View>}
       <View style={styles.sideActions}>
-        <Pressable disabled={isRestoring || saving} onPress={() => void toggleSaved()} accessibilityRole="button" accessibilityLabel={isSaved ? '저장 해제' : '작품 저장'} accessibilityState={{ disabled: isRestoring || saving, busy: saving }} style={styles.sideAction}>
+        <Pressable disabled={isRestoring || saving} onPress={() => void toggleSaved()} accessibilityRole="button" accessibilityLabel="저장" accessibilityState={{ disabled: isRestoring || saving, busy: saving, selected: isSaved }} style={styles.sideAction}>
           <Icon name="bookmark" color={isSaved ? colors.lavender : colors.onMedia} />
-          <AppText style={styles.actionLabel}>{isSaved ? '저장됨' : '저장'}</AppText>
+          <AppText style={[styles.actionLabel, isSaved && styles.savedLabel]}>저장</AppText>
         </Pressable>
         {savedError ? <AppText accessibilityRole="alert" style={styles.actionLabel}>{getErrorMessage(savedError)}</AppText> : null}
         <Pressable onPress={openEpisodes} accessibilityRole="button" accessibilityLabel="전체 회차" style={styles.sideAction}>
@@ -318,14 +324,13 @@ function PreviewVideo({ drama, url, videoId, durationMs, initialSaved, savedWrit
           <Icon name="chevron-right" color={colors.onMedia} size={21} />
         </Pressable>
         <View style={styles.episodeInfo}>
-          <AppText style={styles.episodeText}>{`${genres} · 미리보기`}</AppText>
+          <View style={styles.meta}>
+            <AppText weight="semibold" style={styles.previewChip}>1화 미리보기</AppText>
+            <AppText numberOfLines={1} style={styles.episodeText}>{genres}</AppText>
+          </View>
           <AppText style={styles.time}>{formatTime(position)} / {formatTime(duration)}</AppText>
         </View>
-        <Pressable disabled={!firstEpisode} onPress={watchFromFirstEpisode} accessibilityRole="button" accessibilityLabel="1화부터 본편 보기" accessibilityState={{ disabled: !firstEpisode }} style={[styles.watchButton, !firstEpisode && styles.disabledEpisodeButton]}>
-          <Icon name="play" size={16} color={colors.onYolk} />
-          <AppText weight="semibold" style={styles.watchLabel}>1화부터 본편 보기</AppText>
-          <AppText style={styles.watchMeta}>{firstEpisode ? `${firstEpisode.episodeNumber}화` : '회차 없음'}</AppText>
-        </Pressable>
+        <Button label={watchLabel} icon={<Icon name="play" size={18} color={colors.onYolk} />} onPress={watchResume} style={styles.watchButton} />
         <Slider
           style={styles.slider}
           minimumValue={0}
@@ -380,8 +385,7 @@ const useStyles = createThemedStyles((colors) => ({
   placeholder: { backgroundColor: colors.surface },
   topControls: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingBottom: 18, backgroundColor: colors.mediaScrim },
   iconButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
-  heading: { flex: 1, gap: 1 },
-  episodeTitle: { color: colors.onMediaMuted, fontSize: 11 },
+  heading: { flex: 1 },
   speedButton: { minWidth: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   speedText: { color: colors.onMedia, fontSize: 13 },
   moreButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
@@ -392,18 +396,18 @@ const useStyles = createThemedStyles((colors) => ({
   sideActions: { position: 'absolute', right: 15, bottom: 205, alignItems: 'center', gap: 19 },
   sideAction: { minWidth: 50, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 4 },
   actionLabel: { color: colors.onMedia, fontSize: 10, lineHeight: 14 },
+  savedLabel: { color: colors.lavender },
   playPause: { alignSelf: 'center', width: 68, height: 68, borderRadius: 34, backgroundColor: colors.mediaScrim, alignItems: 'center', justifyContent: 'center' },
   bottomControls: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 25, backgroundColor: colors.mediaScrim },
   studio: { color: colors.onMediaMuted, fontSize: 12, lineHeight: 18 },
   bottomTitleButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 7 },
   bottomTitle: { flex: 1, color: colors.onMedia, fontSize: 21, lineHeight: 28 },
-  episodeInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  episodeText: { color: colors.onMedia, fontSize: 12 },
+  episodeInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.xs },
+  meta: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  previewChip: { paddingHorizontal: spacing.xs, borderRadius: radius.xs, overflow: 'hidden', backgroundColor: colors.lavender, color: colors.onLavender, ...textSizes.badge11 },
+  episodeText: { flexShrink: 1, color: colors.onMedia, ...textSizes.caption12 },
   time: { color: colors.onMedia, fontSize: 12, fontVariant: ['tabular-nums'] },
-  watchButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 7, paddingHorizontal: 12, backgroundColor: colors.yolk, borderRadius: 9999 },
-  watchLabel: { color: colors.onYolk, fontSize: 12 },
-  watchMeta: { marginLeft: 'auto', paddingLeft: 8, borderLeftWidth: 1, borderLeftColor: colors.onYolk, color: colors.onYolk, fontSize: 10 },
-  disabledEpisodeButton: { opacity: 0.38 },
+  watchButton: { marginTop: spacing.xs },
   slider: { width: '100%', height: 34, marginTop: 2 },
   settingsBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 22, backgroundColor: colors.backdrop },
   settingsDialog: { width: '100%', maxWidth: 420, padding: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 20, borderCurve: 'continuous' },

@@ -8,6 +8,7 @@ import { AppTopBar } from '@/components/AppTopBar';
 import { EpisodeUnlockDialog } from '@/components/EpisodeUnlockDialog';
 import { getDramaContent, getDramaList, getGenres, type DramaContent, type DramaSummary, type GenreSummary } from '@/features/drama/dramaContent';
 import { SessionChangedError } from '@/common/http/api';
+import { resumeLabel, resumePoint } from '@/features/drama/resumePoint';
 import { getHomeCollection, type HomeCollection, type HomeCollectionDrama } from '@/features/home/homeContent';
 import { removeSavedVideo, saveVideo } from '@/features/playback/savedVideos';
 import { getWatchHistory, type WatchHistoryItem } from '@/features/playback/watchHistory';
@@ -36,21 +37,6 @@ function collectionDramas(collection: HomeCollection | null): HomeCollectionDram
 
 function genreLabel(drama: { genres: Array<{ name: string }> }): string {
   return drama.genres.map((genre) => genre.name).join(' · ') || '장르 정보 없음';
-}
-
-/** 대표 작품 주 버튼이 가리키는 회차와 문구. 버튼 문구와 눌렀을 때 여는 회차는 늘 같다. */
-function resumePoint(content: DramaContent): { label: string; episode: Episode } | null {
-  const episodes = [...content.episodes].sort((first, second) => first.episodeNumber - second.episodeNumber);
-  if (episodes.length === 0) return null;
-  const watched = episodes.filter((episode) => episode.watchProgress !== null)
-    .sort((first, second) => Date.parse(second.watchProgress!.lastPlayedAt) - Date.parse(first.watchProgress!.lastPlayedAt))[0];
-  if (!watched) {
-    const first = episodes[0];
-    return { episode: first, label: first.pricePoints === 0 ? `${first.episodeNumber}화 무료로 보기` : `${first.episodeNumber}화 보기` };
-  }
-  if (!watched.watchProgress!.isCompleted) return { episode: watched, label: `${watched.episodeNumber}화 이어보기` };
-  const next = episodes[episodes.indexOf(watched) + 1];
-  return next ? { episode: next, label: `${next.episodeNumber}화 보기` } : { episode: watched, label: `${watched.episodeNumber}화 다시 보기` };
 }
 
 function ApiRankRows({ dramas: apiDramas, onPress }: { dramas: HomeCollectionDrama[]; onPress: (drama: HomeCollectionDrama) => void }) {
@@ -194,8 +180,7 @@ export function HomeScreen() {
   const currentHeroContent = heroContent?.dramaUuid === heroUuid ? heroContent : null;
   const heroResume = currentHeroContent?.content ? resumePoint(currentHeroContent.content) : null;
   const heroLoading = !currentHeroContent || currentHeroContent.status === 'loading';
-  const heroLabel = heroResume?.label
-    ?? (heroLoading ? (hero && hero.freeEpisodeCount > 0 ? '1화 무료로 보기' : '1화 보기') : '작품 소개 보기');
+  const heroLabel = resumeLabel(heroResume, hero?.freeEpisodeCount ?? 0, heroLoading);
   const heroSaved = heroPreview ? savedOverrides[heroPreview.uuid] ?? heroPreview.isSaved : false;
 
   const openDetail = (drama: { uuid: string }) => router.push({ pathname: '/drama/[id]', params: { id: drama.uuid } });

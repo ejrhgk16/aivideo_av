@@ -5,7 +5,7 @@ import { useColors } from '@/common/theme/theme';
 
 const tabs = [
   { name: 'index', label: '홈', icon: 'home' },
-  { name: 'recommend', label: '추천', icon: 'film' },
+  { name: 'recommend', label: '빼꼼', icon: 'film' },
   { name: 'search', label: '찾기', icon: 'search' },
   { name: 'library', label: '보관함', icon: 'bookmark' },
   { name: 'account', label: '내 정보', icon: 'user' },
