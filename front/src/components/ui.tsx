@@ -2,7 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import type { ComponentProps, ReactNode, Ref } from 'react';
 import {
   ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View,
-  type ImageStyle, type StyleProp, type TextProps, type TextStyle, type ViewStyle,
+  type GestureResponderEvent, type ImageStyle, type StyleProp, type TextProps, type TextStyle, type ViewStyle,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,7 +25,7 @@ export function Icon({ name, size = 22, color }: { name: IconName; size?: number
 
 /** primary는 노른자 노랑 주 버튼이다. 화면마다 가장 중요한 행동 하나에만 쓴다. */
 export function Button({ label, onPress, variant = 'primary', disabled, icon, style }: {
-  label: string; onPress: () => void; variant?: 'primary' | 'secondary' | 'ghost';
+  label: string; onPress: (event: GestureResponderEvent) => void; variant?: 'primary' | 'secondary' | 'ghost';
   disabled?: boolean; icon?: ReactNode; style?: StyleProp<ViewStyle>;
 }) {
   const styles = useStyles();
@@ -38,6 +38,16 @@ export function Button({ label, onPress, variant = 'primary', disabled, icon, st
         style={variant === 'primary' ? styles.primaryLabel : styles.secondaryLabel}>{label}</AppText>
     </Pressable>
   );
+}
+
+/** 거래 창(회차 열기·충전)의 주 버튼은 창이 열린 뒤 0.8초 동안 키보드로 누른 입력을 받지 않는다. 터치·마우스는 바로 받는다. */
+export const KEYBOARD_PRESS_GUARD_MS = 800;
+export function isKeyboardPress(event: GestureResponderEvent | undefined): boolean {
+  // react-native-web은 Enter·Space 누름을 keyup 이벤트로, 기본 버튼의 키보드 click은 detail 0으로 넘긴다.
+  const raw = event as unknown as { type?: string; detail?: number; nativeEvent?: { type?: string; detail?: number } } | undefined;
+  const type = raw?.type ?? raw?.nativeEvent?.type;
+  const detail = raw?.detail ?? raw?.nativeEvent?.detail;
+  return type === 'keyup' || type === 'keydown' || (type === 'click' && detail === 0);
 }
 
 export function Page({ children, header, scroll = true, style, contentStyle, scrollRef }: {

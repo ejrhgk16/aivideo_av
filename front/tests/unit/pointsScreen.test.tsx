@@ -1,11 +1,12 @@
 import React from 'react';
-import { Modal, Text } from 'react-native';
+import { Modal, StyleSheet, Text } from 'react-native';
 import { act, fireEvent, screen, userEvent, within } from '@testing-library/react-native';
 import { Stack } from 'expo-router';
 import { renderRouter, testRouter } from 'expo-router/testing-library';
 import { getPointHistory, type PointHistoryItem, type PointHistoryPage } from '@/features/economy/pointHistory';
 import { useUser, type User } from '@/features/user/UserProvider';
 import { PointsScreen } from '@/screens/PointsScreen';
+import { palettes } from '@/common/theme/tokens';
 
 jest.mock('@/features/economy/pointHistory', () => ({ getPointHistory: jest.fn() }));
 jest.mock('@/features/user/UserProvider', () => ({ useUser: jest.fn() }));
@@ -54,6 +55,14 @@ function installRequests() {
   return { requests, pages };
 }
 
+afterEach(() => { jest.useRealTimers(); });
+
+async function finishAd(input: ReturnType<typeof userEvent.setup>) {
+  // 광고 창은 5초가 지나야 받기 버튼이 열린다.
+  act(() => { jest.advanceTimersByTime(5000); });
+  await input.press(screen.getByRole('button', { name: '10P 받기' }));
+}
+
 const page = (items: PointHistoryItem[], pageNumber = 1, hasNext = false): PointHistoryPage => ({ items, page: pageNumber, hasNext });
 const transaction = (uuid: string, transactionType: PointHistoryItem['transactionType'], amount: number, balanceAfter: number,
   episode: PointHistoryItem['episode'] = null, createdAt = '2026-11-03T18:04:00.000Z'): PointHistoryItem =>
@@ -63,16 +72,15 @@ test('charge tab exposes demo actions and sample prices without loading history;
   const chargeRequests = installRequests();
   const charge = renderPoints(makeSession(makeUser('user-a'), 1234, 1), 'charge');
   expect(getPointHistory).not.toHaveBeenCalled();
-  expect(screen.getByRole('button', { name: '광고 보고 포인트 받기' })).toBeOnTheScreen();
-  expect(screen.getByText('광고 보상 체험 · 0/5회')).toBeOnTheScreen();
-  expect(screen.getByText('필요한 만큼 충전해요')).toBeOnTheScreen();
-  expect(screen.getByText('1,234 P')).toBeOnTheScreen();
-  expect(screen.getByText('100 P')).toBeOnTheScreen();
-  expect(screen.getByText('300 P')).toBeOnTheScreen();
-  expect(screen.getByText('600 P')).toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: '100 P 충전 체험' })).toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: '300 P 충전 체험' })).toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: '600 P 충전 체험' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '광고 보고 10P 받기' })).toBeOnTheScreen();
+  expect(screen.getByText('오늘 5번 남음')).toBeOnTheScreen();
+  expect(screen.getByText('1,234P')).toBeOnTheScreen();
+  expect(screen.getByText('100P')).toBeOnTheScreen();
+  expect(screen.getByText('300P')).toBeOnTheScreen();
+  expect(screen.getByText('600P')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '100P 충전 체험' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '300P 충전 체험' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '600P 충전 체험' })).toBeOnTheScreen();
   expect(screen.getByText('₩1,100')).toBeOnTheScreen();
   expect(screen.getByText('₩3,300')).toBeOnTheScreen();
   expect(screen.getByText('₩6,600')).toBeOnTheScreen();
@@ -88,37 +96,39 @@ test('charge tab exposes demo actions and sample prices without loading history;
 });
 
 test('ad reward cancel adds nothing and five confirmed rewards disable the action', async () => {
-  const input = userEvent.setup();
+  jest.useFakeTimers();
+  const input = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
   installRequests();
   const view = renderPoints(makeSession(makeUser('user-a'), 1234, 1), 'charge');
 
-  await input.press(screen.getByRole('button', { name: '광고 보고 포인트 받기' }));
-  expect(screen.getByText('광고 체험')).toBeOnTheScreen();
+  await input.press(screen.getByRole('button', { name: '광고 보고 10P 받기' }));
+  expect(screen.getByRole('header', { name: '광고 보고 10P 받기' })).toBeOnTheScreen();
   await input.press(screen.getByRole('button', { name: '취소' }));
-  expect(screen.getByText('1,234 P')).toBeOnTheScreen();
-  expect(screen.getByText('광고 보상 체험 · 0/5회')).toBeOnTheScreen();
+  expect(screen.getByText('1,234P')).toBeOnTheScreen();
+  expect(screen.getByText('오늘 5번 남음')).toBeOnTheScreen();
 
   for (let count = 1; count <= 5; count += 1) {
-    await input.press(screen.getByRole('button', { name: '광고 보고 포인트 받기' }));
-    await input.press(screen.getByRole('button', { name: '체험 완료' }));
-    expect(screen.getByText(`${(1234 + count * 10).toLocaleString('ko-KR')} P`)).toBeOnTheScreen();
-    expect(screen.getByText(`광고 보상 체험 · ${count}/5회`)).toBeOnTheScreen();
+    await input.press(screen.getByRole('button', { name: '광고 보고 10P 받기' }));
+    await finishAd(input);
+    expect(screen.getByText(`${(1234 + count * 10).toLocaleString('ko-KR')}P`)).toBeOnTheScreen();
+    expect(screen.getByText(count === 5 ? '오늘 5번 모두 받았어요 · 내일 다시 받을 수 있어요' : `오늘 ${5 - count}번 남음`)).toBeOnTheScreen();
   }
-  expect(screen.getByRole('button', { name: '광고 보고 포인트 받기' })).toBeDisabled();
-  expect(screen.getAllByText('+10 P').length).toBeGreaterThanOrEqual(5);
+  expect(screen.getByRole('button', { name: '광고 보고 10P 받기' })).toBeDisabled();
+  expect(screen.getAllByText('+10P').length).toBeGreaterThanOrEqual(5);
   view.unmount();
 });
 
 test('each demo pack shows its example price, can be canceled, and can be purchased again', async () => {
-  const input = userEvent.setup();
+  jest.useFakeTimers();
+  const input = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
   installRequests();
   const view = renderPoints(makeSession(makeUser('user-a'), 1234, 1), 'charge');
   let balance = 1234;
 
   const packs = [
-    { label: '100 P 충전 체험', points: 100, price: '₩1,100' },
-    { label: '300 P 충전 체험', points: 300, price: '₩3,300' },
-    { label: '600 P 충전 체험', points: 600, price: '₩6,600' },
+    { label: '100P 충전 체험', points: 100, price: '₩1,100' },
+    { label: '300P 충전 체험', points: 300, price: '₩3,300' },
+    { label: '600P 충전 체험', points: 600, price: '₩6,600' },
   ];
   for (const pack of packs) {
     await input.press(screen.getByRole('button', { name: pack.label }));
@@ -126,52 +136,54 @@ test('each demo pack shows its example price, can be canceled, and can be purcha
     const modal = within(screen.UNSAFE_getByType(Modal));
     expect(modal.getByText(pack.price)).toBeOnTheScreen();
     await input.press(screen.getByRole('button', { name: '취소' }));
-    expect(screen.getByText(`${balance.toLocaleString('ko-KR')} P`)).toBeOnTheScreen();
+    expect(screen.getByText(`${balance.toLocaleString('ko-KR')}P`)).toBeOnTheScreen();
 
     await input.press(screen.getByRole('button', { name: pack.label }));
-    await input.press(screen.getByRole('button', { name: '체험 충전하기' }));
+    await input.press(screen.getByRole('button', { name: `${pack.points}P 충전하기` }));
     balance += pack.points;
-    expect(screen.getByText(`${balance.toLocaleString('ko-KR')} P`)).toBeOnTheScreen();
+    expect(screen.getByText(`${balance.toLocaleString('ko-KR')}P`)).toBeOnTheScreen();
   }
-  await input.press(screen.getByRole('button', { name: '100 P 충전 체험' }));
-  await input.press(screen.getByRole('button', { name: '체험 충전하기' }));
+  await input.press(screen.getByRole('button', { name: '100P 충전 체험' }));
+  await input.press(screen.getByRole('button', { name: '100P 충전하기' }));
   balance += 100;
-  expect(screen.getByText(`${balance.toLocaleString('ko-KR')} P`)).toBeOnTheScreen();
+  expect(screen.getByText(`${balance.toLocaleString('ko-KR')}P`)).toBeOnTheScreen();
   view.unmount();
 });
 
 test('confirming a charge twice from the same modal applies it once', async () => {
-  const input = userEvent.setup();
+  jest.useFakeTimers();
+  const input = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
   installRequests();
   const view = renderPoints(makeSession(makeUser('user-a'), 1234, 1), 'charge');
-  await input.press(screen.getByRole('button', { name: '100 P 충전 체험' }));
-  const confirm = screen.getByRole('button', { name: '체험 충전하기' });
+  await input.press(screen.getByRole('button', { name: '100P 충전 체험' }));
+  const confirm = screen.getByRole('button', { name: '100P 충전하기' });
 
   fireEvent.press(confirm);
   fireEvent.press(confirm);
 
-  expect(screen.getByText('1,334 P')).toBeOnTheScreen();
-  expect(screen.getAllByText('+100 P')).toHaveLength(1);
+  expect(screen.getByText('1,334P')).toBeOnTheScreen();
+  expect(screen.getAllByText('+100P')).toHaveLength(1);
   view.unmount();
 });
 
 test('demo balance and rows stay local across tabs and remain separate from real history', async () => {
-  const input = userEvent.setup();
+  jest.useFakeTimers();
+  const input = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
   const requests = installRequests();
   const session = makeSession(makeUser('user-a'), 1234, 1);
   const view = renderPoints(session, 'charge');
 
-  await input.press(screen.getByRole('button', { name: '광고 보고 포인트 받기' }));
-  await input.press(screen.getByRole('button', { name: '체험 완료' }));
-  await input.press(screen.getByRole('button', { name: '100 P 충전 체험' }));
-  await input.press(screen.getByRole('button', { name: '체험 충전하기' }));
-  expect(screen.getByText('1,344 P')).toBeOnTheScreen();
+  await input.press(screen.getByRole('button', { name: '광고 보고 10P 받기' }));
+  await finishAd(input);
+  await input.press(screen.getByRole('button', { name: '100P 충전 체험' }));
+  await input.press(screen.getByRole('button', { name: '100P 충전하기' }));
+  expect(screen.getByText('1,344P')).toBeOnTheScreen();
 
   await input.press(screen.getByRole('tab', { name: '이용 내역' }));
   expect(screen.getByText('체험 내역')).toBeOnTheScreen();
   expect(screen.getByText('실제 이용 내역')).toBeOnTheScreen();
   expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
-  expect(screen.getByText('1,344 P')).toBeOnTheScreen();
+  expect(screen.getByText('1,344P')).toBeOnTheScreen();
   await act(async () => {
     requests.requests[0].resolve(page([
       transaction('real-1', 'EPISODE_UNLOCK', -30, 970, { dramaTitle: '작품', episodeNumber: 1 }),
@@ -179,27 +191,28 @@ test('demo balance and rows stay local across tabs and remain separate from real
     await requests.requests[0].promise;
   });
   expect(screen.getByText('작품 · 1화')).toBeOnTheScreen();
-  expect(screen.getByText('거래 후 잔액 970 P')).toBeOnTheScreen();
-  expect(screen.getByText('1,344 P')).toBeOnTheScreen();
+  expect(screen.getByText('거래 후 잔액 970P')).toBeOnTheScreen();
+  expect(screen.getByText('1,344P')).toBeOnTheScreen();
   expect(session.setPoints).not.toHaveBeenCalled();
   expect(session.setUser).not.toHaveBeenCalled();
 
   view.setSession(makeSession(makeUser('user-a'), 9999, 1));
-  expect(screen.getByText('1,344 P')).toBeOnTheScreen();
-  expect(screen.getByText('거래 후 잔액 970 P')).toBeOnTheScreen();
+  expect(screen.getByText('1,344P')).toBeOnTheScreen();
+  expect(screen.getByText('거래 후 잔액 970P')).toBeOnTheScreen();
 
   await input.press(screen.getByRole('tab', { name: '충전하기' }));
-  expect(screen.getByText('1,344 P')).toBeOnTheScreen();
+  expect(screen.getByText('1,344P')).toBeOnTheScreen();
   expect(screen.getAllByText('체험 내역')).toHaveLength(1);
   view.unmount();
 });
 
 test('demo rows remain visible with actual history loading, failure and empty states', async () => {
-  const input = userEvent.setup();
+  jest.useFakeTimers();
+  const input = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
   const requests = installRequests();
   const view = renderPoints(makeSession(makeUser('user-a'), 1234, 1), 'charge');
-  await input.press(screen.getByRole('button', { name: '광고 보고 포인트 받기' }));
-  await input.press(screen.getByRole('button', { name: '체험 완료' }));
+  await input.press(screen.getByRole('button', { name: '광고 보고 10P 받기' }));
+  await finishAd(input);
   await input.press(screen.getByRole('tab', { name: '이용 내역' }));
   expect(screen.getByText('체험 내역')).toBeOnTheScreen();
   expect(screen.getByText('실제 이용 내역')).toBeOnTheScreen();
@@ -223,56 +236,58 @@ test('demo rows remain visible with actual history loading, failure and empty st
 });
 
 test('demo survives tab and query changes, then resets on blur, unmount and account or session change', async () => {
-  const input = userEvent.setup();
+  jest.useFakeTimers();
+  const input = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
   installRequests();
   const view = renderPoints(makeSession(makeUser('user-a'), 1234, 1), 'charge');
 
-  await input.press(screen.getByRole('button', { name: '광고 보고 포인트 받기' }));
-  await input.press(screen.getByRole('button', { name: '체험 완료' }));
+  await input.press(screen.getByRole('button', { name: '광고 보고 10P 받기' }));
+  await finishAd(input);
   await input.press(screen.getByRole('tab', { name: '이용 내역' }));
-  expect(screen.getByText('1,244 P')).toBeOnTheScreen();
+  expect(screen.getByText('1,244P')).toBeOnTheScreen();
   act(() => testRouter.setParams({ tab: 'history' }));
-  expect(screen.getByText('1,244 P')).toBeOnTheScreen();
+  expect(screen.getByText('1,244P')).toBeOnTheScreen();
   act(() => testRouter.setParams({ tab: 'charge' }));
-  expect(screen.getByText('1,244 P')).toBeOnTheScreen();
+  expect(screen.getByText('1,244P')).toBeOnTheScreen();
 
-  await input.press(screen.getByRole('button', { name: '광고 보고 포인트 받기' }));
+  await input.press(screen.getByRole('button', { name: '광고 보고 10P 받기' }));
   testRouter.push('/away');
   testRouter.back();
-  expect(screen.getByText('1,234 P')).toBeOnTheScreen();
+  expect(screen.getByText('1,234P')).toBeOnTheScreen();
   expect(screen.queryByText('체험 내역')).toBeNull();
 
-  await input.press(screen.getByRole('button', { name: '광고 보고 포인트 받기' }));
+  await input.press(screen.getByRole('button', { name: '광고 보고 10P 받기' }));
   view.setSession(makeSession(makeUser('user-b'), 4321, 2));
-  expect(screen.queryByText('광고 체험')).toBeNull();
-  expect(screen.getByText('4,321 P')).toBeOnTheScreen();
+  expect(screen.queryByRole('header', { name: '광고 보고 10P 받기' })).toBeNull();
+  expect(screen.getByText('4,321P')).toBeOnTheScreen();
 
-  await input.press(screen.getByRole('button', { name: '광고 보고 포인트 받기' }));
+  await input.press(screen.getByRole('button', { name: '광고 보고 10P 받기' }));
   view.setSession(makeSession(makeUser('user-b'), 4321, 3));
-  expect(screen.queryByText('광고 체험')).toBeNull();
-  expect(screen.getByText('4,321 P')).toBeOnTheScreen();
+  expect(screen.queryByRole('header', { name: '광고 보고 10P 받기' })).toBeNull();
+  expect(screen.getByText('4,321P')).toBeOnTheScreen();
   view.unmount();
 
   const reentered = renderPoints(makeSession(makeUser('user-b'), 4321, 3), 'charge');
-  expect(screen.getByText('4,321 P')).toBeOnTheScreen();
+  expect(screen.getByText('4,321P')).toBeOnTheScreen();
   expect(screen.queryByText('체험 내역')).toBeNull();
   reentered.unmount();
 });
 
 test('demo works for anonymous users and is disabled while restoring the session', async () => {
-  const input = userEvent.setup();
+  jest.useFakeTimers();
+  const input = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
   installRequests();
   const view = renderPoints(makeSession(null, null, 2), 'charge');
-  expect(screen.getByText('— P')).toBeOnTheScreen();
-  await input.press(screen.getByRole('button', { name: '광고 보고 포인트 받기' }));
-  await input.press(screen.getByRole('button', { name: '체험 완료' }));
-  expect(screen.getByText('10 P')).toBeOnTheScreen();
+  expect(screen.getByText('—P')).toBeOnTheScreen();
+  await input.press(screen.getByRole('button', { name: '광고 보고 10P 받기' }));
+  await finishAd(input);
+  expect(screen.getByText('10P')).toBeOnTheScreen();
   view.unmount();
 
   installRequests();
   const restoring = renderPoints(makeSession(makeUser('user-a'), 1234, 3, true), 'charge');
-  expect(screen.getByRole('button', { name: '광고 보고 포인트 받기' })).toBeDisabled();
-  expect(screen.getByRole('button', { name: '100 P 충전 체험' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: '광고 보고 10P 받기' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: '100P 충전 체험' })).toBeDisabled();
   restoring.unmount();
 });
 
@@ -302,7 +317,7 @@ test('history shows transaction labels, signed amounts, after-balances, episode 
   const view = renderPoints(makeSession(makeUser('user-a'), 2000, 1));
   expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   expect(screen.getByRole('button', { name: '뒤로 가기' })).toBeOnTheScreen();
-  expect(screen.getByText('2,000 P')).toBeOnTheScreen();
+  expect(screen.getByText('2,000P')).toBeOnTheScreen();
   const items = [
     transaction('purchase', 'PURCHASE', 1000, 1000),
     transaction('ad', 'AD_REWARD', 10, 1010),
@@ -313,17 +328,17 @@ test('history shows transaction labels, signed amounts, after-balances, episode 
   ];
   await act(async () => { requests[0].resolve(page(items)); await requests[0].promise; });
   for (const label of ['포인트 충전', '광고 보상', '회차 구매', '관리자 조정', '환불']) expect(screen.getAllByText(label).length).toBeGreaterThan(0);
-  expect(screen.getByText('+1,000 P')).toBeOnTheScreen();
-  expect(screen.getByText('+10 P')).toBeOnTheScreen();
-  expect(screen.getByText('-30 P')).toBeOnTheScreen();
-  expect(screen.getByText('-5 P')).toBeOnTheScreen();
-  expect(screen.getByText('+30 P')).toBeOnTheScreen();
-  expect(screen.getByText('거래 후 잔액 980 P')).toBeOnTheScreen();
+  expect(screen.getByText('+1,000P')).toBeOnTheScreen();
+  expect(screen.getByText('+10P')).toBeOnTheScreen();
+  expect(screen.getByText('-30P')).toBeOnTheScreen();
+  expect(screen.getByText('-5P')).toBeOnTheScreen();
+  expect(screen.getByText('+30P')).toBeOnTheScreen();
+  expect(screen.getByText('거래 후 잔액 980P')).toBeOnTheScreen();
   expect(screen.getByText('달빛 아래 · 2화')).toBeOnTheScreen();
   expect(screen.getAllByText('2026.11.04 03:04')).toHaveLength(4);
   expect(screen.getAllByText('2026.11.04 00:00')).toHaveLength(2);
-  expect(screen.getByText('2,000 P')).toBeOnTheScreen();
-  expect(screen.getByText('거래 후 잔액 1,000 P')).toBeOnTheScreen();
+  expect(screen.getByText('2,000P')).toBeOnTheScreen();
+  expect(screen.getByText('거래 후 잔액 1,000P')).toBeOnTheScreen();
   expect(view.unmount).toBeDefined();
   view.unmount();
 });
@@ -379,7 +394,7 @@ test('account changes hide prior rows and discard late responses from the previo
   view.setSession(makeSession(makeUser('user-b'), 4321, 2));
   expect(pages).toEqual([1, 2, 1]);
   expect(screen.queryByText('포인트 충전')).toBeNull();
-  expect(screen.getByText('4,321 P')).toBeOnTheScreen();
+  expect(screen.getByText('4,321P')).toBeOnTheScreen();
   await act(async () => { requests[1].resolve(page([transaction('a-late', 'PURCHASE', 999, 999)], 2)); await requests[1].promise; });
   expect(screen.queryByText('포인트 충전')).toBeNull();
   await act(async () => { requests[2].resolve(page([transaction('b-1', 'AD_REWARD', 10, 10)])); await requests[2].promise; });
@@ -417,13 +432,75 @@ test('history route parameter changes load history without changing the current 
   const { requests, pages } = installRequests();
   const view = renderPoints(makeSession(makeUser('user-a'), 4321, 1), 'charge');
   expect(getPointHistory).not.toHaveBeenCalled();
-  expect(screen.getByText('4,321 P')).toBeOnTheScreen();
+  expect(screen.getByText('4,321P')).toBeOnTheScreen();
   act(() => testRouter.setParams({ tab: 'history' }));
   expect(view.getSearchParams()).toEqual({ tab: 'history' });
   expect(pages).toEqual([1]);
-  expect(screen.getByText('4,321 P')).toBeOnTheScreen();
+  expect(screen.getByText('4,321P')).toBeOnTheScreen();
   await act(async () => { requests[0].resolve(page([transaction('old', 'PURCHASE', 100, 100)])); await requests[0].promise; });
-  expect(screen.getByText('4,321 P')).toBeOnTheScreen();
-  expect(screen.getByText('거래 후 잔액 100 P')).toBeOnTheScreen();
+  expect(screen.getByText('4,321P')).toBeOnTheScreen();
+  expect(screen.getByText('거래 후 잔액 100P')).toBeOnTheScreen();
   view.unmount();
+});
+
+test('screen title is "포인트" and the charge and history views use underline tabs', () => {
+  installRequests();
+  const view = renderPoints(makeSession(makeUser('user-a'), 1234, 1), 'charge');
+  expect(screen.getByRole('header', { name: '포인트' })).toBeOnTheScreen();
+  expect(screen.queryByText('이야기를 계속하는 방법')).toBeNull();
+  const selected = StyleSheet.flatten(screen.getByRole('tab', { name: '충전하기' }).props.style);
+  const other = StyleSheet.flatten(screen.getByRole('tab', { name: '이용 내역' }).props.style);
+  expect(selected).toMatchObject({ borderBottomWidth: 2, borderBottomColor: palettes.light.accent });
+  expect(selected.backgroundColor).toBeUndefined();
+  expect(other.borderBottomColor).toBe('transparent');
+  view.unmount();
+});
+
+test('the ad window keeps its claim button locked for five seconds and closing early grants nothing', async () => {
+  jest.useFakeTimers();
+  const input = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+  installRequests();
+  const view = renderPoints(makeSession(makeUser('user-a'), 1234, 1), 'charge');
+
+  await input.press(screen.getByRole('button', { name: '광고 보고 10P 받기' }));
+  expect(screen.getByText('5초 남음')).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '5초 후 10P 받기' })).toBeDisabled();
+  act(() => { jest.advanceTimersByTime(3000); });
+  expect(screen.getByText('2초 남음')).toBeOnTheScreen();
+  fireEvent.press(screen.getByRole('button', { name: '2초 후 10P 받기' }));
+  await input.press(screen.getByRole('button', { name: '취소' }));
+  expect(screen.getByText('1,234P')).toBeOnTheScreen();
+  expect(screen.getByText('오늘 5번 남음')).toBeOnTheScreen();
+
+  await input.press(screen.getByRole('button', { name: '광고 보고 10P 받기' }));
+  expect(screen.getByText('5초 남음')).toBeOnTheScreen();
+  act(() => { jest.advanceTimersByTime(5000); });
+  expect(screen.getByText('광고가 끝났어요. 10P를 받아 가세요.')).toBeOnTheScreen();
+  await input.press(screen.getByRole('button', { name: '10P 받기' }));
+  expect(screen.getByText('1,244P')).toBeOnTheScreen();
+  expect(screen.getByText('오늘 4번 남음')).toBeOnTheScreen();
+  view.unmount();
+});
+
+test('the pack window summarizes the charge and ignores keyboard presses for 0.8s after opening', async () => {
+  const now = jest.spyOn(Date, 'now').mockReturnValue(10_000);
+  try {
+    installRequests();
+    const view = renderPoints(makeSession(makeUser('user-a'), 1234, 1), 'charge');
+    fireEvent.press(screen.getByRole('button', { name: '300P 충전 체험' }));
+    expect(screen.getByRole('header', { name: '300P를 충전할까요?' })).toBeOnTheScreen();
+    const modal = within(screen.UNSAFE_getByType(Modal));
+    expect(modal.getByText('₩3,300')).toBeOnTheScreen();
+    expect(modal.getByText('1,534P')).toBeOnTheScreen();
+
+    now.mockReturnValue(10_500);
+    fireEvent.press(screen.getByRole('button', { name: '300P 충전하기' }), { type: 'keyup' });
+    expect(screen.getByText('1,234P')).toBeOnTheScreen();
+    fireEvent.press(screen.getByRole('button', { name: '300P 충전하기' }), { type: 'click', detail: 1 });
+    expect(screen.getByText('1,534P')).toBeOnTheScreen();
+    expect(screen.queryByRole('header', { name: '300P를 충전할까요?' })).toBeNull();
+    view.unmount();
+  } finally {
+    now.mockRestore();
+  }
 });

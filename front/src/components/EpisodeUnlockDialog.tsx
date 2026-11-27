@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Modal, Platform, Pressable, View } from 'react-native';
-import { AppText, Button, Icon } from '@/components/ui';
+import { Animated, Modal, Platform, Pressable, View, type GestureResponderEvent } from 'react-native';
+import { AppText, Button, Icon, isKeyboardPress, KEYBOARD_PRESS_GUARD_MS, Peeka } from '@/components/ui';
 import { ApiError } from '@/common/http/api';
 import { getErrorMessage } from '@/common/http/errorMessages';
 import { createThemedStyles, useColors } from '@/common/theme/theme';
+import { radius, spacing, textSizes } from '@/common/theme/tokens';
 import type { DramaContent } from '@/features/drama/dramaContent';
 import { purchaseEpisode } from '@/features/economy/episodePurchase';
 import { useUser } from '@/features/user/UserProvider';
@@ -11,14 +12,19 @@ import { useUser } from '@/features/user/UserProvider';
 type Episode = DramaContent['episodes'][number];
 type CloseAction = { kind: 'dismiss' } | { kind: 'purchase'; episode: Episode; version: number } | { kind: 'charge' };
 type PopupDisplay = {
-  dramaTitle: string;
-  episodeNumber: number | undefined;
-  pricePoints: number | undefined;
+  title: string;
+  subtitle: string;
+  price: string;
   amount: string;
-  notice: string;
+  amountAfter: string | null;
+  canOpen: boolean;
+  warning: string | null;
+  notice: string | null;
   error: string | null;
   buttonLabel: string;
 };
+
+const formatPoints = (value: number) => `${value.toLocaleString('ko-KR')}P`;
 
 export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge, onPurchased }: {
   episode: Episode | null;
@@ -42,6 +48,7 @@ export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge, on
   const opacity = useRef(new Animated.Value(episode === null ? 0 : 1)).current;
   const previousEpisode = useRef(episode);
   const previousSessionVersion = useRef(sessionVersion);
+  const openedAt = useRef(Date.now());
   const [modalVisible, setModalVisible] = useState(episode !== null);
   const [isClosing, setIsClosing] = useState(false);
   const [awaitingDismiss, setAwaitingDismiss] = useState(false);
@@ -50,17 +57,23 @@ export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge, on
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const canPurchase = user !== null && points !== null
     && episode !== null && episode.pricePoints <= points;
-  const amount = points === null ? '—' : points.toLocaleString('ko-KR');
-  const pointsDescription = points === null ? '로그인 후 포인트를 확인할 수 있어요'
-    : `사용 가능한 포인트는 ${amount} P예요`;
+  const episodeNumber = episode?.episodeNumber;
+  const price = episode?.pricePoints ?? 0;
+  const episodeTitle = episode?.title && episode.title !== `${episodeNumber}화` ? ` · ${episode.title}` : '';
   const liveDisplay: PopupDisplay = {
-    dramaTitle,
-    episodeNumber: episode?.episodeNumber,
-    pricePoints: episode?.pricePoints,
-    amount,
-    notice: user === null ? '로그인 후 회차를 구매할 수 있어요.' : canPurchase ? '보유 포인트로 바로 구매할 수 있어요.' : pointsDescription,
+    title: `${episodeNumber}화 열기`,
+    subtitle: `${dramaTitle}${episodeTitle}`,
+    price: formatPoints(price),
+    amount: points === null ? '—' : formatPoints(points),
+    amountAfter: canPurchase ? formatPoints(points - price) : null,
+    canOpen: canPurchase,
+    // TODO(backend): 광고 보상 API가 생기면 포인트가 모자랄 때의 주 버튼을 "광고 보고 10P 받기"로 바꾼다.
+    warning: user !== null && points !== null && !canPurchase
+      ? `포인트가 ${formatPoints(price - points)} 모자라요. 충전하면 바로 열 수 있어요.` : null,
+    notice: user === null ? '로그인 후 회차를 열 수 있어요.' : canPurchase ? '열기 버튼을 누를 때만 포인트를 사용해요.' : null,
     error: purchaseError,
-    buttonLabel: purchasing ? '구매 중…' : user === null ? '로그인하기' : canPurchase ? '구매하기' : '포인트 충전하기',
+    buttonLabel: purchasing ? '여는 중…' : user === null ? '로그인하기'
+      : canPurchase ? `${formatPoints(price)}로 ${episodeNumber}화 열기` : '포인트 충전하기',
   };
   const latestDisplay = useRef(liveDisplay);
   if (!closing.current && episode !== null) latestDisplay.current = liveDisplay;
@@ -103,6 +116,7 @@ export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge, on
   useEffect(() => {
     if (episode === null && previousEpisode.current !== null) beginClose({ kind: 'dismiss' }, true);
     if (episode !== null && previousEpisode.current === null) {
+      openedAt.current = Date.now();
       closing.current = false;
       pendingAction.current = null;
       hiddenReady.current = false;
@@ -172,7 +186,7 @@ export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge, on
     inFlight.current = true;
     setPurchasing(true);
     setPurchaseError(null);
-    latestDisplay.current = { ...latestDisplay.current, error: null, buttonLabel: '구매 중…' };
+    latestDisplay.current = { ...latestDisplay.current, error: null, buttonLabel: '여는 중…' };
     try {
       const result = await purchaseEpisode(selectedEpisode.uuid);
       if (!mounted.current || !isCurrentSession(version) || requestId !== purchaseRequest.current) return;
@@ -192,39 +206,51 @@ export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge, on
     }
   };
 
+  const pressPrimary = (event: GestureResponderEvent) => {
+    // 창을 연 Enter가 그대로 포인트를 쓰지 않게, 창이 열린 직후의 키보드 입력은 버린다.
+    if (isKeyboardPress(event) && Date.now() - openedAt.current < KEYBOARD_PRESS_GUARD_MS) return;
+    if (canPurchase) void purchase();
+    else beginClose({ kind: 'charge' });
+  };
+
   return (
     <Modal transparent visible={modalVisible} animationType="none" onShow={onShow}
       onDismiss={Platform.OS === 'android' ? undefined : completeDismiss}
       onRequestClose={close} statusBarTranslucent>
       <Animated.View style={[styles.backdrop, { opacity }]}>
-        <View style={styles.dialog} accessibilityRole="alert" accessibilityLabel="회차 열기">
-          <Pressable style={styles.close} accessibilityRole="button" accessibilityLabel="팝업 닫기" disabled={purchasing || isClosing} onPress={close}>
+        <View style={styles.dialog} accessibilityRole="alert" accessibilityLabel={display.title}>
+          <Pressable style={styles.close} accessibilityRole="button" accessibilityLabel="닫기" disabled={purchasing || isClosing} onPress={close}>
             <Icon name="x" size={20} color={colors.muted} />
           </Pressable>
-          <View style={styles.lockIcon}><Icon name="lock" size={25} color={colors.accent} /></View>
-          <AppText weight="bold" style={styles.title}>다음 이야기가 기다려요</AppText>
-          <AppText style={styles.subtitle}>{display.dramaTitle} · {display.episodeNumber}화</AppText>
+          <Peeka slot={display.canOpen ? 'loading' : 'locked'} size={88} />
+          <View style={styles.heading}>
+            <AppText weight="bold" accessibilityRole="header" style={styles.title}>{display.title}</AppText>
+            <AppText style={styles.subtitle}>{display.subtitle}</AppText>
+          </View>
           <View style={styles.summary}>
             <View style={styles.summaryRow}>
               <AppText style={styles.summaryLabel}>이번 회차</AppText>
-              <AppText weight="semibold" style={styles.summaryValue}>{display.pricePoints} P</AppText>
+              <AppText weight="semibold" style={styles.summaryValue}>{display.price}</AppText>
             </View>
             <View style={styles.summaryRow}>
               <AppText style={styles.summaryLabel}>내 포인트</AppText>
-              <AppText weight="semibold" style={styles.summaryValue}>{display.amount} P</AppText>
+              <AppText weight="semibold" style={styles.summaryValue}>{display.amount}</AppText>
             </View>
+            {display.amountAfter !== null ? <View style={[styles.summaryRow, styles.summaryTotal]}>
+              <AppText style={styles.summaryLabel}>사용 후 잔액</AppText>
+              <AppText weight="bold" style={styles.summaryValue}>{display.amountAfter}</AppText>
+            </View> : null}
           </View>
-          <AppText style={styles.notice}>{display.notice}</AppText>
+          {display.warning ? <View style={styles.warning} accessibilityLiveRegion="polite">
+            <Icon name="alert-circle" size={18} color={colors.danger} />
+            <AppText weight="medium" style={styles.warningText}>{display.warning}</AppText>
+          </View> : null}
           {display.error ? <AppText accessibilityRole="alert" style={styles.error}>{display.error}</AppText> : null}
-          <Button
-            label={display.buttonLabel}
-            disabled={purchasing || isClosing}
-            onPress={canPurchase ? () => { void purchase(); } : () => beginClose({ kind: 'charge' })}
-            style={styles.chargeButton}
-          />
-          <Pressable accessibilityRole="button" accessibilityLabel="닫기" disabled={purchasing || isClosing} onPress={close} style={styles.dismiss}>
-            <AppText weight="medium" style={styles.dismissLabel}>닫기</AppText>
-          </Pressable>
+          <Button label={display.buttonLabel} disabled={purchasing || isClosing} onPress={pressPrimary} style={styles.primary} />
+          <View style={styles.fineprint}>
+            {display.notice ? <AppText style={styles.notice}>{display.notice}</AppText> : null}
+            <AppText style={styles.notice}>한 번 연 회차는 다시 볼 때 무료예요.</AppText>
+          </View>
         </View>
       </Animated.View>
     </Modal>
@@ -232,19 +258,21 @@ export function EpisodeUnlockDialog({ episode, dramaTitle, onClose, onCharge, on
 }
 
 const useStyles = createThemedStyles((colors) => ({
-  backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 22, backgroundColor: colors.backdrop },
-  dialog: { width: '100%', maxWidth: 420, alignItems: 'center', gap: 15, padding: 28, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 22, borderCurve: 'continuous' },
-  close: { position: 'absolute', top: 13, right: 13, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  lockIcon: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.elevated, borderRadius: 28, marginTop: 6 },
-  title: { color: colors.text, textAlign: 'center', fontSize: 21, lineHeight: 29 },
-  subtitle: { color: colors.muted, textAlign: 'center', fontSize: 13, lineHeight: 20 },
-  summary: { width: '100%', gap: 12, padding: 16, marginTop: 3, backgroundColor: colors.background, borderRadius: 13 },
+  backdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.md, backgroundColor: colors.backdrop },
+  dialog: { width: '100%', maxWidth: 420, alignItems: 'center', gap: spacing.md, padding: spacing.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, borderCurve: 'continuous' },
+  close: { position: 'absolute', top: spacing.xs, right: spacing.xs, width: 44, height: 44, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
+  heading: { alignItems: 'center', gap: spacing.xxs },
+  title: { color: colors.text, textAlign: 'center', ...textSizes.heading24 },
+  subtitle: { color: colors.muted, textAlign: 'center', ...textSizes.label14 },
+  summary: { width: '100%', gap: spacing.sm, padding: spacing.md, backgroundColor: colors.background, borderRadius: radius.md },
   summaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  summaryLabel: { color: colors.muted, fontSize: 13, lineHeight: 20 },
-  summaryValue: { color: colors.text, fontSize: 14, lineHeight: 20 },
-  notice: { color: colors.muted, textAlign: 'center', fontSize: 12, lineHeight: 19 },
-  error: { color: colors.danger, textAlign: 'center', fontSize: 12, lineHeight: 19 },
-  chargeButton: { width: '100%', minHeight: 48, marginTop: 2 },
-  dismiss: { minHeight: 40, justifyContent: 'center', paddingHorizontal: 14 },
-  dismissLabel: { color: colors.muted, fontSize: 13, lineHeight: 20 },
+  summaryTotal: { paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
+  summaryLabel: { color: colors.muted, ...textSizes.label14 },
+  summaryValue: { color: colors.text, ...textSizes.label14 },
+  warning: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: spacing.xs, padding: spacing.sm, backgroundColor: colors.warn, borderRadius: radius.md },
+  warningText: { flex: 1, color: colors.text, ...textSizes.label14 },
+  error: { color: colors.danger, textAlign: 'center', ...textSizes.caption12 },
+  primary: { alignSelf: 'stretch' },
+  fineprint: { alignItems: 'center', gap: spacing.xxs },
+  notice: { color: colors.muted, textAlign: 'center', ...textSizes.caption12 },
 }));
