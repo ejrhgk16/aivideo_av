@@ -172,6 +172,8 @@ test('keeps the result count visible when a long search term truncates the heade
   // 좁은 화면에서는 검색어 머리말만 한 줄로 줄이고, 편수는 줄임 대상이 아닌 별도 글자로 남긴다.
   expect(screen.getByText(`‘${longTerm}’ 검색 결과`)).toHaveProp('numberOfLines', 1);
   expect(screen.getByText('· 1편')).not.toHaveProp('numberOfLines');
+  // 웹은 글자의 flex-shrink 기본값이 1이라, 줄지 않게 막지 않으면 360px에서 '· N편 이상'이 두 줄로 꺾인다.
+  expect(screen.getByText('· 1편')).toHaveStyle({ flexShrink: 0 });
   view.unmount();
 });
 

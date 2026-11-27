@@ -249,7 +249,7 @@ export function SearchScreen() {
       {/* 좁은 화면에서 긴 검색어는 머리말만 줄이고 편수는 항상 보이게 둔다. */}
       <View accessibilityLiveRegion="polite" style={styles.resultHeader}>
         <AppText weight="semibold" numberOfLines={1} style={[styles.resultHeading, styles.resultTitle]}>{resultTitle}</AppText>
-        {resultCount ? <AppText weight="semibold" style={styles.resultHeading}>{resultCount}</AppText> : null}
+        {resultCount ? <AppText weight="semibold" style={[styles.resultHeading, styles.resultCount]}>{resultCount}</AppText> : null}
       </View>
       {contentLoading ? <LoadingState />
         : genresStatus === 'error' ? <EmptyState title="장르를 불러오지 못했어요" description="잠시 후 다시 확인해 주세요." action="다시 시도" onAction={retryGenres} />
@@ -284,6 +284,7 @@ const useStyles = createThemedStyles((colors) => ({
   resultHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, marginBottom: spacing.xxs },
   resultHeading: { ...textSizes.label14, color: colors.text },
   resultTitle: { flexShrink: 1, minWidth: 0 },
+  resultCount: { flexShrink: 0 },
   footer: { marginTop: spacing.md, alignItems: 'center', gap: spacing.xs },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
   poster: { width: 64, height: 90, borderRadius: radius.sm, borderCurve: 'continuous', backgroundColor: colors.elevated },
