@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, Text } from 'react-native';
+import { Dimensions, Pressable, ScrollView, Text } from 'react-native';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { renderRouter, testRouter } from 'expo-router/testing-library';
 import { Stack } from 'expo-router';
@@ -53,7 +53,7 @@ const drama: DramaContent = {
   previewVideos: [],
   episodes: [
     { uuid: 'free', episodeNumber: 1, title: null, synopsis: null, durationMs: 100, videoUuid: 'v-free', isSaved: false, pricePoints: 0, isUnlocked: true, image: null, watchProgress: { positionMs: 0, isCompleted: false, lastPlayedAt: '2026-10-08T12:34:56.789Z' } },
-    { uuid: 'owned', episodeNumber: 2, title: null, synopsis: null, durationMs: 100, videoUuid: 'v-owned', isSaved: false, pricePoints: 30, isUnlocked: true, image: null, watchProgress: null },
+    { uuid: 'owned', episodeNumber: 2, title: '2화', synopsis: null, durationMs: 100, videoUuid: 'v-owned', isSaved: false, pricePoints: 30, isUnlocked: true, image: null, watchProgress: { positionMs: 40, isCompleted: false, lastPlayedAt: '2026-10-09T08:00:00.000Z' } },
     { uuid: 'locked', episodeNumber: 3, title: null, synopsis: null, durationMs: 100, videoUuid: 'v-locked', isSaved: false, pricePoints: 50, isUnlocked: false, image: null, watchProgress: { positionMs: 10, isCompleted: true, lastPlayedAt: '2026-10-08T12:34:56.789Z' } },
     { uuid: 'locked-2', episodeNumber: 4, title: null, synopsis: null, durationMs: 100, videoUuid: 'v-locked-2', isSaved: false, pricePoints: 80, isUnlocked: false, image: null, watchProgress: null },
     { uuid: 'free-2', episodeNumber: 5, title: null, synopsis: null, durationMs: 100, videoUuid: 'v-free-2', isSaved: false, pricePoints: 0, isUnlocked: true, image: null, watchProgress: null },
@@ -95,12 +95,17 @@ test('drama detail distinguishes free, purchased and locked episodes and routes 
   expect(screen.queryByText('작품 정보를 불러오는 중이에요')).not.toBeOnTheScreen();
   await resolveDrama(view.request);
   expect(screen.queryByRole('progressbar', { name: '로딩 중' })).not.toBeOnTheScreen();
-  expect(screen.getByRole('tab', { name: /전체 회차/ })).toBeOnTheScreen();
+  expect(screen.getByRole('tab', { name: '전체 회차 5' })).toBeOnTheScreen();
   fireEvent.press(screen.getByRole('tab', { name: /전체 회차/ }));
+  expect(screen.getByRole('tab', { name: '전체 회차 5' })).toBeSelected();
 
-  const free = screen.getByRole('button', { name: '1화 무료' });
+  const free = screen.getByRole('button', { name: '1화, 무료' });
   expect(screen.getAllByText('무료')).toHaveLength(2);
+  // 마지막으로 재생한 2화는 '열림' 대신 '보는 중'만 적는다.
+  expect(screen.getByText('보는 중')).toBeOnTheScreen();
+  expect(screen.queryByText('열림')).not.toBeOnTheScreen();
   expect(screen.getByText('50P')).toBeOnTheScreen();
+  expect(screen.getByText('80P')).toBeOnTheScreen();
   expect(screen.queryByText('공개된 회차가 아직 없어요')).toBeNull();
 
   fireEvent.press(free);
@@ -108,14 +113,57 @@ test('drama detail distinguishes free, purchased and locked episodes and routes 
   expect(view.getPathnameWithParams()).toBe('/episode/free?dramaId=drama-1');
   testRouter.back('/');
   await waitFor(() => expect(view.getPathnameWithParams()).toBe('/'));
-  fireEvent.press(screen.getByRole('button', { name: '2화' }));
+  fireEvent.press(screen.getByRole('button', { name: '2화, 보는 중, 열림' }));
   await screen.findByText('회차 플레이어');
   expect(view.getPathnameWithParams()).toBe('/episode/owned?dramaId=drama-1');
   testRouter.back('/');
   await waitFor(() => expect(view.getPathnameWithParams()).toBe('/'));
-  fireEvent.press(screen.getByRole('button', { name: '3화 50포인트' }));
+  fireEvent.press(screen.getByRole('button', { name: '3화, 잠김, 50포인트로 열기' }));
   expect(screen.getByRole('button', { name: '구매 완료 테스트' })).toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: '4화 80포인트' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '4화, 잠김, 80포인트로 열기' })).toBeOnTheScreen();
+  view.unmount();
+});
+
+test('episode grid lays out four cells per row and names real episode titles', async () => {
+  const titled: DramaContent = {
+    ...drama,
+    episodes: drama.episodes.map((item) => ({ ...item, watchProgress: null, title: item.episodeNumber === 4 ? '비밀의 문' : item.title })),
+  };
+  const view = renderDetail();
+  await resolveDrama(view.request, titled);
+  fireEvent.press(screen.getByRole('tab', { name: /전체 회차/ }));
+  const list = screen.getByTestId('episode-list');
+  expect(list.children).toHaveLength(2);
+  expect(screen.getByRole('button', { name: '4화 비밀의 문, 잠김, 80포인트로 열기' })).toBeOnTheScreen();
+  expect(screen.getByText('열림')).toBeOnTheScreen();
+  expect(screen.queryByText('보는 중')).not.toBeOnTheScreen();
+  view.unmount();
+});
+
+test('opening the episode list scrolls the watching cell into view once per opening', async () => {
+  const scrollTo = jest.spyOn(ScrollView.prototype, 'scrollTo').mockClear();
+  const windowHeight = Dimensions.get('window').height;
+  const layout = (y: number, height: number) => ({ nativeEvent: { layout: { x: 0, y, width: 300, height } } });
+  const view = renderDetail();
+  await resolveDrama(view.request);
+  fireEvent.press(screen.getByRole('tab', { name: /전체 회차/ }));
+  const watching = screen.getByRole('button', { name: '2화, 보는 중, 열림' });
+  fireEvent(watching, 'layout', layout(0, 62));
+  expect(scrollTo).not.toHaveBeenCalled();
+  fireEvent(screen.getByTestId('episode-list'), 'layout', layout(2000, 132));
+  expect(scrollTo).toHaveBeenCalledTimes(1);
+  expect(scrollTo).toHaveBeenLastCalledWith({ y: 2000 + 31 - windowHeight / 2, animated: false });
+
+  fireEvent(screen.getByTestId('episode-list'), 'layout', layout(2100, 132));
+  expect(scrollTo).toHaveBeenCalledTimes(1);
+
+  fireEvent.press(screen.getByRole('tab', { name: '작품 소개' }));
+  fireEvent.press(screen.getByRole('tab', { name: /전체 회차/ }));
+  fireEvent(screen.getByRole('button', { name: '2화, 보는 중, 열림' }), 'layout', layout(0, 62));
+  fireEvent(screen.getByTestId('episode-list'), 'layout', layout(10, 132));
+  expect(scrollTo).toHaveBeenCalledTimes(2);
+  expect(scrollTo).toHaveBeenLastCalledWith({ y: 0, animated: false });
+  scrollTo.mockRestore();
   view.unmount();
 });
 
@@ -123,7 +171,7 @@ test('anonymous users can open the login route from the locked episode dialog', 
   const view = renderDetail(makeSession(null, 1));
   await resolveDrama(view.request);
   fireEvent.press(screen.getByRole('tab', { name: /전체 회차/ }));
-  fireEvent.press(screen.getByRole('button', { name: '3화 50포인트' }));
+  fireEvent.press(screen.getByRole('button', { name: '3화, 잠김, 50포인트로 열기' }));
   fireEvent.press(screen.getByRole('button', { name: '포인트 충전 이동 테스트' }));
   expect(await screen.findByText('로그인 화면')).toBeOnTheScreen();
   expect(view.getPathname()).toBe('/auth/login');
@@ -149,7 +197,7 @@ test('drama detail reloads entitlements on account changes and ignores stale res
   expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
   await act(async () => { second.resolve({ ...drama, episodes: drama.episodes.map((item) => item.uuid === 'locked' ? { ...item, isUnlocked: true } : item) }); await second.promise; });
   expect(screen.queryByRole('progressbar', { name: '로딩 중' })).not.toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: '3화' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '3화, 열림' })).toBeOnTheScreen();
   view.unmount();
 });
 
@@ -164,16 +212,16 @@ test('purchased callback unlocks only that episode locally before navigating', a
   }, { initialUrl: '/?tab=episodes' });
   await act(async () => { initial.resolve(drama); await initial.promise; });
   fireEvent.press(screen.getByRole('tab', { name: /전체 회차/ }));
-  fireEvent.press(screen.getByRole('button', { name: '3화 50포인트' }));
+  fireEvent.press(screen.getByRole('button', { name: '3화, 잠김, 50포인트로 열기' }));
   fireEvent.press(screen.getByRole('button', { name: '구매 완료 테스트' }));
   await screen.findByText('회차 플레이어');
   expect(view.getPathnameWithParams()).toBe('/episode/locked?dramaId=drama-1');
   testRouter.back('/?tab=episodes');
   await waitFor(() => expect(view.getPathnameWithParams()).toBe('/?tab=episodes'));
-  await waitFor(() => expect(screen.getByRole('button', { name: '3화' })).toBeOnTheScreen());
+  await waitFor(() => expect(screen.getByRole('button', { name: '3화, 열림' })).toBeOnTheScreen());
   expect(getDramaContent).toHaveBeenCalledTimes(1);
-  expect(screen.getByRole('button', { name: '4화 80포인트' })).toBeOnTheScreen();
-  expect(screen.getByRole('button', { name: '5화 무료' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '4화, 잠김, 80포인트로 열기' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '5화, 무료' })).toBeOnTheScreen();
   view.unmount();
 });
 
@@ -208,6 +256,6 @@ test('detail waits for restoration, shows a 404 as missing, and retries other fa
   fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
   expect(getDramaContent).toHaveBeenCalledTimes(3);
   await resolveDrama(retry);
-  expect(screen.getByRole('button', { name: '1화 무료' })).toBeOnTheScreen();
+  expect(screen.getByRole('button', { name: '1화, 무료' })).toBeOnTheScreen();
   error.unmount();
 });

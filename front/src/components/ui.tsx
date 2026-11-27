@@ -1,5 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
-import type { ComponentProps, ReactNode } from 'react';
+import type { ComponentProps, ReactNode, Ref } from 'react';
 import {
   ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View,
   type ImageStyle, type StyleProp, type TextProps, type TextStyle, type ViewStyle,
@@ -40,14 +40,15 @@ export function Button({ label, onPress, variant = 'primary', disabled, icon, st
   );
 }
 
-export function Page({ children, header, scroll = true, style, contentStyle }: {
+export function Page({ children, header, scroll = true, style, contentStyle, scrollRef }: {
   children: ReactNode; header?: ReactNode; scroll?: boolean; style?: StyleProp<ViewStyle>; contentStyle?: StyleProp<ViewStyle>;
+  scrollRef?: Ref<ScrollView>;
 }) {
   const styles = useStyles();
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={[styles.page, style]}>
       {header}
-      {scroll ? <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
+      {scroll ? <ScrollView ref={scrollRef} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.content, contentStyle]}>{children}</ScrollView>
         : <View style={[styles.content, { flex: 1 }, contentStyle]}>{children}</View>}
     </SafeAreaView>
