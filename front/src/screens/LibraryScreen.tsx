@@ -50,8 +50,11 @@ export function LibraryScreen() {
   const generation = useRef(0);
   const inFlight = useRef(false);
   const nextPage = useRef(2);
-  // 마지막 페이지를 읽은 뒤 서버에서 빠진 저장 항목 수. 그만큼 뒤 항목이 앞 페이지로 당겨진다.
+  // 마지막 페이지를 읽은 뒤 서버에서 빠졌을 수 있는 저장 항목 수. 그만큼 뒤 항목이 앞 페이지로 당겨진다.
+  // 저장 취소는 보낼 때 세고 실패하면 뺀다. 더 세면 앞 페이지를 다시 읽을 뿐이지만 덜 세면 항목을 건너뛴다.
   const removedCount = useRef(0);
+  // 지금까지 시작한 저장 취소·되돌리기 수. 더 보기 요청과 겹쳤는지 확인한다.
+  const writeCount = useRef(0);
   const [itemsOwner, setItemsOwner] = useState<ItemsOwner | null>(null);
   const owner = user?.uuid ?? null;
   const currentTab = useRef(tab);
@@ -77,9 +80,11 @@ export function LibraryScreen() {
     AccessibilityInfo.announceForAccessibility(next.undo ? `${next.text} 되돌리기 버튼으로 되돌릴 수 있어요.` : next.text);
   };
 
-  const loadPage = useCallback(async (page: number, replace: boolean, requestGeneration: number, version: number, userUuid: string, requestTab: LibraryTab, removedAtRequest = 0) => {
+  const loadPage = useCallback(async (page: number, replace: boolean, requestGeneration: number, version: number, userUuid: string, requestTab: LibraryTab) => {
     if (inFlight.current) return;
     inFlight.current = true;
+    const writePendingAtRequest = writePending.current;
+    const writesAtRequest = writeCount.current;
     const isCurrentRequest = () => generation.current === requestGeneration
       && isCurrentSession(version)
       && currentOwner.current === userUuid
@@ -99,19 +104,29 @@ export function LibraryScreen() {
       if (!isCurrentRequest()) return;
       setItems((current) => {
         if (replace) return result.items;
+        // 앞 페이지를 다시 읽어 새로 받은 항목은 응답에서 이웃한 기존 항목 옆에 넣어 서버 순서를 지킨다.
         const merged: LibraryItem[] = [...current];
-        const seen = new Set(merged.map((item) => item.videoUuid));
+        let leading: LibraryItem[] = [];
+        let at = -1;
         for (const item of result.items) {
-          if (!seen.has(item.videoUuid)) {
-            seen.add(item.videoUuid);
-            merged.push(item);
-          }
+          const index = merged.findIndex((entry) => entry.videoUuid === item.videoUuid);
+          if (index < 0 && at < 0) leading.push(item);
+          else if (index < 0) merged.splice(++at, 0, item);
+          else if (at < 0) {
+            merged.splice(index, 0, ...leading);
+            at = index + leading.length;
+            leading = [];
+          } else at = index;
         }
-        return merged;
+        return [...merged, ...leading];
       });
-      setHasNext(result.hasNext);
-      nextPage.current = result.page + 1;
-      removedCount.current = replace ? 0 : removedCount.current - removedAtRequest;
+      // 요청 중에 저장 취소·되돌리기가 겹치면 서버가 그 변경 전후 어느 목록으로 답했는지 알 수 없다.
+      // 그때는 읽은 위치와 센 수를 그대로 두어 다음 더 보기가 같은 자리부터 다시 읽게 한다.
+      if (replace || (!writePendingAtRequest && writeCount.current === writesAtRequest)) {
+        setHasNext(result.hasNext);
+        nextPage.current = result.page + 1;
+        removedCount.current = 0;
+      } else setHasNext(true);
       setStatus('loaded');
       setItemsOwner({ uuid: userUuid, version, tab: requestTab });
       setError(null);
@@ -151,9 +166,8 @@ export function LibraryScreen() {
   const loadNextPage = () => {
     if (!ownsCurrentList || !hasNext || nextLoading || status !== 'loaded' || isRestoring || !owner) return;
     // 저장 취소로 서버 목록이 당겨졌으면 아직 받지 않은 첫 항목이 있는 페이지부터 다시 읽는다. 겹치는 항목은 UUID로 거른다.
-    const removed = removedCount.current;
-    const page = Math.floor(Math.max(0, (nextPage.current - 1) * PAGE_SIZE - removed) / PAGE_SIZE) + 1;
-    void loadPage(page, false, generation.current, sessionVersion, owner, tab, removed);
+    const page = Math.floor(Math.max(0, (nextPage.current - 1) * PAGE_SIZE - removedCount.current) / PAGE_SIZE) + 1;
+    void loadPage(page, false, generation.current, sessionVersion, owner, tab);
   };
   const ownsCurrentList = itemsOwner?.uuid === owner && itemsOwner.version === sessionVersion && itemsOwner.tab === tab;
   const visibleItems = ownsCurrentList ? items : [];
@@ -172,13 +186,17 @@ export function LibraryScreen() {
       && currentOwner.current === userUuid
       && currentTab.current === '저장한 작품';
     writePending.current = true;
+    writeCount.current += 1;
+    if (!saved) removedCount.current += 1;
     setWritingUuid(item.videoUuid);
     try {
       if (saved) await saveVideo(item.videoUuid, item.contentType);
       else await removeSavedVideo(item.videoUuid);
       if (isCurrentWrite()) onDone();
     } catch (error) {
-      if (isCurrentWrite() && !(error instanceof SessionChangedError)) showNotice({ text: getErrorMessage(error), tone: 'warn', undo: null });
+      if (!isCurrentWrite()) return;
+      if (!saved) removedCount.current -= 1;
+      if (!(error instanceof SessionChangedError)) showNotice({ text: getErrorMessage(error), tone: 'warn', undo: null });
     } finally {
       if (isCurrentWrite()) {
         writePending.current = false;
@@ -189,7 +207,6 @@ export function LibraryScreen() {
   const removeSaved = (item: SavedVideoItem) => {
     const index = items.findIndex((entry) => entry.videoUuid === item.videoUuid);
     void writeSaved(item, false, () => {
-      removedCount.current += 1;
       setItems((current) => current.filter((entry) => entry.videoUuid !== item.videoUuid));
       showNotice({ text: '저장을 취소했어요.', tone: 'ok', undo: { item, index } });
     });
@@ -236,7 +253,7 @@ export function LibraryScreen() {
     {notice ? <View style={[styles.notice, notice.tone === 'warn' && styles.noticeWarn]}>
       <Icon name={notice.tone === 'warn' ? 'alert-circle' : 'check-circle'} size={18} color={notice.tone === 'warn' ? colors.danger : colors.accent} />
       <AppText style={styles.noticeText}>{notice.text}</AppText>
-      {notice.undo ? <Pressable accessibilityRole="button" accessibilityLabel="되돌리기" onPress={() => undoRemove(notice.undo!)} style={styles.noticeAction}>
+      {notice.undo ? <Pressable accessibilityRole="button" accessibilityLabel="되돌리기" accessibilityState={{ disabled: writingUuid !== null }} disabled={writingUuid !== null} onPress={() => undoRemove(notice.undo!)} style={[styles.noticeAction, writingUuid !== null && styles.disabled]}>
         <AppText weight="semibold" style={styles.noticeActionText}>되돌리기</AppText>
       </Pressable> : null}
     </View> : null}

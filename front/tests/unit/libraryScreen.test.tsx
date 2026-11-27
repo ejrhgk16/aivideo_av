@@ -365,3 +365,140 @@ test('loading more after un-saving re-reads the shifted page so no saved video i
   expect(listedUuids()).toEqual(all.slice(1, 61).map((item) => item.videoUuid));
   view.unmount();
 });
+
+// 서버 목록을 흉내 낸다. 페이지 응답은 요청을 처리하는 시점의 서버 목록으로 만든다.
+const listedUuids = () => (screen.UNSAFE_getByType(FlatList).props.data as SavedVideoItem[]).map((item) => item.videoUuid);
+const savedItem = (index: number): SavedVideoItem => ({ ...preview, videoUuid: `saved-${index}`, dramaUuid: `drama-${index}`, dramaTitle: `저장 ${index}` });
+function savedServer(requests: ReturnType<typeof installRequests>, count: number) {
+  let list = Array.from({ length: count }, (_, index) => savedItem(index));
+  const serve = async (request: number) => {
+    const page = requests.savedPages[request];
+    await act(async () => { requests.saved[request].resolve(savedPage(list.slice((page - 1) * 30, page * 30), page, list.length > page * 30)); await requests.saved[request].promise; });
+  };
+  return {
+    serve,
+    remove: (index: number) => { list = list.filter((item) => item.videoUuid !== `saved-${index}`); },
+    // 다시 저장하면 savedAt이 새로 정해져 saved_at DESC 목록의 맨 앞에 온다.
+    saveAgain: (index: number) => { list = [savedItem(index), ...list.filter((item) => item.videoUuid !== `saved-${index}`)]; },
+    // 남은 항목이 없을 때까지 더 보기를 누르고 그때의 서버 목록으로 답한다.
+    loadAll: async () => {
+      for (let round = 0; round < 10 && screen.queryByRole('button', { name: '더 보기' }); round += 1) {
+        fireEvent.press(screen.getByRole('button', { name: '더 보기' }));
+        await serve(requests.savedPages.length - 1);
+      }
+      expect(screen.queryByRole('button', { name: '더 보기' })).toBeNull();
+    },
+    uuids: () => list.map((item) => item.videoUuid),
+  };
+}
+const unsave = (index: number) => fireEvent.press(screen.getByRole('button', { name: `저장 ${index} 미리보기 저장 취소` }));
+
+test('loading more while an un-save is pending re-reads page one and skips no saved video', async () => {
+  const requests = installRequests();
+  const writes = installWrites();
+  const server = savedServer(requests, 61);
+  const view = renderLibrary();
+  view.setSession(makeSession(makeUser('user-a'), 1, false));
+  await server.serve(0);
+
+  unsave(0);
+  fireEvent.press(screen.getByRole('button', { name: '더 보기' }));
+  // 저장 취소 응답 전이라도 서버가 이미 지웠을 수 있으므로 당겨진 1페이지를 다시 읽는다.
+  expect(requests.savedPages).toEqual([1, 1]);
+  server.remove(0);
+  await server.serve(1);
+  await act(async () => { writes[0].resolve(); await writes[0].promise; });
+  expect(screen.queryByRole('button', { name: '저장 0 미리보기' })).toBeNull();
+
+  await server.loadAll();
+  expect(listedUuids()).toEqual(server.uuids());
+  expect(listedUuids()).toHaveLength(60);
+  view.unmount();
+});
+
+test('an un-save that starts while a later page is loading does not leave a gap', async () => {
+  const requests = installRequests();
+  const writes = installWrites();
+  const server = savedServer(requests, 61);
+  const view = renderLibrary();
+  view.setSession(makeSession(makeUser('user-a'), 1, false));
+  await server.serve(0);
+
+  fireEvent.press(screen.getByRole('button', { name: '더 보기' }));
+  expect(requests.savedPages).toEqual([1, 2]);
+  unsave(0);
+  // 서버가 저장 해제를 먼저 처리하면 2페이지는 원래 32번째부터 시작한다.
+  server.remove(0);
+  await server.serve(1);
+  await act(async () => { writes[0].resolve(); await writes[0].promise; });
+
+  await server.loadAll();
+  expect(listedUuids()).toEqual(server.uuids());
+  expect(listedUuids()).toHaveLength(60);
+  view.unmount();
+});
+
+test('a failed un-save after loading more keeps the row and loses no saved video', async () => {
+  const requests = installRequests();
+  const writes = installWrites();
+  const server = savedServer(requests, 61);
+  const view = renderLibrary();
+  view.setSession(makeSession(makeUser('user-a'), 1, false));
+  await server.serve(0);
+
+  unsave(0);
+  fireEvent.press(screen.getByRole('button', { name: '더 보기' }));
+  expect(requests.savedPages).toEqual([1, 1]);
+  await server.serve(1);
+  const failure = new Error('offline');
+  await act(async () => { writes[0].reject(failure); try { await writes[0].promise; } catch {} });
+  expect(screen.getByRole('button', { name: '저장 0 미리보기' })).toBeOnTheScreen();
+  expect(screen.getByText(getErrorMessage(failure))).toBeOnTheScreen();
+
+  // 실패한 저장 취소는 세지 않으므로 다음 더 보기는 2페이지부터 읽는다.
+  fireEvent.press(screen.getByRole('button', { name: '더 보기' }));
+  expect(requests.savedPages).toEqual([1, 1, 2]);
+  await server.serve(2);
+  await server.loadAll();
+  expect(listedUuids()).toEqual(server.uuids());
+  expect(listedUuids()).toHaveLength(61);
+  view.unmount();
+});
+
+test('undo waits for a pending un-save and stays consistent with loads in flight', async () => {
+  const requests = installRequests();
+  const writes = installWrites();
+  const server = savedServer(requests, 61);
+  const view = renderLibrary();
+  view.setSession(makeSession(makeUser('user-a'), 1, false));
+  await server.serve(0);
+
+  unsave(0);
+  server.remove(0);
+  await act(async () => { writes[0].resolve(); await writes[0].promise; });
+  // 다른 저장 취소가 진행 중이면 되돌리기를 누를 수 없다.
+  unsave(1);
+  expect(screen.getByRole('button', { name: '되돌리기' })).toBeDisabled();
+  fireEvent.press(screen.getByRole('button', { name: '되돌리기' }));
+  expect(saveVideo).not.toHaveBeenCalled();
+
+  fireEvent.press(screen.getByRole('button', { name: '더 보기' }));
+  expect(requests.savedPages).toEqual([1, 1]);
+  server.remove(1);
+  await server.serve(1);
+  await act(async () => { writes[1].resolve(); await writes[1].promise; });
+
+  // 더 보기 요청 중에 되돌리기가 서버에 먼저 반영되고 응답은 나중에 온다.
+  fireEvent.press(screen.getByRole('button', { name: '더 보기' }));
+  fireEvent.press(screen.getByRole('button', { name: '되돌리기' }));
+  expect(saveVideo).toHaveBeenCalledWith('saved-1', 'PREVIEW');
+  server.saveAgain(1);
+  await server.serve(requests.savedPages.length - 1);
+  await act(async () => { writes[2].resolve(); await writes[2].promise; });
+  expect(screen.getByText('보관함에 다시 저장했어요.')).toBeOnTheScreen();
+
+  await server.loadAll();
+  expect(listedUuids()).toEqual(server.uuids());
+  expect(listedUuids()).toHaveLength(60);
+  view.unmount();
+});
