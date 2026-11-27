@@ -3,7 +3,8 @@ type VideoEvent =
   | 'statusChange'
   | 'playingChange'
   | 'sourceLoad'
-  | 'playbackRateChange';
+  | 'playbackRateChange'
+  | 'playToEnd';
 
 type Listener = (payload: any) => void;
 

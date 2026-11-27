@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, Share, StyleSheet, Switch, View } from 'react-native';
+import { AccessibilityInfo, Modal, Pressable, Share, StyleSheet, Switch, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import Slider from '@react-native-community/slider';
@@ -9,6 +9,7 @@ import { AppText, Button, EmptyState, Icon, LoadingState, Page } from '@/compone
 import { EpisodeUnlockDialog } from '@/components/EpisodeUnlockDialog';
 import { ApiError, SessionChangedError } from '@/common/http/api';
 import { createThemedStyles, useColors } from '@/common/theme/theme';
+import { radius, spacing, textSizes } from '@/common/theme/tokens';
 import { getErrorMessage } from '@/common/http/errorMessages';
 import { getDramaContent, type DramaContent } from '@/features/drama/dramaContent';
 import { getEpisodePlayback, type EpisodePlayback } from '@/features/playback/episodePlayback';
@@ -83,7 +84,7 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
   const colors = useColors();
   const router = useRouter();
   const {
-    isRestoring, sessionVersion, isCurrentSession, user, sessionExpired,
+    isRestoring, sessionVersion, isCurrentSession, user, sessionExpired, points,
     subtitlesEnabled, setSubtitlesEnabled, preferredSubtitleLanguage, setPreferredSubtitleLanguage,
   } = useUser();
   const [isSaved, setIsSaved] = useState(playback.isSaved);
@@ -103,6 +104,8 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
   const [isFocused, setIsFocused] = useState(true);
   const [isSeeking, setIsSeeking] = useState(false);
   const [duration, setDuration] = useState(player.duration);
+  // 영상이 끝까지 재생되면 끝 카드를 보인다. 다시 재생되면 닫는다. 다음 화로 저절로 넘어가지 않는다.
+  const [ended, setEnded] = useState(false);
   const [savedError, setSavedError] = useState<unknown>(null);
   const savePending = useRef(false);
   const savedWriteRevision = useRef(0);
@@ -121,7 +124,7 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
     ?? subtitleTracks.find((track) => track.languageCode === 'en')
     ?? [...subtitleTracks].sort((first, second) => first.languageCode < second.languageCode ? -1 : first.languageCode > second.languageCode ? 1 : 0)[0];
   const subtitleState = useEpisodeSubtitles(selectedSubtitle, subtitlesEnabled, subtitlePositionMs);
-  const subtitleText = isFocused && !videoFailed && !isSeeking ? subtitleState.text : '';
+  const subtitleText = isFocused && !videoFailed && !isSeeking && !ended ? subtitleState.text : '';
   const toggleSaved = async () => {
     if (isRestoring || savePending.current) return;
     if (!user) { router.push('/auth/login'); return; }
@@ -219,13 +222,18 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
     const source = player.addListener('sourceLoad', ({ duration: videoDuration }) => {
       if (Number.isFinite(videoDuration) && videoDuration > 0) setDuration(videoDuration);
     });
-    const playing = player.addListener('playingChange', ({ isPlaying: playingNow }) => setIsPlaying(playingNow));
+    const playing = player.addListener('playingChange', ({ isPlaying: playingNow }) => {
+      setIsPlaying(playingNow);
+      if (playingNow) setEnded(false);
+    });
+    const end = player.addListener('playToEnd', () => setEnded(true));
     const rate = player.addListener('playbackRateChange', ({ playbackRate: rateNow }) => setPlaybackRate(rateNow));
     return () => {
       previousPlaybackTime.current = null;
       time.remove();
       source.remove();
       playing.remove();
+      end.remove();
       rate.remove();
     };
   }, [player]);
@@ -283,7 +291,7 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
   const selectEpisode = (episode: DramaContent['episodes'][number] | null) => {
     if (!episode || !dramaId) return;
     player.pause();
-    if (episode.pricePoints > 0) {
+    if (episode.pricePoints > 0 && !episode.isUnlocked) {
       setLockedEpisode(episode);
       return;
     }
@@ -292,6 +300,35 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
       dramaId,
     } });
   };
+  const replay = () => {
+    player.currentTime = 0;
+    setPosition(0);
+    setSubtitlePositionMs(0);
+    previousPlaybackTime.current = null;
+    setEnded(false);
+    player.play();
+  };
+  const nextLocked = nextEpisode !== null && nextEpisode.pricePoints > 0 && !nextEpisode.isUnlocked;
+  // TODO(backend): 광고 보상 API가 생기면 포인트가 모자랄 때의 주 버튼을 "광고 보고 10P 받기"로 바꾼다.
+  const needsCharge = nextLocked && user !== null && points !== null && points < nextEpisode.pricePoints;
+  const openNext = () => {
+    if (needsCharge) {
+      player.pause();
+      router.push('/points');
+      return;
+    }
+    selectEpisode(nextEpisode);
+  };
+  const isLastEpisode = currentIndex >= 0 && nextEpisode === null;
+  const endNote = nextEpisode
+    ? `${playback.episodeNumber}화가 끝났어요. 다음은 ${nextEpisode.episodeNumber}화${episodeName(nextEpisode)}.`
+    : isLastEpisode ? '마지막 화까지 다 봤어요.' : `${playback.episodeNumber}화가 끝났어요.`;
+  const endNoteRef = useRef(endNote);
+  endNoteRef.current = endNote;
+  useEffect(() => {
+    // 끝 카드가 나올 때 한 번만 알린다.
+    if (ended) AccessibilityInfo.announceForAccessibility(endNoteRef.current);
+  }, [ended]);
   const shareEpisode = () => {
     void Share.share({ message: `${drama?.title ? `${drama.title} · ` : ''}${playback.title || `${playback.episodeNumber}화`}` });
   };
@@ -304,7 +341,7 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
         <AppText accessibilityRole="text" style={styles.subtitleText}>{subtitleText}</AppText>
       </View> : null}
       <Pressable style={StyleSheet.absoluteFill} onPress={toggleControls} accessibilityLabel="재생 컨트롤 표시 또는 숨기기" />
-      {controlsVisible && <>
+      {(controlsVisible || ended) && <>
         <View style={[styles.topControls, { paddingTop: insets.top + 6 }]}>
           <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="닫기" style={styles.iconButton}>
             <Icon name="x" color={colors.onMedia} />
@@ -328,10 +365,10 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
             <AppText style={[styles.speedOptionText, playbackRate === rate && styles.activeSpeed]}>{rate}x</AppText>
           </Pressable>)}
         </View>}
-        <View style={styles.sideActions}>
-          <Pressable disabled={isRestoring || saving} onPress={() => void toggleSaved()} accessibilityRole="button" accessibilityLabel={isSaved ? '저장 해제' : '작품 저장'} accessibilityState={{ disabled: isRestoring || saving, busy: saving }} style={styles.sideAction}>
+        <View style={[styles.sideActions, ended && styles.sideActionsAboveEndCard]}>
+          <Pressable disabled={isRestoring || saving} onPress={() => void toggleSaved()} accessibilityRole="button" accessibilityLabel="저장" accessibilityState={{ disabled: isRestoring || saving, busy: saving, selected: isSaved }} style={styles.sideAction}>
             <Icon name="bookmark" color={isSaved ? colors.lavender : colors.onMedia} />
-            <AppText style={styles.actionLabel}>{isSaved ? '저장됨' : '저장'}</AppText>
+            <AppText style={[styles.actionLabel, isSaved && styles.savedLabel]}>저장</AppText>
           </Pressable>
           {savedError ? <AppText accessibilityRole="alert" style={styles.actionLabel}>{getErrorMessage(savedError)}</AppText> : null}
           {dramaId ? <Pressable onPress={openEpisodes} accessibilityRole="button" accessibilityLabel="전체 회차" style={styles.sideAction}>
@@ -343,7 +380,7 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
             <AppText style={styles.actionLabel}>공유</AppText>
           </Pressable>
         </View>
-        <Pressable
+        {ended ? null : <Pressable
           style={styles.playPause}
           accessibilityRole="button"
           accessibilityLabel={isPlaying ? '일시정지' : '재생'}
@@ -353,8 +390,31 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
           }}
         >
           <Icon name={isPlaying ? 'pause' : 'play'} size={34} color={colors.onMedia} />
-        </Pressable>
+        </Pressable>}
         <View style={[styles.bottomControls, { paddingBottom: insets.bottom + 12 }]}>
+          {ended ? <View style={styles.endCard} accessibilityLabel={`${playback.episodeNumber}화 끝`}>
+            <AppText style={styles.endCaption}>{playback.episodeNumber}화 끝</AppText>
+            {nextEpisode ? <>
+              <AppText weight="bold" accessibilityRole="header" style={styles.endTitle}>다음 · {nextEpisode.episodeNumber}화{episodeName(nextEpisode)}</AppText>
+              {nextEpisode.synopsis ? <AppText numberOfLines={2} style={styles.endLine}>“{nextEpisode.synopsis}”</AppText> : null}
+              {nextLocked ? <AppText weight="semibold" style={styles.endCost}>
+                {[`${nextEpisode.episodeNumber}화`, formatPoints(nextEpisode.pricePoints), user !== null && points !== null ? `내 포인트 ${formatPoints(points)}` : null].filter(Boolean).join(' · ')}
+              </AppText> : null}
+              {/* TODO(backend): 엿보기 재생이 생기면 잠긴 다음 화에 "3초 엿보기" 보조 버튼을 덧붙인다. */}
+              <Button
+                label={!nextLocked ? `${nextEpisode.episodeNumber}화 보기` : needsCharge ? '포인트 충전하기' : `${formatPoints(nextEpisode.pricePoints)}로 ${nextEpisode.episodeNumber}화 열기`}
+                onPress={openNext}
+                style={styles.endPrimary}
+              />
+            </> : <>
+              {isLastEpisode ? <AppText weight="bold" accessibilityRole="header" style={styles.endTitle}>마지막 화까지 다 봤어요</AppText> : null}
+              {/* TODO(backend): 순위 데이터가 생기면 아직 시작하지 않은 작품 하나를 "다음으로 볼 작품"으로 제안한다. */}
+              <Pressable onPress={replay} accessibilityRole="button" accessibilityLabel="처음부터 다시 보기" style={styles.endAction}>
+                <Icon name="rotate-ccw" size={17} color={colors.onMedia} />
+                <AppText weight="semibold" style={styles.endActionText}>처음부터 다시 보기</AppText>
+              </Pressable>
+            </>}
+          </View> : <>
           {drama?.productionCompany ? <AppText style={styles.studio}>{drama.productionCompany}</AppText> : null}
           {dramaId ? <Pressable onPress={openDrama} accessibilityRole="button" accessibilityLabel={`${drama?.title ?? playback.title ?? `${playback.episodeNumber}화`} 작품 상세 보기`} style={styles.bottomTitleButton}>
             <AppText weight="bold" numberOfLines={1} style={styles.bottomTitle}>{drama?.title ?? playback.title ?? `${playback.episodeNumber}화`}</AppText>
@@ -374,6 +434,7 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
               <AppText style={styles.episodeButtonText}>다음 화</AppText><Icon name="chevron-right" size={16} color={colors.onMedia} />
             </Pressable>
           </View>
+          </>}
           <Slider
             style={styles.slider}
             minimumValue={0}
@@ -393,6 +454,7 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
             onSlidingComplete={(value) => {
               player.currentTime = value;
               setSubtitlePositionMs(Math.max(0, value * 1000));
+              setEnded(false);
               seeking.current = false;
               setIsSeeking(false);
               previousPlaybackTime.current = null;
@@ -441,10 +503,6 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
               ><AppText style={styles.subtitleLanguageText}>{label}</AppText></Pressable>;
             })}
           </View> : null}
-          <View style={styles.settingsRow}>
-            <View style={styles.settingsCopy}><AppText weight="semibold">다음 화 자동 재생</AppText><AppText style={styles.settingsNote}>자동 재생 기능을 준비하고 있어요.</AppText></View>
-            <AppText style={styles.settingsDisabled}>준비 중</AppText>
-          </View>
           <View style={[styles.settingsRow, styles.lastSettingsRow]}>
             <View style={styles.settingsCopy}><AppText weight="semibold">신고</AppText><AppText style={styles.settingsNote}>신고 기능을 준비하고 있어요.</AppText></View>
             <AppText style={styles.settingsDisabled}>준비 중</AppText>
@@ -472,6 +530,11 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
   </View>;
 }
 
+const formatPoints = (value: number) => `${value.toLocaleString('ko-KR')}P`;
+/** 회차 제목이 "N화"뿐이면 번호와 겹치므로 적지 않는다. */
+const episodeName = (episode: DramaContent['episodes'][number]) =>
+  episode.title && episode.title !== `${episode.episodeNumber}화` ? ` ${episode.title}` : '';
+
 const useStyles = createThemedStyles((colors) => ({
   fullscreen: { flex: 1, backgroundColor: colors.night, justifyContent: 'center' },
   video: { width: '100%', height: '100%' },
@@ -489,7 +552,9 @@ const useStyles = createThemedStyles((colors) => ({
   activeSpeed: { color: colors.lavender },
   sideActions: { position: 'absolute', right: 15, bottom: 190, alignItems: 'center', gap: 19 },
   sideAction: { minWidth: 50, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  sideActionsAboveEndCard: { bottom: 320 },
   actionLabel: { color: colors.onMedia, fontSize: 10, lineHeight: 14 },
+  savedLabel: { color: colors.lavender },
   playPause: { alignSelf: 'center', width: 68, height: 68, borderRadius: 34, backgroundColor: colors.mediaScrim, alignItems: 'center', justifyContent: 'center' },
   bottomControls: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 25, backgroundColor: colors.mediaScrim },
   studio: { color: colors.onMediaMuted, fontSize: 12, lineHeight: 18 },
@@ -499,10 +564,18 @@ const useStyles = createThemedStyles((colors) => ({
   episodeText: { color: colors.onMedia, fontSize: 12 },
   time: { color: colors.onMedia, fontSize: 12, fontVariant: ['tabular-nums'] },
   episodeNavigation: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
-  episodeButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, backgroundColor: colors.mediaFill, borderWidth: 1, borderColor: colors.mediaFill, borderRadius: 8 },
+  episodeButton: { minHeight: 40, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, paddingHorizontal: spacing.sm, backgroundColor: colors.mediaFill, borderWidth: 1, borderColor: colors.mediaLine, borderRadius: radius.pill },
   disabledEpisodeButton: { opacity: 0.38 },
   episodeButtonText: { color: colors.onMediaMuted, fontSize: 12 },
   slider: { width: '100%', height: 34, marginTop: 2 },
+  endCard: { marginBottom: spacing.xs },
+  endCaption: { color: colors.onMediaMuted, ...textSizes.caption12 },
+  endTitle: { marginTop: spacing.xxs, color: colors.onMedia, ...textSizes.body18 },
+  endLine: { marginTop: spacing.xxs, color: colors.onMedia, ...textSizes.label14 },
+  endCost: { marginTop: spacing.xs, color: colors.onMediaMuted, fontVariant: ['tabular-nums'], ...textSizes.caption12 },
+  endPrimary: { marginTop: spacing.md },
+  endAction: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.xs, marginTop: spacing.md, borderWidth: 1, borderColor: colors.mediaLine, borderRadius: radius.pill, backgroundColor: colors.mediaFill },
+  endActionText: { color: colors.onMedia, ...textSizes.label14 },
   settingsBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 22, backgroundColor: colors.backdrop },
   settingsDialog: { width: '100%', maxWidth: 420, padding: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 20, borderCurve: 'continuous' },
   settingsHeader: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
