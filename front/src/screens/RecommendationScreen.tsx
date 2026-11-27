@@ -52,6 +52,7 @@ function RecommendationPreviewPlayer({
   onOpenEpisodes,
   onShare,
   onSeekTouch,
+  onEpisodeUnlocked,
 }: {
   player: VideoPlayer;
   moving: boolean;
@@ -68,6 +69,7 @@ function RecommendationPreviewPlayer({
   onError: () => void;
   onOpenEpisodes: () => void;
   onShare: () => void;
+  onEpisodeUnlocked: (episodeUuid: string) => void;
   onSeekTouch: (active: boolean) => void;
 }) {
   const styles = useStyles();
@@ -316,10 +318,10 @@ function RecommendationPreviewPlayer({
       dramaTitle={drama.title}
       onClose={() => setLockedEpisode(null)}
       onCharge={() => { setLockedEpisode(null); router.push('/points'); }}
-      onPurchased={(episode) => router.push({
-        pathname: '/episode/[id]',
-        params: { id: episode.uuid, dramaId: drama.uuid },
-      })}
+      onPurchased={(episode) => {
+        onEpisodeUnlocked(episode.uuid);
+        router.push({ pathname: '/episode/[id]', params: { id: episode.uuid, dramaId: drama.uuid } });
+      }}
     />
   </View>;
 }
@@ -791,6 +793,21 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
     );
     return () => { current = false; };
   }, [activeId]);
+  // 다른 화면(회차 재생·작품 상세)에서 회차를 연 뒤 돌아오면 같은 작품의 잠금·시청 상태를 조용히 다시 읽는다.
+  useFocusEffect(useCallback(() => {
+    const dramaId = activeIdRef.current;
+    if (!dramaId || isRestoring) return;
+    let current = true;
+    const version = sessionVersion;
+    void getDramaContent(dramaId).then(
+      (drama) => { if (current && isCurrentSession(version) && activeIdRef.current === dramaId) setActiveDrama(drama); },
+      () => undefined,
+    );
+    return () => { current = false; };
+  }, [isRestoring, sessionVersion, isCurrentSession]));
+  const markEpisodeUnlocked = (dramaId: string, episodeUuid: string) => setActiveDrama((current) => current?.uuid === dramaId
+    ? { ...current, episodes: current.episodes.map((episode) => episode.uuid === episodeUuid ? { ...episode, isUnlocked: true } : episode) }
+    : current);
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     actualOffsetRef.current = event.nativeEvent.contentOffset.y;
@@ -967,6 +984,7 @@ export function RecommendationScreen({ initialId }: { initialId?: string }) {
                     onOpenEpisodes={() => openEpisodes(drama)}
                     onShare={() => { void shareDrama(drama); }}
                     onSeekTouch={(active) => { gestureBlockedRef.current = active; }}
+                    onEpisodeUnlocked={(episodeUuid) => markEpisodeUnlocked(drama.uuid, episodeUuid)}
                   />}
                   {/* 빼꼼 머리: 작품 순서와 안내 한 줄은 재생 컨트롤을 숨겨도 늘 보인다. */}
                   <View pointerEvents="none" style={[styles.feedHead, { top: insets.top + 54 }]}>

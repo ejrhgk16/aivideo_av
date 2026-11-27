@@ -1,5 +1,5 @@
 import React from 'react';
-import { AccessibilityInfo, StyleSheet, Text } from 'react-native';
+import { AccessibilityInfo, FlatList, StyleSheet, Text } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { Stack } from 'expo-router';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react-native';
@@ -336,5 +336,32 @@ test('a failed un-save keeps the row and shows a warning, and a late write after
   expect(screen.queryByText('저장을 취소했어요.')).toBeNull();
   await act(async () => { requests.history[0].resolve(historyPage([historyEpisode])); await requests.history[0].promise; });
   expect(await screen.findByRole('button', { name: '작품 둘 2화' })).toBeOnTheScreen();
+  view.unmount();
+});
+
+test('loading more after un-saving re-reads the shifted page so no saved video is skipped', async () => {
+  const requests = installRequests();
+  const writes = installWrites();
+  const view = renderLibrary();
+  view.setSession(makeSession(makeUser('user-a'), 1, false));
+  const savedItem = (index: number): SavedVideoItem => ({ ...preview, videoUuid: `saved-${index}`, dramaUuid: `drama-${index}`, dramaTitle: `저장 ${index}` });
+  const all = Array.from({ length: 62 }, (_, index) => savedItem(index));
+  await act(async () => { requests.saved[0].resolve(savedPage(all.slice(0, 30), 1, true)); await requests.saved[0].promise; });
+
+  fireEvent.press(screen.getByRole('button', { name: '저장 0 미리보기 저장 취소' }));
+  await act(async () => { writes[0].resolve(); await writes[0].promise; });
+  expect(screen.queryByRole('button', { name: '저장 0 미리보기' })).toBeNull();
+
+  // 서버에서 한 개가 빠져 원래 31번째 항목이 1페이지 끝으로 당겨졌으므로 1페이지를 다시 읽어야 한다.
+  fireEvent.press(screen.getByRole('button', { name: '더 보기' }));
+  expect(requests.savedPages).toEqual([1, 1]);
+  await act(async () => { requests.saved[1].resolve(savedPage(all.slice(1, 31), 1, true)); await requests.saved[1].promise; });
+  const listedUuids = () => (screen.UNSAFE_getByType(FlatList).props.data as SavedVideoItem[]).map((item) => item.videoUuid);
+  expect(listedUuids()).toEqual(all.slice(1, 31).map((item) => item.videoUuid));
+
+  fireEvent.press(screen.getByRole('button', { name: '더 보기' }));
+  expect(requests.savedPages).toEqual([1, 1, 2]);
+  await act(async () => { requests.saved[2].resolve(savedPage(all.slice(31, 61), 2, true)); await requests.saved[2].promise; });
+  expect(listedUuids()).toEqual(all.slice(1, 61).map((item) => item.videoUuid));
   view.unmount();
 });

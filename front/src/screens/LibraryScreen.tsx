@@ -29,6 +29,8 @@ type Notice = { text: string; tone: 'ok' | 'warn'; undo: RemovedSaved | null };
 
 const NOTICE_MS = 3200;
 const UNDO_NOTICE_MS = 6000;
+// 보관함·시청 기록 API의 고정 페이지 크기. 저장 취소로 당겨진 서버 위치를 계산할 때 쓴다.
+const PAGE_SIZE = 30;
 
 export function LibraryScreen() {
   const styles = useStyles();
@@ -48,6 +50,8 @@ export function LibraryScreen() {
   const generation = useRef(0);
   const inFlight = useRef(false);
   const nextPage = useRef(2);
+  // 마지막 페이지를 읽은 뒤 서버에서 빠진 저장 항목 수. 그만큼 뒤 항목이 앞 페이지로 당겨진다.
+  const removedCount = useRef(0);
   const [itemsOwner, setItemsOwner] = useState<ItemsOwner | null>(null);
   const owner = user?.uuid ?? null;
   const currentTab = useRef(tab);
@@ -73,7 +77,7 @@ export function LibraryScreen() {
     AccessibilityInfo.announceForAccessibility(next.undo ? `${next.text} 되돌리기 버튼으로 되돌릴 수 있어요.` : next.text);
   };
 
-  const loadPage = useCallback(async (page: number, replace: boolean, requestGeneration: number, version: number, userUuid: string, requestTab: LibraryTab) => {
+  const loadPage = useCallback(async (page: number, replace: boolean, requestGeneration: number, version: number, userUuid: string, requestTab: LibraryTab, removedAtRequest = 0) => {
     if (inFlight.current) return;
     inFlight.current = true;
     const isCurrentRequest = () => generation.current === requestGeneration
@@ -107,6 +111,7 @@ export function LibraryScreen() {
       });
       setHasNext(result.hasNext);
       nextPage.current = result.page + 1;
+      removedCount.current = replace ? 0 : removedCount.current - removedAtRequest;
       setStatus('loaded');
       setItemsOwner({ uuid: userUuid, version, tab: requestTab });
       setError(null);
@@ -127,6 +132,7 @@ export function LibraryScreen() {
     const requestGeneration = ++generation.current;
     inFlight.current = false;
     nextPage.current = 2;
+    removedCount.current = 0;
     setItems([]);
     setItemsOwner(null);
     setHasNext(false);
@@ -144,8 +150,10 @@ export function LibraryScreen() {
 
   const loadNextPage = () => {
     if (!ownsCurrentList || !hasNext || nextLoading || status !== 'loaded' || isRestoring || !owner) return;
-    const page = nextPage.current;
-    void loadPage(page, false, generation.current, sessionVersion, owner, tab);
+    // 저장 취소로 서버 목록이 당겨졌으면 아직 받지 않은 첫 항목이 있는 페이지부터 다시 읽는다. 겹치는 항목은 UUID로 거른다.
+    const removed = removedCount.current;
+    const page = Math.floor(Math.max(0, (nextPage.current - 1) * PAGE_SIZE - removed) / PAGE_SIZE) + 1;
+    void loadPage(page, false, generation.current, sessionVersion, owner, tab, removed);
   };
   const ownsCurrentList = itemsOwner?.uuid === owner && itemsOwner.version === sessionVersion && itemsOwner.tab === tab;
   const visibleItems = ownsCurrentList ? items : [];
@@ -181,6 +189,7 @@ export function LibraryScreen() {
   const removeSaved = (item: SavedVideoItem) => {
     const index = items.findIndex((entry) => entry.videoUuid === item.videoUuid);
     void writeSaved(item, false, () => {
+      removedCount.current += 1;
       setItems((current) => current.filter((entry) => entry.videoUuid !== item.videoUuid));
       showNotice({ text: '저장을 취소했어요.', tone: 'ok', undo: { item, index } });
     });
@@ -188,6 +197,7 @@ export function LibraryScreen() {
   const undoRemove = (removed: RemovedSaved) => {
     clearNotice();
     void writeSaved(removed.item, true, () => {
+      removedCount.current -= 1;
       setItems((current) => current.some((item) => item.videoUuid === removed.item.videoUuid)
         ? current
         : [...current.slice(0, removed.index), removed.item, ...current.slice(removed.index)]);
