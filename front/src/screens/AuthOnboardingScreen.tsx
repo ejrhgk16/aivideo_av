@@ -3,7 +3,8 @@ import { BackHandler, Modal, Pressable, StyleSheet, TextInput, View } from 'reac
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { AppText, Button, Icon, Page } from '@/components/ui';
 import { AuthNotice, AuthStatus, keepAll } from '@/components/authUi';
-import { colors, typography } from '@/common/theme/tokens';
+import { typography } from '@/common/theme/tokens';
+import { createThemedStyles, useColors } from '@/common/theme/theme';
 import { checkBirthDate, GUARDIAN_CONSENT_AGE, kstToday } from '@/features/auth/authAge';
 
 type ConsentKey = 'terms' | 'privacy';
@@ -27,6 +28,8 @@ const nowAvailable = ['무료 회차 보기', '찜하기', '시청 기록 저장
 const afterConsent = ['포인트 충전', '포인트로 회차 열기', '광고 보고 포인트 받기'];
 
 function CheckRow({ label, checked, onPress, strong }: { label: string; checked: boolean; onPress: () => void; strong?: boolean }): React.JSX.Element {
+  const styles = useStyles();
+  const colors = useColors();
   return <Pressable accessibilityRole="checkbox" accessibilityLabel={label} aria-checked={checked} onPress={onPress} style={styles.checkRow}>
     <View style={[styles.box, checked && styles.boxChecked]}>{checked ? <Icon name="check" size={16} color={colors.background} /> : null}</View>
     <AppText weight={strong ? 'semibold' : 'regular'} style={styles.checkLabel}>{label}</AppText>
@@ -34,6 +37,8 @@ function CheckRow({ label, checked, onPress, strong }: { label: string; checked:
 }
 
 export function AuthOnboardingScreen(): React.JSX.Element {
+  const styles = useStyles();
+  const colors = useColors();
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [agreed, setAgreed] = useState<Record<ConsentKey, boolean>>({ terms: false, privacy: false });
@@ -177,7 +182,7 @@ export function AuthOnboardingScreen(): React.JSX.Element {
   </Page>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => ({
   page: { maxWidth: 480, paddingTop: 8, gap: 22 },
   top: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   back: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 8 },
@@ -187,7 +192,7 @@ const styles = StyleSheet.create({
   segmentDone: { backgroundColor: colors.accent },
   heading: { gap: 10 },
   title: { fontSize: 25, lineHeight: 34, letterSpacing: -0.7 },
-  description: { color: '#A1ACBA', fontSize: 15, lineHeight: 23 },
+  description: { color: colors.muted, fontSize: 15, lineHeight: 23 },
   section: { gap: 14 },
   card: { borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 16, paddingVertical: 8 },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: 6 },
@@ -205,19 +210,19 @@ const styles = StyleSheet.create({
   input: { flex: 1, minWidth: 0, minHeight: 52, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface,
     color: colors.text, fontFamily: typography.medium, fontSize: 18, textAlign: 'center', paddingHorizontal: 8 },
   inputError: { borderColor: colors.danger },
-  unit: { color: '#A1ACBA', fontSize: 15 },
+  unit: { color: colors.muted, fontSize: 15 },
   hint: { color: colors.muted, fontSize: 13, lineHeight: 19 },
   error: { color: colors.danger, fontSize: 13, lineHeight: 19 },
   doneIcon: { alignSelf: 'center', width: 64, height: 64, borderRadius: 32, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', marginVertical: 12 },
   listTitle: { fontSize: 14, marginTop: 8, marginBottom: 2 },
   listRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 32 },
   listText: { fontSize: 15 },
-  locked: { color: '#A1ACBA' },
+  locked: { color: colors.muted },
   small: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 6, marginBottom: 6 },
   footer: { gap: 6 },
-  backdrop: { flex: 1, padding: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#000000B8' },
-  sheet: { width: '100%', maxWidth: 420, gap: 10, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: '#30363F', padding: 22 },
+  backdrop: { flex: 1, padding: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.backdrop },
+  sheet: { width: '100%', maxWidth: 420, gap: 10, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 22 },
   sheetTitle: { fontSize: 20, lineHeight: 28 },
-  sheetBody: { color: '#C4CAD3', fontSize: 14, lineHeight: 22 },
+  sheetBody: { color: colors.text, fontSize: 14, lineHeight: 22 },
   sheetClose: { marginTop: 8 },
-});
+}));

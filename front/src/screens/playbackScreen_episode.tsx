@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText, Button, EmptyState, Icon, LoadingState, Page } from '@/components/ui';
 import { EpisodeUnlockDialog } from '@/components/EpisodeUnlockDialog';
 import { ApiError, SessionChangedError } from '@/common/http/api';
-import { colors } from '@/common/theme/tokens';
+import { createThemedStyles, useColors } from '@/common/theme/theme';
 import { getErrorMessage } from '@/common/http/errorMessages';
 import { getDramaContent, type DramaContent } from '@/features/drama/dramaContent';
 import { getEpisodePlayback, type EpisodePlayback } from '@/features/playback/episodePlayback';
@@ -79,6 +79,8 @@ export function PlaybackScreenEpisode({ id, dramaId }: Props) {
 function PlaybackVideo({ id, playback, dramaId, onBack }: {
   id: string; playback: EpisodePlayback; dramaId?: string; onBack: () => void;
 }) {
+  const styles = useStyles();
+  const colors = useColors();
   const router = useRouter();
   const {
     isRestoring, sessionVersion, isCurrentSession, user, sessionExpired,
@@ -305,7 +307,7 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
       {controlsVisible && <>
         <View style={[styles.topControls, { paddingTop: insets.top + 6 }]}>
           <Pressable onPress={onBack} accessibilityRole="button" accessibilityLabel="닫기" style={styles.iconButton}>
-            <Icon name="x" color="#fff" />
+            <Icon name="x" color={colors.onMedia} />
           </Pressable>
           <View style={styles.heading}>
             <AppText style={styles.episodeTitle}>{playback.episodeNumber}화</AppText>
@@ -314,7 +316,7 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
             <AppText weight="semibold" style={styles.speedText}>{playbackRate}x</AppText>
           </Pressable>
           <Pressable onPress={() => { setSpeedMenuOpen(false); setSettingsOpen(true); }} accessibilityRole="button" accessibilityLabel="더보기 설정" style={styles.moreButton}>
-            <Icon name="more-horizontal" color="#fff" size={24} />
+            <Icon name="more-horizontal" color={colors.onMedia} size={24} />
           </Pressable>
         </View>
         {speedMenuOpen && <View style={[styles.speedMenu, { top: insets.top + 60 }]}>
@@ -328,16 +330,16 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
         </View>}
         <View style={styles.sideActions}>
           <Pressable disabled={isRestoring || saving} onPress={() => void toggleSaved()} accessibilityRole="button" accessibilityLabel={isSaved ? '저장 해제' : '작품 저장'} accessibilityState={{ disabled: isRestoring || saving, busy: saving }} style={styles.sideAction}>
-            <Icon name="bookmark" color={isSaved ? colors.accent : '#fff'} />
+            <Icon name="bookmark" color={isSaved ? colors.lavender : colors.onMedia} />
             <AppText style={styles.actionLabel}>{isSaved ? '저장됨' : '저장'}</AppText>
           </Pressable>
           {savedError ? <AppText accessibilityRole="alert" style={styles.actionLabel}>{getErrorMessage(savedError)}</AppText> : null}
           {dramaId ? <Pressable onPress={openEpisodes} accessibilityRole="button" accessibilityLabel="전체 회차" style={styles.sideAction}>
-            <Icon name="layers" color="#fff" />
+            <Icon name="layers" color={colors.onMedia} />
             <AppText style={styles.actionLabel}>회차</AppText>
           </Pressable> : null}
           <Pressable onPress={shareEpisode} accessibilityRole="button" accessibilityLabel="회차 공유" style={styles.sideAction}>
-            <Icon name="share-2" color="#fff" />
+            <Icon name="share-2" color={colors.onMedia} />
             <AppText style={styles.actionLabel}>공유</AppText>
           </Pressable>
         </View>
@@ -350,13 +352,13 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
             showControls();
           }}
         >
-          <Icon name={isPlaying ? 'pause' : 'play'} size={34} color="#fff" />
+          <Icon name={isPlaying ? 'pause' : 'play'} size={34} color={colors.onMedia} />
         </Pressable>
         <View style={[styles.bottomControls, { paddingBottom: insets.bottom + 12 }]}>
           {drama?.productionCompany ? <AppText style={styles.studio}>{drama.productionCompany}</AppText> : null}
           {dramaId ? <Pressable onPress={openDrama} accessibilityRole="button" accessibilityLabel={`${drama?.title ?? playback.title ?? `${playback.episodeNumber}화`} 작품 상세 보기`} style={styles.bottomTitleButton}>
             <AppText weight="bold" numberOfLines={1} style={styles.bottomTitle}>{drama?.title ?? playback.title ?? `${playback.episodeNumber}화`}</AppText>
-            <Icon name="chevron-right" color="#fff" size={21} />
+            <Icon name="chevron-right" color={colors.onMedia} size={21} />
           </Pressable> : <AppText weight="bold" numberOfLines={1} style={styles.bottomTitle}>{playback.title ?? `${playback.episodeNumber}화`}</AppText>}
           <View style={styles.episodeInfo}>
             <AppText style={styles.episodeText}>
@@ -366,10 +368,10 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
           </View>
           <View style={styles.episodeNavigation}>
             <Pressable disabled={!previousEpisode} onPress={() => selectEpisode(previousEpisode)} accessibilityRole="button" accessibilityLabel="이전 화" accessibilityState={{ disabled: !previousEpisode }} style={[styles.episodeButton, !previousEpisode && styles.disabledEpisodeButton]}>
-              <Icon name="chevron-left" size={16} color="#fff" /><AppText style={styles.episodeButtonText}>이전 화</AppText>
+              <Icon name="chevron-left" size={16} color={colors.onMedia} /><AppText style={styles.episodeButtonText}>이전 화</AppText>
             </Pressable>
             <Pressable disabled={!nextEpisode} onPress={() => selectEpisode(nextEpisode)} accessibilityRole="button" accessibilityLabel="다음 화" accessibilityState={{ disabled: !nextEpisode }} style={[styles.episodeButton, !nextEpisode && styles.disabledEpisodeButton]}>
-              <AppText style={styles.episodeButtonText}>다음 화</AppText><Icon name="chevron-right" size={16} color="#fff" />
+              <AppText style={styles.episodeButtonText}>다음 화</AppText><Icon name="chevron-right" size={16} color={colors.onMedia} />
             </Pressable>
           </View>
           <Slider
@@ -378,9 +380,9 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
             maximumValue={Math.max(duration, 1)}
             value={position}
             disabled={duration <= 0}
-            minimumTrackTintColor={colors.accent}
-            maximumTrackTintColor="rgba(255,255,255,0.45)"
-            thumbTintColor={colors.accent}
+            minimumTrackTintColor={colors.lavender}
+            maximumTrackTintColor={colors.mediaTrack}
+            thumbTintColor={colors.lavender}
             onSlidingStart={() => {
               seeking.current = true;
               setIsSeeking(true);
@@ -470,38 +472,38 @@ function PlaybackVideo({ id, playback, dramaId, onBack }: {
   </View>;
 }
 
-const styles = StyleSheet.create({
-  fullscreen: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
+const useStyles = createThemedStyles((colors) => ({
+  fullscreen: { flex: 1, backgroundColor: colors.night, justifyContent: 'center' },
   video: { width: '100%', height: '100%' },
   error: { flex: 1, justifyContent: 'center', padding: 22 },
-  topControls: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingBottom: 18, backgroundColor: 'rgba(0,0,0,0.45)' },
+  topControls: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingBottom: 18, backgroundColor: colors.mediaScrim },
   iconButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   heading: { flex: 1, gap: 1 },
-  episodeTitle: { color: '#D2D5D9', fontSize: 11 },
+  episodeTitle: { color: colors.onMediaMuted, fontSize: 11 },
   speedButton: { minWidth: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
-  speedText: { color: '#fff', fontSize: 13 },
+  speedText: { color: colors.onMedia, fontSize: 13 },
   moreButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
-  speedMenu: { position: 'absolute', right: 17, zIndex: 5, backgroundColor: '#15171B', borderRadius: 12, padding: 5 },
+  speedMenu: { position: 'absolute', right: 17, zIndex: 5, backgroundColor: colors.night, borderRadius: 12, padding: 5 },
   speedOption: { minWidth: 68, minHeight: 38, alignItems: 'center', justifyContent: 'center' },
-  speedOptionText: { color: '#fff', fontSize: 13 },
-  activeSpeed: { color: colors.accent },
+  speedOptionText: { color: colors.onMedia, fontSize: 13 },
+  activeSpeed: { color: colors.lavender },
   sideActions: { position: 'absolute', right: 15, bottom: 190, alignItems: 'center', gap: 19 },
   sideAction: { minWidth: 50, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  actionLabel: { color: '#fff', fontSize: 10, lineHeight: 14 },
-  playPause: { alignSelf: 'center', width: 68, height: 68, borderRadius: 34, backgroundColor: 'rgba(0,0,0,0.48)', alignItems: 'center', justifyContent: 'center' },
-  bottomControls: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 25, backgroundColor: 'rgba(0,0,0,0.55)' },
-  studio: { color: '#C4CDC1', fontSize: 9, lineHeight: 14, letterSpacing: 1.2 },
+  actionLabel: { color: colors.onMedia, fontSize: 10, lineHeight: 14 },
+  playPause: { alignSelf: 'center', width: 68, height: 68, borderRadius: 34, backgroundColor: colors.mediaScrim, alignItems: 'center', justifyContent: 'center' },
+  bottomControls: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 25, backgroundColor: colors.mediaScrim },
+  studio: { color: colors.onMediaMuted, fontSize: 12, lineHeight: 18 },
   bottomTitleButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 7 },
-  bottomTitle: { flex: 1, color: '#fff', fontSize: 21, lineHeight: 28 },
+  bottomTitle: { flex: 1, color: colors.onMedia, fontSize: 21, lineHeight: 28 },
   episodeInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  episodeText: { color: '#fff', fontSize: 12 },
-  time: { color: '#fff', fontSize: 12, fontVariant: ['tabular-nums'] },
+  episodeText: { color: colors.onMedia, fontSize: 12 },
+  time: { color: colors.onMedia, fontSize: 12, fontVariant: ['tabular-nums'] },
   episodeNavigation: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
-  episodeButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 8 },
+  episodeButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, backgroundColor: colors.mediaFill, borderWidth: 1, borderColor: colors.mediaFill, borderRadius: 8 },
   disabledEpisodeButton: { opacity: 0.38 },
-  episodeButtonText: { color: '#D4DDD8', fontSize: 12 },
+  episodeButtonText: { color: colors.onMediaMuted, fontSize: 12 },
   slider: { width: '100%', height: 34, marginTop: 2 },
-  settingsBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 22, backgroundColor: '#000B' },
+  settingsBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 22, backgroundColor: colors.backdrop },
   settingsDialog: { width: '100%', maxWidth: 420, padding: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 20, borderCurve: 'continuous' },
   settingsHeader: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   settingsTitle: { fontSize: 20, lineHeight: 28 },
@@ -509,13 +511,13 @@ const styles = StyleSheet.create({
   settingsRow: { minHeight: 70, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
   subtitleLanguages: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
   subtitleLanguage: { minHeight: 36, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 18, borderWidth: 1, borderColor: colors.border },
-  selectedSubtitleLanguage: { borderColor: colors.accent, backgroundColor: '#CBF46A18' },
+  selectedSubtitleLanguage: { borderColor: colors.accent, backgroundColor: colors.elevated },
   subtitleLanguageText: { fontSize: 12 },
   subtitleOverlay: { position: 'absolute', left: 20, right: 20, alignItems: 'center', justifyContent: 'center' },
-  subtitleText: { maxWidth: '100%', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, overflow: 'hidden', backgroundColor: '#000B', color: '#fff', fontSize: 17, lineHeight: 24, textAlign: 'center' },
+  subtitleText: { maxWidth: '100%', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, overflow: 'hidden', backgroundColor: colors.mediaBack, color: colors.onMedia, fontSize: 17, lineHeight: 24, textAlign: 'center' },
   lastSettingsRow: { borderBottomWidth: 0 },
   settingsCopy: { flex: 1, gap: 3 },
   settingsNote: { color: colors.muted, fontSize: 11, lineHeight: 16 },
   settingsDisabled: { color: colors.muted, fontSize: 11 },
   settingsDismiss: { marginTop: 10 },
-});
+}));

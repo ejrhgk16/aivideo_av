@@ -12,7 +12,7 @@ import { EpisodeUnlockDialog } from '@/components/EpisodeUnlockDialog';
 import { ApiError, SessionChangedError } from '@/common/http/api';
 import { resolveApiImageUrl } from '@/common/media';
 import { getErrorMessage } from '@/common/http/errorMessages';
-import { colors } from '@/common/theme/tokens';
+import { createThemedStyles, useColors } from '@/common/theme/theme';
 import { getDramaContent, type DramaContent } from '@/features/drama/dramaContent';
 import { getPreviewPlayback, type PreviewPlayback } from '@/features/playback/previewPlayback';
 import { removeSavedVideo, saveVideo } from '@/features/playback/savedVideos';
@@ -91,6 +91,8 @@ export function PlaybackScreenPreview({ dramaId, videoId }: { dramaId: string; v
 }
 
 function PreviewVideo({ drama, url, videoId, durationMs, initialSaved, savedWrites, onSavedChange, onClose }: { drama: DramaContent; url: string; videoId: string; durationMs: number; initialSaved: boolean; savedWrites: { ownerKey: string; revision: number; pending: boolean }; onSavedChange: (isSaved: boolean, version: number) => void; onClose: () => void }) {
+  const styles = useStyles();
+  const colors = useColors();
   const router = useRouter();
   const { user, isRestoring, sessionExpired, sessionVersion, isCurrentSession } = useUser();
   const [isSaved, setIsSaved] = useState(initialSaved);
@@ -267,19 +269,19 @@ function PreviewVideo({ drama, url, videoId, durationMs, initialSaved, savedWrit
       ? <Image source={{ uri: posterUrl }} accessibilityLabel={`${drama.title} 표지`} contentFit="cover" style={StyleSheet.absoluteFill} />
       : <View style={[StyleSheet.absoluteFill, styles.placeholder]} />
       : null}
-    <LinearGradient pointerEvents="none" colors={['#03060BAA', 'transparent', '#070C13A8', '#070C13']} locations={[0, 0.33, 0.65, 1]} style={StyleSheet.absoluteFill} />
+    <LinearGradient pointerEvents="none" colors={[colors.mediaBack, 'transparent', colors.mediaBack, colors.night]} locations={[0, 0.33, 0.65, 1]} style={StyleSheet.absoluteFill} />
     <Pressable style={StyleSheet.absoluteFill} onPress={toggleControls} accessibilityLabel="재생 컨트롤 표시 또는 숨기기" />
     {controlsVisible && <>
       <View style={[styles.topControls, { paddingTop: insets.top + 6 }]}>
         <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="닫기" style={styles.iconButton}>
-          <Icon name="x" color="#fff" />
+          <Icon name="x" color={colors.onMedia} />
         </Pressable>
         <View style={styles.heading}><AppText style={styles.episodeTitle}>미리보기</AppText></View>
         <Pressable onPress={() => setSpeedMenuOpen((open) => !open)} accessibilityRole="button" accessibilityLabel="재생 속도" style={styles.speedButton}>
           <AppText weight="semibold" style={styles.speedText}>{playbackRate}x</AppText>
         </Pressable>
         <Pressable onPress={() => { setSpeedMenuOpen(false); setSettingsOpen(true); }} accessibilityRole="button" accessibilityLabel="더보기 설정" style={styles.moreButton}>
-          <Icon name="more-horizontal" color="#fff" size={24} />
+          <Icon name="more-horizontal" color={colors.onMedia} size={24} />
         </Pressable>
       </View>
       {speedMenuOpen && <View style={[styles.speedMenu, { top: insets.top + 60 }]}>
@@ -293,34 +295,34 @@ function PreviewVideo({ drama, url, videoId, durationMs, initialSaved, savedWrit
       </View>}
       <View style={styles.sideActions}>
         <Pressable disabled={isRestoring || saving} onPress={() => void toggleSaved()} accessibilityRole="button" accessibilityLabel={isSaved ? '저장 해제' : '작품 저장'} accessibilityState={{ disabled: isRestoring || saving, busy: saving }} style={styles.sideAction}>
-          <Icon name="bookmark" color={isSaved ? colors.accent : '#fff'} />
+          <Icon name="bookmark" color={isSaved ? colors.lavender : colors.onMedia} />
           <AppText style={styles.actionLabel}>{isSaved ? '저장됨' : '저장'}</AppText>
         </Pressable>
         {savedError ? <AppText accessibilityRole="alert" style={styles.actionLabel}>{getErrorMessage(savedError)}</AppText> : null}
         <Pressable onPress={openEpisodes} accessibilityRole="button" accessibilityLabel="전체 회차" style={styles.sideAction}>
-          <Icon name="layers" color="#fff" />
+          <Icon name="layers" color={colors.onMedia} />
           <AppText style={styles.actionLabel}>회차</AppText>
         </Pressable>
         <Pressable onPress={shareDrama} accessibilityRole="button" accessibilityLabel="작품 공유" style={styles.sideAction}>
-          <Icon name="share-2" color="#fff" />
+          <Icon name="share-2" color={colors.onMedia} />
           <AppText style={styles.actionLabel}>공유</AppText>
         </Pressable>
       </View>
       <Pressable style={styles.playPause} accessibilityRole="button" accessibilityLabel={isPlaying ? '일시정지' : '재생'} onPress={togglePlayback}>
-        <Icon name={isPlaying ? 'pause' : 'play'} size={34} color="#fff" />
+        <Icon name={isPlaying ? 'pause' : 'play'} size={34} color={colors.onMedia} />
       </Pressable>
       <View style={[styles.bottomControls, { paddingBottom: insets.bottom + 12 }]}>
         {drama.productionCompany ? <AppText style={styles.studio}>{drama.productionCompany}</AppText> : null}
         <Pressable onPress={() => { player.pause(); router.push({ pathname: '/drama/[id]', params: { id: drama.uuid } }); }} accessibilityRole="button" accessibilityLabel={`${drama.title} 작품 상세 보기`} style={styles.bottomTitleButton}>
           <AppText weight="bold" numberOfLines={1} style={styles.bottomTitle}>{drama.title}</AppText>
-          <Icon name="chevron-right" color="#fff" size={21} />
+          <Icon name="chevron-right" color={colors.onMedia} size={21} />
         </Pressable>
         <View style={styles.episodeInfo}>
           <AppText style={styles.episodeText}>{`${genres} · 미리보기`}</AppText>
           <AppText style={styles.time}>{formatTime(position)} / {formatTime(duration)}</AppText>
         </View>
         <Pressable disabled={!firstEpisode} onPress={watchFromFirstEpisode} accessibilityRole="button" accessibilityLabel="1화부터 본편 보기" accessibilityState={{ disabled: !firstEpisode }} style={[styles.watchButton, !firstEpisode && styles.disabledEpisodeButton]}>
-          <Icon name="play" size={16} color={colors.background} />
+          <Icon name="play" size={16} color={colors.onYolk} />
           <AppText weight="semibold" style={styles.watchLabel}>1화부터 본편 보기</AppText>
           <AppText style={styles.watchMeta}>{firstEpisode ? `${firstEpisode.episodeNumber}화` : '회차 없음'}</AppText>
         </Pressable>
@@ -330,9 +332,9 @@ function PreviewVideo({ drama, url, videoId, durationMs, initialSaved, savedWrit
           maximumValue={Math.max(duration, 1)}
           value={position}
           disabled={duration <= 0}
-          minimumTrackTintColor={colors.accent}
-          maximumTrackTintColor="rgba(255,255,255,0.45)"
-          thumbTintColor={colors.accent}
+          minimumTrackTintColor={colors.lavender}
+          maximumTrackTintColor={colors.mediaTrack}
+          thumbTintColor={colors.lavender}
           onSlidingStart={() => { seeking.current = true; previousPlaybackTime.current = null; clearHideTimer(); }}
           onValueChange={setPosition}
           onSlidingComplete={(value) => {
@@ -372,38 +374,38 @@ function PreviewVideo({ drama, url, videoId, durationMs, initialSaved, savedWrit
   </View>;
 }
 
-const styles = StyleSheet.create({
-  fullscreen: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
+const useStyles = createThemedStyles((colors) => ({
+  fullscreen: { flex: 1, backgroundColor: colors.night, justifyContent: 'center' },
   video: { width: '100%', height: '100%' },
   placeholder: { backgroundColor: colors.surface },
-  topControls: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingBottom: 18, backgroundColor: 'rgba(0,0,0,0.45)' },
+  topControls: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingBottom: 18, backgroundColor: colors.mediaScrim },
   iconButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   heading: { flex: 1, gap: 1 },
-  episodeTitle: { color: '#D2D5D9', fontSize: 11 },
+  episodeTitle: { color: colors.onMediaMuted, fontSize: 11 },
   speedButton: { minWidth: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
-  speedText: { color: '#fff', fontSize: 13 },
+  speedText: { color: colors.onMedia, fontSize: 13 },
   moreButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
-  speedMenu: { position: 'absolute', right: 17, zIndex: 5, backgroundColor: '#15171B', borderRadius: 12, padding: 5 },
+  speedMenu: { position: 'absolute', right: 17, zIndex: 5, backgroundColor: colors.night, borderRadius: 12, padding: 5 },
   speedOption: { minWidth: 68, minHeight: 38, alignItems: 'center', justifyContent: 'center' },
-  speedOptionText: { color: '#fff', fontSize: 13 },
-  activeSpeed: { color: colors.accent },
+  speedOptionText: { color: colors.onMedia, fontSize: 13 },
+  activeSpeed: { color: colors.lavender },
   sideActions: { position: 'absolute', right: 15, bottom: 205, alignItems: 'center', gap: 19 },
   sideAction: { minWidth: 50, minHeight: 48, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  actionLabel: { color: '#fff', fontSize: 10, lineHeight: 14 },
-  playPause: { alignSelf: 'center', width: 68, height: 68, borderRadius: 34, backgroundColor: 'rgba(0,0,0,0.48)', alignItems: 'center', justifyContent: 'center' },
-  bottomControls: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 25, backgroundColor: 'rgba(0,0,0,0.55)' },
-  studio: { color: '#C4CDC1', fontSize: 9, lineHeight: 14, letterSpacing: 1.2 },
+  actionLabel: { color: colors.onMedia, fontSize: 10, lineHeight: 14 },
+  playPause: { alignSelf: 'center', width: 68, height: 68, borderRadius: 34, backgroundColor: colors.mediaScrim, alignItems: 'center', justifyContent: 'center' },
+  bottomControls: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 25, backgroundColor: colors.mediaScrim },
+  studio: { color: colors.onMediaMuted, fontSize: 12, lineHeight: 18 },
   bottomTitleButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 7 },
-  bottomTitle: { flex: 1, color: '#fff', fontSize: 21, lineHeight: 28 },
+  bottomTitle: { flex: 1, color: colors.onMedia, fontSize: 21, lineHeight: 28 },
   episodeInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  episodeText: { color: '#fff', fontSize: 12 },
-  time: { color: '#fff', fontSize: 12, fontVariant: ['tabular-nums'] },
-  watchButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 7, paddingHorizontal: 12, backgroundColor: colors.accent, borderRadius: 8 },
-  watchLabel: { color: colors.background, fontSize: 12 },
-  watchMeta: { marginLeft: 'auto', paddingLeft: 8, borderLeftWidth: 1, borderLeftColor: '#16200733', color: colors.background, fontSize: 10 },
+  episodeText: { color: colors.onMedia, fontSize: 12 },
+  time: { color: colors.onMedia, fontSize: 12, fontVariant: ['tabular-nums'] },
+  watchButton: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 7, paddingHorizontal: 12, backgroundColor: colors.yolk, borderRadius: 9999 },
+  watchLabel: { color: colors.onYolk, fontSize: 12 },
+  watchMeta: { marginLeft: 'auto', paddingLeft: 8, borderLeftWidth: 1, borderLeftColor: colors.onYolk, color: colors.onYolk, fontSize: 10 },
   disabledEpisodeButton: { opacity: 0.38 },
   slider: { width: '100%', height: 34, marginTop: 2 },
-  settingsBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 22, backgroundColor: '#000B' },
+  settingsBackdrop: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 22, backgroundColor: colors.backdrop },
   settingsDialog: { width: '100%', maxWidth: 420, padding: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 20, borderCurve: 'continuous' },
   settingsHeader: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   settingsTitle: { fontSize: 20, lineHeight: 28 },
@@ -414,4 +416,4 @@ const styles = StyleSheet.create({
   settingsNote: { color: colors.muted, fontSize: 11, lineHeight: 16 },
   settingsDisabled: { color: colors.muted, fontSize: 11 },
   settingsDismiss: { marginTop: 10 },
-});
+}));

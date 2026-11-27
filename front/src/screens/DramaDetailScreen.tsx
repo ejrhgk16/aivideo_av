@@ -6,7 +6,7 @@ import { AppText, EmptyState, Icon, LoadingState, Page } from '@/components/ui';
 import { EpisodeUnlockDialog } from '@/components/EpisodeUnlockDialog';
 import { ApiError, SessionChangedError } from '@/common/http/api';
 import { resolveApiImageUrl } from '@/common/media';
-import { colors } from '@/common/theme/tokens';
+import { createThemedStyles, useColors } from '@/common/theme/theme';
 import { getErrorMessage } from '@/common/http/errorMessages';
 import { getDramaContent, type DramaContent } from '@/features/drama/dramaContent';
 import { useUser } from '@/features/user/UserProvider';
@@ -14,6 +14,8 @@ import { useUser } from '@/features/user/UserProvider';
 type LoadState = 'loading' | 'loaded' | 'not-found' | 'error';
 
 export function DramaDetailScreen({ id }: { id: string }) {
+  const styles = useStyles();
+  const colors = useColors();
   const router = useRouter();
   const { isRestoring, sessionVersion, isCurrentSession, user } = useUser();
   const params = useLocalSearchParams<{ tab?: string }>();
@@ -86,7 +88,7 @@ export function DramaDetailScreen({ id }: { id: string }) {
       <View style={styles.hero}>
         {coverUrl && !imageFailed ? <Image source={{ uri: coverUrl }} accessibilityLabel={`${drama.title} 상세 표지`} contentFit="cover" style={StyleSheet.absoluteFill} onError={() => setImageFailed(true)} /> : <View style={[StyleSheet.absoluteFill, styles.imagePlaceholder]}><Icon name="image" size={30} color={colors.muted} /><AppText style={styles.imagePlaceholderText}>표지 이미지가 없어요</AppText></View>}
         <View pointerEvents="none" style={styles.heroShade} />
-        <Pressable style={styles.back} accessibilityRole="button" accessibilityLabel="뒤로 가기" onPress={back}><Icon name="chevron-left" size={27} color={colors.text} /></Pressable>
+        <Pressable style={styles.back} accessibilityRole="button" accessibilityLabel="뒤로 가기" onPress={back}><Icon name="chevron-left" size={27} color={colors.onMedia} /></Pressable>
         {drama.productionCompany ? <AppText weight="medium" style={styles.studio}>{drama.productionCompany}</AppText> : null}
       </View>
       <View style={styles.heading}>
@@ -136,14 +138,14 @@ export function DramaDetailScreen({ id }: { id: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => ({
   page: { paddingHorizontal: 22, paddingTop: 0, paddingBottom: 34, gap: 24 },
   hero: { height: 290, marginHorizontal: -22, justifyContent: 'flex-end', overflow: 'hidden', backgroundColor: colors.surface },
-  heroShade: { ...StyleSheet.absoluteFill, backgroundColor: '#0B0C0F40' },
+  heroShade: { ...StyleSheet.absoluteFill, backgroundColor: colors.mediaScrim },
   imagePlaceholder: { alignItems: 'center', justifyContent: 'center', gap: 10 },
   imagePlaceholderText: { color: colors.muted, fontSize: 12 },
-  back: { position: 'absolute', top: 14, left: 14, width: 44, height: 44, backgroundColor: '#0B0C0F99', borderRadius: 24, borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center' },
-  studio: { fontSize: 10, lineHeight: 16, letterSpacing: 1.2, marginHorizontal: 22, marginBottom: 15 },
+  back: { position: 'absolute', top: 14, left: 14, width: 44, height: 44, backgroundColor: colors.mediaBack, borderRadius: 24, borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center' },
+  studio: { color: colors.onMedia, fontSize: 12, lineHeight: 18, marginHorizontal: 22, marginBottom: 15 },
   heading: { gap: 9 },
   genres: { color: colors.muted, fontSize: 11, lineHeight: 17 },
   title: { fontSize: 30, lineHeight: 40, letterSpacing: -1 },
@@ -154,20 +156,20 @@ const styles = StyleSheet.create({
   tabLabel: { fontSize: 13, color: colors.muted },
   activeTabLabel: { color: colors.text },
   section: { gap: 14, paddingTop: 3 },
-  synopsis: { fontSize: 14, lineHeight: 25, color: '#C2C7CD' },
+  synopsis: { fontSize: 14, lineHeight: 25, color: colors.text },
   previewButton: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 15, marginTop: 9, backgroundColor: colors.elevated, borderWidth: 1, borderColor: colors.border, borderRadius: 11, borderCurve: 'continuous' },
   disabledPreviewButton: { opacity: 0.45 },
   previewButtonText: { flex: 1, fontSize: 12, lineHeight: 18 },
   production: { flexDirection: 'row', alignItems: 'center', gap: 20, paddingTop: 5 },
   productionLabel: { width: 45, color: colors.muted, fontSize: 11, lineHeight: 18 },
-  productionValue: { color: '#C2C7CD', fontSize: 12, lineHeight: 19 },
+  productionValue: { color: colors.text, fontSize: 12, lineHeight: 19 },
   episodes: { paddingTop: 3 },
   emptyEpisodes: { color: colors.muted, fontSize: 13, lineHeight: 21, paddingVertical: 10 },
   episodeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   episode: { width: '17.5%', minHeight: 63, paddingVertical: 10, gap: 5, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 9, borderCurve: 'continuous' },
-  watchedEpisode: { backgroundColor: '#CBF46A18' },
+  watchedEpisode: { backgroundColor: colors.elevated },
   episodeNumber: { color: colors.text, fontSize: 13, lineHeight: 19 },
   freeLabel: { color: colors.muted, fontSize: 9, lineHeight: 13 },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   priceLabel: { color: colors.muted, fontSize: 9, lineHeight: 13 },
-});
+}));

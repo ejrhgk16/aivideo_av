@@ -1,17 +1,32 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { AppText, Button, Icon, Page } from '@/components/ui';
+import { Pressable, View } from 'react-native';
+import { AppText, Button, Icon, Page, Peeka } from '@/components/ui';
 import { AuthNotice } from '@/components/authUi';
-import { colors } from '@/common/theme/tokens';
+import { createThemedStyles, useColorSchemeName, type ColorSchemeName } from '@/common/theme/theme';
 
-const providers = [
-  { key: 'google', name: 'Google', labelColor: '#E3E3E3', icon: <FontAwesome name="google" size={18} color="#E3E3E3" /> },
-  { key: 'kakao', name: '카카오', labelColor: '#000000D9', icon: <Icon name="message-circle" size={19} color="#000000" /> },
-  { key: 'naver', name: '네이버', labelColor: '#FFFFFF', icon: <AppText weight="bold" style={{ fontSize: 20, lineHeight: 24, color: '#FFFFFF' }}>N</AppText> },
-] as const;
+// 소셜 로그인 버튼은 각 서비스의 브랜드 색을 그대로 쓴다(앱 토큰 밖의 예외). Google은 화면 모드에 맞는 버튼을 쓴다.
+const brand = {
+  google: {
+    light: { background: '#FFFFFF', border: '#747775', label: '#1F1F1F' },
+    dark: { background: '#131314', border: '#8E918F', label: '#E3E3E3' },
+  },
+  kakao: { background: '#FEE500', label: '#000000D9', icon: '#000000' },
+  naver: { background: '#03C75A', label: '#FFFFFF' },
+} as const;
+
+function providerList(scheme: ColorSchemeName) {
+  const google = brand.google[scheme];
+  return [
+    { key: 'google', name: 'Google', labelColor: google.label, style: { backgroundColor: google.background, borderWidth: 1, borderColor: google.border }, icon: <FontAwesome name="google" size={18} color={google.label} /> },
+    { key: 'kakao', name: '카카오', labelColor: brand.kakao.label, style: { backgroundColor: brand.kakao.background }, icon: <Icon name="message-circle" size={19} color={brand.kakao.icon} /> },
+    { key: 'naver', name: '네이버', labelColor: brand.naver.label, style: { backgroundColor: brand.naver.background }, icon: <AppText weight="bold" style={{ fontSize: 20, lineHeight: 24, color: brand.naver.label }}>N</AppText> },
+  ] as const;
+}
 
 export function AuthLoginScreen(): React.JSX.Element {
+  const styles = useStyles();
+  const providers = providerList(useColorSchemeName());
   const router = useRouter();
   const leave = () => router.canGoBack() ? router.back() : router.replace('/');
 
@@ -20,14 +35,14 @@ export function AuthLoginScreen(): React.JSX.Element {
       <Icon name="x" size={22} />
     </Pressable>
     <View style={styles.brand}>
-      <AppText weight="bold" accessibilityRole="header" accessibilityLabel="AI DRAMA 로그인" style={styles.wordmark}>AI DRAMA</AppText>
+      <View style={styles.wordmarkRow}><Peeka slot="logo" size={48} style={styles.logoMark} /><AppText weight="extrabold" accessibilityRole="header" accessibilityLabel="peeka 로그인" style={styles.wordmark}>peeka</AppText></View>
       <AppText style={styles.tagline}>보던 드라마, 어디서든 이어서</AppText>
       <AppText weight="semibold" style={styles.tagline}>로그인하고 시작하기</AppText>
     </View>
     <View style={styles.actions}>
       {providers.map((provider) => <View key={provider.key} style={styles.providerItem}>
         <Pressable accessibilityRole="button" accessibilityLabel={`${provider.name}로 로그인`} onPress={() => router.push('/auth/onboarding')}
-          style={({ pressed }) => [styles.provider, styles[provider.key], pressed && styles.pressed]}>
+          style={({ pressed }) => [styles.provider, provider.style, pressed && styles.pressed]}>
           <View style={styles.providerIcon}>{provider.icon}</View>
           <AppText weight="semibold" style={[styles.providerLabel, { color: provider.labelColor }]}>{provider.name}로 로그인</AppText>
         </Pressable>
@@ -42,21 +57,20 @@ export function AuthLoginScreen(): React.JSX.Element {
   </Page>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => ({
   page: { maxWidth: 480, flexGrow: 1, paddingTop: 8, gap: 26 },
   close: { alignSelf: 'flex-end', width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: -10 },
   brand: { flexGrow: 1, minHeight: 180, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  wordmark: { color: colors.accent, fontSize: 36, lineHeight: 44, letterSpacing: 1 },
+  wordmarkRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  logoMark: { borderRadius: 8, backgroundColor: colors.lavender },
+  wordmark: { fontSize: 36, lineHeight: 44, letterSpacing: -1.6 },
   tagline: { fontSize: 16, lineHeight: 24, textAlign: 'center' },
   actions: { gap: 10 },
   providerItem: { gap: 6 },
-  provider: { minHeight: 52, borderRadius: 14, borderCurve: 'continuous', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 52 },
-  google: { backgroundColor: '#131314', borderWidth: 1, borderColor: '#8E918F' },
-  kakao: { backgroundColor: '#FEE500' },
-  naver: { backgroundColor: '#03C75A' },
+  provider: { minHeight: 52, borderRadius: 9999, borderCurve: 'continuous', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 52 },
   pressed: { opacity: 0.8 },
   providerIcon: { position: 'absolute', left: 18, width: 24, alignItems: 'center' },
   providerLabel: { fontSize: 16 },
   providerNote: { color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: 'center' },
   footer: { gap: 6 },
-});
+}));

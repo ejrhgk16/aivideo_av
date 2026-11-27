@@ -1,9 +1,9 @@
 import { Stack, useRouter } from 'expo-router';
 import { useFonts } from 'expo-font';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { colors } from '@/common/theme/tokens';
+import { createThemedStyles, useColors, useColorSchemeName } from '@/common/theme/theme';
 import { UserProvider } from '@/features/user/UserProvider';
 import { useUser } from '@/features/user/UserProvider';
 import { SessionExpiredDialog } from '@/components/SessionExpiredDialog';
@@ -11,6 +11,8 @@ import { SessionExpiredDialog } from '@/components/SessionExpiredDialog';
 function AppNavigation() {
   const router = useRouter();
   const { sessionExpired, dismissSessionExpired } = useUser();
+  const colors = useColors();
+  const styles = useStyles();
   return <View style={styles.root}>
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
       <Stack.Screen name="(tabs)" />
@@ -34,13 +36,17 @@ function AppNavigation() {
 }
 
 export default function RootLayout() {
+  const colors = useColors();
+  const styles = useStyles();
+  const scheme = useColorSchemeName();
   const [fontsLoaded, fontError] = useFonts({
     'Pretendard-Regular': require('../../assets/fonts/Pretendard-Regular.ttf'),
     'Pretendard-Medium': require('../../assets/fonts/Pretendard-Medium.ttf'),
     'Pretendard-SemiBold': require('../../assets/fonts/Pretendard-SemiBold.ttf'),
     'Pretendard-Bold': require('../../assets/fonts/Pretendard-Bold.ttf'),
+    'Pretendard-ExtraBold': require('../../assets/fonts/Pretendard-ExtraBold.ttf'),
   });
-  return <SafeAreaProvider><StatusBar style="light" />
+  return <SafeAreaProvider><StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
     <UserProvider>
       {!fontsLoaded && !fontError ? <View style={styles.loading}><ActivityIndicator color={colors.accent} /></View>
         : <AppNavigation />}
@@ -48,7 +54,7 @@ export default function RootLayout() {
   </SafeAreaProvider>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => ({
   root: { flex: 1, backgroundColor: colors.background },
   loading: { flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', gap: 16 },
-});
+}));

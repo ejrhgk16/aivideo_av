@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { FlatList, Pressable, View } from 'react-native';
 import { Image } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { AppText, Button, EmptyState, LoadingState, Page, SectionTitle } from '@/components/ui';
 import { AppTopBar } from '@/components/AppTopBar';
-import { colors } from '@/common/theme/tokens';
+import { createThemedStyles, useColors } from '@/common/theme/theme';
 import { getErrorMessage } from '@/common/http/errorMessages';
 import { getSavedVideos, savedVideoRoute, type SavedVideoItem, type WatchHistoryItem } from '@/features/playback/savedVideos';
 import { getWatchHistory } from '@/features/playback/watchHistory';
@@ -24,6 +24,7 @@ type LibraryItem = SavedVideoItem | WatchHistoryItem;
 type ItemsOwner = { uuid: string; version: number; tab: LibraryTab };
 
 export function LibraryScreen() {
+  const styles = useStyles();
   const router = useRouter();
   const params = useLocalSearchParams<{ tab?: string }>();
   const { isRestoring, user, sessionVersion, isCurrentSession } = useUser();
@@ -124,7 +125,7 @@ export function LibraryScreen() {
   };
 
   return <Page header={<AppTopBar />} scroll={false} contentStyle={styles.page}>
-    <SectionTitle eyebrow="MY COLLECTION" title="보관함" />
+    <SectionTitle title="보관함" />
     <View style={styles.tabs} accessibilityRole="tablist">
       {(['저장한 작품', '시청 기록'] as const).map((item) => <Pressable key={item} accessibilityRole="tab" accessibilityState={{ selected: tab === item }} style={[styles.tab, tab === item && styles.activeTab]} onPress={() => setSelectedTab(item)}><AppText weight={tab === item ? 'semibold' : 'regular'} style={[styles.tabLabel, tab === item && styles.activeLabel]}>{item}</AppText></Pressable>)}
     </View>
@@ -143,7 +144,7 @@ export function LibraryScreen() {
   </Page>;
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => ({
   page: { paddingHorizontal: 22, paddingTop: 26, paddingBottom: 30, gap: 0 },
   tabs: { flexDirection: 'row', backgroundColor: colors.surface, borderRadius: 12, borderCurve: 'continuous', padding: 4, marginTop: 25, marginBottom: 24 },
   tab: { flex: 1, minHeight: 44, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 9, borderCurve: 'continuous' },
@@ -154,4 +155,4 @@ const styles = StyleSheet.create({
   card: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 10, borderRadius: 14, backgroundColor: colors.surface },
   image: { width: 112, height: 63, borderRadius: 7, borderCurve: 'continuous', backgroundColor: colors.elevated }, imagePlaceholder: { backgroundColor: colors.elevated },
   cardText: { flex: 1, gap: 5 }, cardTitle: { lineHeight: 23 }, meta: { color: colors.muted, fontSize: 12 }, footer: { alignItems: 'center', paddingVertical: 16, gap: 10 },
-});
+}));

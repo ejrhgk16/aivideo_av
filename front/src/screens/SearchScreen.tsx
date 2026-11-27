@@ -8,13 +8,16 @@ import { getDramaList, getGenres, type DramaSummary, type GenreSummary } from '@
 import { SessionChangedError } from '@/common/http/api';
 import { getErrorMessage } from '@/common/http/errorMessages';
 import { resolveApiImageUrl } from '@/common/media';
-import { colors, typography } from '@/common/theme/tokens';
+import { typography } from '@/common/theme/tokens';
+import { createThemedStyles, useColors } from '@/common/theme/theme';
 import { useUser } from '@/features/user/UserProvider';
 
 type ListStatus = 'loading' | 'loaded' | 'error';
 type GenreStatus = 'loading' | 'loaded' | 'error';
 
 export function SearchScreen() {
+  const styles = useStyles();
+  const colors = useColors();
   const router = useRouter();
   const params = useLocalSearchParams<{ genre?: string }>();
   const { width } = useWindowDimensions();
@@ -230,7 +233,7 @@ export function SearchScreen() {
 
   return (
     <Page header={<AppTopBar />} contentStyle={styles.page}>
-      <SectionTitle eyebrow="FIND YOUR NEXT STORY" title="어떤 이야기를 찾으세요?" />
+      <SectionTitle title="어떤 이야기를 찾으세요?" />
       <View style={styles.searchField}>
         <Icon name="search" size={21} color={colors.muted} />
         <TextInput style={styles.input} accessibilityLabel="작품 제목이나 장르 검색" placeholder="작품 제목이나 장르를 검색해요" placeholderTextColor={colors.muted} value={query} onChangeText={applySearchText} returnKeyType="search" autoCapitalize="none" autoCorrect={false} />
@@ -252,7 +255,7 @@ export function SearchScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = createThemedStyles((colors) => ({
   page: { flexGrow: 1, paddingHorizontal: 22, paddingTop: 26, paddingBottom: 30, gap: 0 },
   searchField: { marginTop: 25, minHeight: 54, paddingLeft: 15, paddingRight: 7, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 12, borderCurve: 'continuous', flexDirection: 'row', alignItems: 'center', gap: 10 },
   input: { flex: 1, fontFamily: typography.regular, color: colors.text, fontSize: 14, paddingVertical: 14, minWidth: 0 },
@@ -271,4 +274,4 @@ const styles = StyleSheet.create({
   poster: { overflow: 'hidden', borderRadius: 14, borderCurve: 'continuous', backgroundColor: colors.surface },
   placeholder: { backgroundColor: colors.surface },
   genreText: { fontSize: 11, color: colors.muted },
-});
+}));
