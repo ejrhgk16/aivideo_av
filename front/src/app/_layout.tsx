@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { createThemedStyles, useColors, useColorSchemeName } from '@/common/theme/theme';
+import { ThemeProvider } from '@/common/theme/ThemeProvider';
 import { UserProvider } from '@/features/user/UserProvider';
 import { useUser } from '@/features/user/UserProvider';
 import { SessionExpiredDialog } from '@/components/SessionExpiredDialog';
@@ -35,7 +36,7 @@ function AppNavigation() {
   </View>;
 }
 
-export default function RootLayout() {
+function ThemedRoot() {
   const colors = useColors();
   const styles = useStyles();
   const scheme = useColorSchemeName();
@@ -52,6 +53,10 @@ export default function RootLayout() {
         : <AppNavigation />}
     </UserProvider>
   </SafeAreaProvider>;
+}
+
+export default function RootLayout() {
+  return <ThemeProvider><ThemedRoot /></ThemeProvider>;
 }
 
 const useStyles = createThemedStyles((colors) => ({

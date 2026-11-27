@@ -1,13 +1,16 @@
-import { render, renderHook, screen } from '@testing-library/react-native';
-import { StyleSheet, useColorScheme } from 'react-native';
+import { fireEvent, render, renderHook, screen } from '@testing-library/react-native';
+import { StyleSheet, useColorScheme, View } from 'react-native';
 import { palettes } from '@/common/theme/tokens';
 import { createThemedStyles, useColors, useColorSchemeName } from '@/common/theme/theme';
 import { AppText, Button, EmptyState, SectionTitle } from '@/components/ui';
 import { AppTopBar } from '@/components/AppTopBar';
+import { ThemeProvider } from '@/common/theme/ThemeProvider';
+import { readThemePreference, writeThemePreference } from '@/common/storage/themePreferenceStorage';
 import { useUser } from '@/features/user/UserProvider';
 
 jest.mock('react-native/Libraries/Utilities/useColorScheme', () => ({ __esModule: true, default: jest.fn() }));
 jest.mock('@/features/user/UserProvider', () => ({ useUser: jest.fn() }));
+jest.mock('@/common/storage/themePreferenceStorage', () => ({ readThemePreference: jest.fn(), writeThemePreference: jest.fn() }));
 jest.mock('expo-router', () => ({ useRouter: () => ({ navigate: jest.fn(), push: jest.fn() }) }));
 
 const scheme = jest.mocked(useColorScheme);
@@ -72,13 +75,14 @@ describe('공통 부품', () => {
 });
 
 describe('AppTopBar', () => {
-  test('peeka 로고와 포인트 알약만 두고 헤더 돋보기는 두지 않는다', () => {
+  test('peeka 로고, 화면 모드 버튼, 포인트 알약만 두고 헤더 돋보기는 두지 않는다', () => {
     render(<AppTopBar />);
     expect(screen.getByRole('button', { name: '홈으로 이동' })).toBeOnTheScreen();
     expect(screen.getByText('peeka')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: '사용 가능한 포인트는 1,200 P예요, 포인트 화면 열기' })).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: '작품 찾기' })).not.toBeOnTheScreen();
-    expect(screen.getAllByRole('button')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: '다크 모드로 바꾸기' })).toBeOnTheScreen();
+    expect(screen.getAllByRole('button')).toHaveLength(3);
   });
 
   test('다크 모드에서는 먹색 표면 위에 포인트 알약을 그린다', () => {
@@ -86,5 +90,64 @@ describe('AppTopBar', () => {
     render(<AppTopBar />);
     const pill = StyleSheet.flatten(screen.getByRole('button', { name: /포인트 화면 열기$/ }).props.style);
     expect(pill).toMatchObject({ backgroundColor: palettes.dark.surface, borderColor: palettes.dark.borderStrong });
+  });
+});
+
+describe('화면 모드 선택', () => {
+  const saved = jest.mocked(readThemePreference);
+  const save = jest.mocked(writeThemePreference);
+  const background = () => StyleSheet.flatten(screen.getByTestId('themed').props.style).backgroundColor;
+  const useStyles = createThemedStyles((colors) => ({ box: { backgroundColor: colors.background } }));
+  function Themed() {
+    return <View testID="themed" style={useStyles().box} />;
+  }
+  const renderApp = () => render(<ThemeProvider><AppTopBar /><Themed /></ThemeProvider>);
+
+  beforeEach(() => saved.mockReturnValue(null));
+
+  test.each(['light', 'dark'] as const)('저장한 선택이 없으면 기기 모드(%s)를 따른다', (mode) => {
+    scheme.mockReturnValue(mode);
+    renderApp();
+    expect(background()).toBe(palettes[mode].background);
+    expect(screen.getByRole('button', { name: mode === 'dark' ? '라이트 모드로 바꾸기' : '다크 모드로 바꾸기' })).toBeOnTheScreen();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  test('해/달 버튼은 지금 모드의 반대로 바꾸고 모든 화면 색과 버튼 이름을 함께 바꾼다', () => {
+    renderApp();
+    const toggle = screen.getByRole('button', { name: '다크 모드로 바꾸기' });
+    expect(StyleSheet.flatten(toggle.props.style)).toMatchObject({ width: 44, height: 44 });
+
+    fireEvent.press(toggle);
+    expect(background()).toBe(palettes.dark.background);
+    expect(StyleSheet.flatten(screen.getByRole('button', { name: /포인트 화면 열기$/ }).props.style).backgroundColor).toBe(palettes.dark.surface);
+    expect(save).toHaveBeenLastCalledWith('dark');
+
+    fireEvent.press(screen.getByRole('button', { name: '라이트 모드로 바꾸기' }));
+    expect(background()).toBe(palettes.light.background);
+    expect(screen.getByRole('button', { name: '다크 모드로 바꾸기' })).toBeOnTheScreen();
+    expect(save).toHaveBeenLastCalledWith('light');
+  });
+
+  test('저장한 선택은 다음 실행에서 첫 렌더부터 기기 모드보다 앞선다', () => {
+    renderApp();
+    fireEvent.press(screen.getByRole('button', { name: '다크 모드로 바꾸기' }));
+    screen.unmount();
+
+    saved.mockReturnValue(save.mock.lastCall![0]);
+    scheme.mockReturnValue('light');
+    renderApp();
+    expect(background()).toBe(palettes.dark.background);
+    expect(screen.getByRole('button', { name: '라이트 모드로 바꾸기' })).toBeOnTheScreen();
+  });
+
+  test('저장소를 읽거나 쓰지 못해도 기기 모드로 시작하고 이번 실행의 선택은 적용한다', () => {
+    saved.mockImplementation(() => { throw new Error('keychain'); });
+    save.mockImplementation(() => { throw new Error('keychain'); });
+    renderApp();
+    expect(background()).toBe(palettes.light.background);
+
+    fireEvent.press(screen.getByRole('button', { name: '다크 모드로 바꾸기' }));
+    expect(background()).toBe(palettes.dark.background);
   });
 });

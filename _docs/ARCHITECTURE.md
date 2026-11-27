@@ -15,7 +15,8 @@ admin (Next.js) ── SQL ──> shared MySQL <── back (schema owner)
 | `src/screens/` | Screen UI and local state. |
 | `src/components/` | Reusable UI components. |
 | `src/common/` | Shared HTTP, storage, environment, theme, and utilities. |
-| `src/common/theme/tokens.ts`, `theme.ts` | PEEKA design tokens (light cream / dark ink palettes, type sizes, spacing, radius) and the hooks (`useColors`, `createThemedStyles`) that pick the palette from the device color scheme. Screens use these instead of hard-coded colors. |
+| `src/common/theme/tokens.ts`, `theme.ts` | PEEKA design tokens (light cream / dark ink palettes, type sizes, spacing, radius) and the hooks (`useColors`, `createThemedStyles`, `useToggleColorScheme`) that pick the palette from the in-app choice or, by default, the device color scheme. Screens use these instead of hard-coded colors. |
+| `src/common/theme/ThemeProvider.tsx`, `src/common/storage/themePreferenceStorage*.ts` | Root owner of the light/dark choice and its persistence (native SecureStore, web localStorage). |
 | `src/features/` | Feature state, API calls, and response types in `*Responses.ts`. |
 | `src/features/auth/authAge.ts` | Pure KST birth-date validation and age calculation for the auth screens. |
 | `src/features/drama/resumePoint.ts` | Pure start/resume rule shared by the home hero, the 빼꼼 feed, and the preview player: which episode the primary button opens and its label ("1화 무료로 보기", "8화 이어보기", "9화 보기", "24화 다시 보기"). |
