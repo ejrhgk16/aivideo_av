@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
-import { Modal, Pressable, Switch, useWindowDimensions, View } from 'react-native';
-import { AppText, Button, Icon, LoadingState, Page, SectionTitle } from '@/components/ui';
+import { Modal, Pressable, Switch, View } from 'react-native';
+import { AppText, Button, Icon, LoadingState, Page } from '@/components/ui';
 import { AppTopBar } from '@/components/AppTopBar';
+import { radius, spacing, textSizes } from '@/common/theme/tokens';
 import { createThemedStyles, useColors } from '@/common/theme/theme';
 import { useUser } from '@/features/user/UserProvider';
 
@@ -12,7 +13,6 @@ export function AccountScreen() {
   const styles = useStyles();
   const colors = useColors();
   const router = useRouter();
-  const { width } = useWindowDimensions();
   const { user, points, isRestoring, subtitlesEnabled, setSubtitlesEnabled, logout } = useUser();
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
@@ -46,12 +46,12 @@ export function AccountScreen() {
     : `사용 가능한 포인트는 ${amount} P예요`;
 
   if (isRestoring) return <Page header={<AppTopBar />} scroll={false} contentStyle={styles.page}>
-    <SectionTitle title="나의 작은 영화관" />
+    <AppText weight="bold" accessibilityRole="header" style={styles.screenTitle}>내 정보</AppText>
     <LoadingState />
   </Page>;
 
   return <Page header={<AppTopBar />} contentStyle={styles.page}>
-    <SectionTitle title="나의 작은 영화관" />
+    <AppText weight="bold" accessibilityRole="header" style={styles.screenTitle}>내 정보</AppText>
     <View style={styles.profile}>
       <View style={styles.avatar}><Icon name="user" size={27} color={colors.accent} /></View>
       <View style={styles.copy}>
@@ -65,30 +65,27 @@ export function AccountScreen() {
       <Button label="로그인하고 시작하기" onPress={() => router.push('/auth/login')} />
     </View> : null}
 
-    <Pressable accessibilityRole="button" accessibilityLabel={`내 포인트 ${amount}${points === null ? '' : ' P'}, 충전하기`} onPress={() => router.push('/points')} style={[styles.pointsCard, { borderRadius: width <= 700 ? 18 : 20 }]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`내 포인트 ${amount}${points === null ? '' : ' P'}, 충전하기`} onPress={() => router.push('/points')} style={styles.pointsCard}>
       <View style={styles.pointsCopy}>
         <AppText weight="medium" style={styles.pointsLabel}>내 포인트</AppText>
         <View style={styles.pointsAmountRow}>
-          <AppText weight="bold" style={[styles.pointsAmount, { fontSize: width <= 700 ? 39 : 45 }]}>{amount}</AppText>
+          <AppText weight="bold" style={styles.pointsAmount}>{amount}</AppText>
           {points !== null ? <AppText weight="semibold" style={styles.pointsUnit}>P</AppText> : null}
         </View>
         {points === null ? <AppText style={styles.pointsHint}>{pointsDescription}</AppText> : null}
       </View>
       <View style={styles.chargeLink}>
         <AppText weight="semibold" style={styles.chargeLabel}>충전하기</AppText>
-        <Icon name="arrow-right" size={17} color={colors.text} />
+        <Icon name="arrow-right" size={18} color={colors.text} />
       </View>
     </Pressable>
 
     <View style={styles.menu}>
       <MenuItem icon="list" label="포인트 이용 내역" onPress={() => router.push({ pathname: '/points', params: { tab: 'history' } })} />
       <MenuItem icon="clock" label="시청 기록" onPress={() => router.push({ pathname: '/library', params: { tab: 'history' } })} />
-    </View>
-    <SectionTitle title="앱 설정" />
-    <View style={styles.menu}>
       <MenuItem icon="settings" label="재생 설정" onPress={() => openDialog('settings')} />
       <MenuItem icon="help-circle" label="이용 안내" onPress={() => openDialog('help')} />
-      <MenuItem icon="info" label="앱 정보" onPress={() => openDialog('about')} />
+      <MenuItem icon="info" label="앱 정보" last onPress={() => openDialog('about')} />
     </View>
     {!showAuthEntry ? <Button label="로그아웃" variant="secondary" disabled={loggingOut} onPress={handleLogout} /> : null}
     {logoutError ? <AppText accessibilityRole="alert" style={styles.muted}>{logoutError}</AppText> : null}
@@ -112,20 +109,20 @@ export function AccountScreen() {
             <AppText style={styles.muted}>일부 설정 기능은 준비 중이에요.</AppText>
           </View> : dialog === 'help' ? <AppText style={styles.dialogCopy}>포인트 잔액과 이용 내역을 확인할 수 있어요. 광고와 충전은 실제 결제 없이 체험할 수 있어요. 체험 포인트는 포인트 화면을 나가면 초기화돼요.</AppText>
             : <AppText style={styles.dialogCopy}>peeka{ '\n' }드라마를 위한 체험 화면</AppText>}
-          <Button label="닫기" onPress={closeDialog} />
+          <Button label="닫기" variant="secondary" onPress={closeDialog} />
         </View>
       </View>}
     </Modal>
   </Page>;
 }
 
-function MenuItem({ icon, label, onPress }: { icon: 'list' | 'clock' | 'settings' | 'help-circle' | 'info'; label: string; onPress: () => void }) {
+function MenuItem({ icon, label, last, onPress }: { icon: 'list' | 'clock' | 'settings' | 'help-circle' | 'info'; label: string; last?: boolean; onPress: () => void }) {
   const styles = useStyles();
   const colors = useColors();
-  return <Pressable accessibilityRole="button" onPress={onPress} style={styles.menuItem}>
-    <Icon name={icon} size={19} color={colors.muted} />
+  return <Pressable accessibilityRole="button" onPress={onPress} style={[styles.menuItem, last && styles.lastMenuItem]}>
+    <Icon name={icon} size={20} color={colors.muted} />
     <AppText style={styles.menuLabel}>{label}</AppText>
-    <Icon name="chevron-right" size={18} color={colors.muted} />
+    <Icon name="chevron-right" size={17} color={colors.muted} />
   </Pressable>;
 }
 
@@ -138,32 +135,34 @@ function SettingItem({ label }: { label: string }) {
 }
 
 const useStyles = createThemedStyles((colors) => ({
-  page: { gap: 24 },
-  profile: { flexDirection: 'row', alignItems: 'center', gap: 15 },
-  authActions: { flexDirection: 'row', gap: 10 },
-  avatar: { width: 62, height: 62, borderRadius: 31, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
-  copy: { flex: 1, gap: 4 },
-  title: { fontSize: 19, lineHeight: 27 },
-  muted: { color: colors.muted, lineHeight: 21, fontSize: 13 },
-  accountBadge: { alignSelf: 'flex-start', backgroundColor: colors.surface, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, marginTop: -12 },
-  badgeText: { color: colors.muted, fontSize: 12 },
-  pointsCard: { width: '100%', maxWidth: 780, alignSelf: 'center', minHeight: 126, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, overflow: 'hidden', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.borderStrong, paddingHorizontal: 20, paddingVertical: 18 },
-  pointsCopy: { flex: 1, minWidth: 0, gap: 6 },
-  pointsLabel: { color: colors.muted, fontSize: 14 },
-  pointsAmountRow: { flexDirection: 'row', alignItems: 'baseline', gap: 7 },
-  pointsAmount: { color: colors.text, lineHeight: 52 },
-  pointsUnit: { color: colors.text, fontSize: 24, lineHeight: 30 },
-  pointsHint: { color: colors.muted, fontSize: 12, lineHeight: 18 },
-  chargeLink: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 4 },
-  chargeLabel: { color: colors.text, fontSize: 13 },
-  menu: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.border, overflow: 'hidden', marginTop: -12 },
-  menuItem: { minHeight: 56, paddingHorizontal: 17, flexDirection: 'row', alignItems: 'center', gap: 13, borderBottomWidth: 1, borderBottomColor: colors.border },
-  menuLabel: { flex: 1, fontSize: 14 },
-  modalBackdrop: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: colors.backdrop },
-  dialog: { backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.border, padding: 22, gap: 20 },
-  dialogTitle: { fontSize: 20, lineHeight: 28 },
-  dialogCopy: { color: colors.muted, lineHeight: 23 },
-  settingList: { gap: 15 },
-  settingItem: { flexDirection: 'row', alignItems: 'center', minHeight: 34 },
-  settingDisabled: { color: colors.muted, fontSize: 12 },
+  page: { paddingHorizontal: spacing.md, paddingTop: spacing.lg, paddingBottom: spacing.xl, gap: spacing.md },
+  screenTitle: { color: colors.text, ...textSizes.heading24 },
+  profile: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.xs },
+  authActions: { flexDirection: 'row', gap: spacing.sm },
+  avatar: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.elevated, alignItems: 'center', justifyContent: 'center' },
+  copy: { flex: 1, gap: spacing.xxs },
+  title: { color: colors.text, ...textSizes.body18 },
+  muted: { color: colors.muted, ...textSizes.label14 },
+  accountBadge: { alignSelf: 'flex-start', backgroundColor: colors.elevated, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: spacing.xxs },
+  badgeText: { color: colors.muted, ...textSizes.caption12 },
+  pointsCard: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, overflow: 'hidden', backgroundColor: colors.elevated, borderRadius: radius.md, borderCurve: 'continuous', padding: spacing.lg },
+  pointsCopy: { flex: 1, minWidth: 0, gap: spacing.xs },
+  pointsLabel: { color: colors.text, ...textSizes.label14 },
+  pointsAmountRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs },
+  pointsAmount: { color: colors.text, fontSize: 32, lineHeight: 38, fontVariant: ['tabular-nums'] },
+  pointsUnit: { color: colors.accent, ...textSizes.heading24 },
+  pointsHint: { color: colors.muted, ...textSizes.caption12 },
+  chargeLink: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: spacing.xxs, paddingLeft: spacing.xxs },
+  chargeLabel: { color: colors.text, ...textSizes.label14 },
+  menu: { backgroundColor: colors.surface, borderRadius: radius.md, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
+  menuItem: { minHeight: 56, paddingHorizontal: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border },
+  lastMenuItem: { borderBottomWidth: 0 },
+  menuLabel: { flex: 1, color: colors.text, ...textSizes.label14 },
+  modalBackdrop: { flex: 1, justifyContent: 'center', padding: spacing.lg, backgroundColor: colors.backdrop },
+  dialog: { backgroundColor: colors.surface, borderRadius: radius.lg, borderCurve: 'continuous', borderWidth: 1, borderColor: colors.border, padding: spacing.lg, gap: spacing.md },
+  dialogTitle: { color: colors.text, ...textSizes.body18 },
+  dialogCopy: { color: colors.muted, ...textSizes.label14 },
+  settingList: { gap: spacing.sm },
+  settingItem: { flexDirection: 'row', alignItems: 'center', minHeight: 40 },
+  settingDisabled: { color: colors.muted, ...textSizes.caption12 },
 }));

@@ -54,7 +54,7 @@ function renderAccount(accountType: 'GUEST' | 'MEMBER' | 'OPERATOR' | 'PARTNER' 
 describe('AccountScreen authentication entry', () => {
   test.each(['MEMBER', null] as const)('세션 복원 중 비회원 내용을 노출하지 않고 %s 결과로 전환한다', accountType => {
     const view = renderAccount(null, true);
-    expect(screen.getByText('나의 작은 영화관')).toBeOnTheScreen();
+    expect(screen.getByRole('header', { name: '내 정보' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: '홈으로 이동' })).toBeOnTheScreen();
     expect(screen.getByRole('progressbar', { name: '로딩 중' })).toBeBusy();
     expect(screen.queryByText('게스트로 둘러보고 있어요')).not.toBeOnTheScreen();
